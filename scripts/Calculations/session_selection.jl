@@ -21,7 +21,7 @@ function targetintersections(sessionid)
     return mean(targetsintersected)
 end;
 
-blacklist = [] # Some files don't download correctly
+blacklist = [1047969464] # Cannot identify surface position (probe probably inserted too deep)
 
 nonan = x -> sum(.!isnan.(x)) ./ length(x)
 
