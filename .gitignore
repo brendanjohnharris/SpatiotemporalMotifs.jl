@@ -12,7 +12,6 @@
 /docs/build/
 Artifacts.toml
 LocalPreferences.toml
-Manifest.toml
 data
 docs/build/
 docs/site/
