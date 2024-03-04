@@ -9,6 +9,7 @@ import SpatiotemporalMotifs as SM
 import TimeseriesTools: freqs
 using Peaks
 using FileIO
+import SpatiotemporalMotifs: plotdir
 SM.@preamble
 set_theme!(foresight(:physics))
 
@@ -22,6 +23,8 @@ oursessions = session_table.ecephys_session_id
 
 path = datadir("PowerSpectra")
 Q = SM.calcquality(path)[stimulus = At(stimulus)]
+
+f = Figure(size = (900, 1080))
 
 begin # * Load data
     S = map(lookup(Q, :structure)) do structure
@@ -96,7 +99,7 @@ begin # * Format layers
 end;
 
 begin # * Mean power spectrum in V1
-    f = Figure()
+    # f = Figure()
     structure = "VISp"
     ax = Axis(f[1, 1]; xscale = log10, yscale = log10,
               limits = ((3, 300), (nothing, nothing)),
@@ -105,7 +108,8 @@ begin # * Mean power spectrum in V1
               ygridvisible = true,
               xgridstyle = :dash,
               ygridstyle = :dash,
-              xtickformat)
+              xtickformat,
+              ylabel = "Normalized power (a.u.)", title = structure)
 
     # * Band annotations
     vspan!(ax, extrema(theta)..., color = (crimson, 0.22),
@@ -136,9 +140,10 @@ begin # * Mean power spectrum in V1
                                  peak_threshold = 1, peak_width_limits = [1, 50])
     ff, ps = fooof(μ)
     lines!(ax, freqs(μ), ff.(freqs(μ)), color = (:gray, 0.8), linestyle = :dash)
-    text!(ax, 14, exp10(-2.5); text = "𝛂 = $(round(ps[:χ], sigdigits=3))", fontsize = 16)
+    text!(ax, 14, exp10(-2.6); text = "𝛂 = $(round(ps[:χ], sigdigits=3))", fontsize = 16)
 
-    axislegend(ax, position = :rt, labelsize = 13)
+    axislegend(ax, position = :rt, labelsize = 13, backgroundcolor = :white,
+               framevisible = true, padding = (5, 5, 5, 5))
     f
 end
 begin # * Calculate the channel-wise fits
@@ -152,8 +157,8 @@ begin # * Calculate the channel-wise fits
     L = [first.(l) for l in L]
 end
 begin # * Plot the exponent
-    f = Figure()
-    ax = Axis(f[1, 1]; xlabel = "Cortical depth (%)", ylabel = "1/f exponent",
+    # f = Figure()
+    ax = Axis(f[2, 1]; xlabel = "Cortical depth (%)", ylabel = "1/f exponent",
               limits = ((0, 1), (nothing, nothing)))
     for (i, l) in enumerate(upsample.(χ, 10))
         lines!(ax, lookup(l, 1), l; color = (SM.structurecolors[i], 1),
@@ -164,9 +169,10 @@ begin # * Plot the exponent
 end
 
 begin # * Plot fooof residuals
-    f = Figure()
-    ax2 = Axis(f[1, 1]; xscale = log10,
-               limits = ((3, 300), (-0.2, 0.9)), xtickformat) # xticksvisible = false, yaxisposition = :right,
+    # f = Figure()
+    ax2 = Axis(f[1, 2]; xscale = log10,
+               limits = ((3, 300), (-0.2, 0.9)), xtickformat, xlabel = "Frequency (Hz)",
+               ylabel = "Residual power (log, a.u.)", title = structure) # xticksvisible = false, yaxisposition = :right,
     #    xticklabelsvisible = false,
     Sr_log = deepcopy(ustripall.(Sl))
     Sr_log = map(Sr_log, meanlayers) do s, m
@@ -195,9 +201,9 @@ begin # * Plot fooof residuals
         # band!(ax, TimeseriesTools.freqs(μ), collect(μ .- σ), collect(μ .+ σ);
         #       color = (c, 0.32))
     end
-    C = Colorbar(f[1, 2], colormap = cgrad(SM.layercolors, categorical = true),
+    C = Colorbar(f[1, 2][1, 2], colormap = cgrad(SM.layercolors, categorical = true),
                  ticks = (range(0, 1, length = (2 * length(SM.layercolors) + 1))[2:2:end],
-                          ["VISp"] .* SM.layers))
+                          ["VISp"] .* SM.layers), ticklabelrotation = π / 2)
     # linkxaxes!(ax, ax2)
     f
 end
@@ -212,8 +218,8 @@ begin # * Calculate the residual power in each band
 end
 
 begin # * Plot the total residual theta power across channels
-    f = Figure()
-    ax = Axis(f[1, 1]; xlabel = "Cortical depth (%)", yticks = WilkinsonTicks(4),
+    # f = Figure()
+    ax = Axis(f[2, 2]; xlabel = "Cortical depth (%)", yticks = WilkinsonTicks(4),
               ylabel = "Residual 𝜽 ($(theta.left) – $(theta.right) Hz) [$(unit(eltype(S[1][1])))]",
               yticklabelrotation = π / 2)
 
@@ -228,8 +234,8 @@ begin # * Plot the total residual theta power across channels
     display(f)
 end
 begin # * Residual gamma power across channels
-    f = Figure()
-    ax = Axis(f[1, 1]; xlabel = "Cortical depth (%)", yticks = WilkinsonTicks(4),
+    # f = Figure()
+    ax = Axis(f[3, 2]; xlabel = "Cortical depth (%)", yticks = WilkinsonTicks(4),
               ylabel = "Residual 𝜸 ($(gamma.left) – $(gamma.right) Hz) [$(unit(eltype(S[1][1])))]",
               yticklabelrotation = π / 2)
 
@@ -245,8 +251,8 @@ begin # * Residual gamma power across channels
 end
 
 begin # * Plot the spectral width of the gamma band
-    f = Figure()
-    ax = Axis(f[1, 1]; xlabel = "Cortical depth (%)", yticks = WilkinsonTicks(4),
+    # f = Figure()
+    ax = Axis(f[3, 1]; xlabel = "Cortical depth (%)", yticks = WilkinsonTicks(4),
               ylabel = "𝜸 spectral width ($(gamma.left) – $(gamma.right) Hz) [Hz]",
               yticklabelrotation = π / 2)
 
@@ -266,3 +272,5 @@ begin # * Plot the spectral width of the gamma band
     axislegend(ax, position = :lb, nbanks = 2)
     display(f)
 end
+f |> display
+save(plotdir("PowerSpectra", "power_spectra.pdf"), f)

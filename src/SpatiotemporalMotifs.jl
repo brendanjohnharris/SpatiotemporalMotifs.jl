@@ -9,6 +9,7 @@ using CairoMakie
 using Foresight
 set_theme!(foresight(:physics))
 using Statistics
+export plotdir
 
 function _preamble()
     quote
