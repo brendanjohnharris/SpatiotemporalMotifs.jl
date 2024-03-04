@@ -3,6 +3,12 @@ import SpatiotemporalMotifs as SM
 using DimensionalData
 using PythonCall
 using Conda
+using StatsBase
+using JLD2
+using CairoMakie
+using Foresight
+set_theme!(foresight(:physics))
+using Statistics
 
 function _preamble()
     quote
@@ -47,6 +53,17 @@ plotdir(args...) = projectdir("plots", args...)
 export plotdir
 
 const structures = ["VISp", "VISl", "VISrl", "VISal", "VISpm", "VISam"]
+const connector = "-"
+const layers = ["1", "2/3", "4", "5", "6"]
+const layercolors = cgrad(:inferno)[range(start = 0, stop = 1, length = length(layers) + 1)][1:length(layers)]
+colors = [Foresight.cornflowerblue,
+          Foresight.crimson,
+          Foresight.cucumber,
+          Foresight.california,
+          Foresight.juliapurple]
+const structurecolors = [Makie.RGB(0.5, 0.5, 0.5),
+                         colors...]
+
 if !haskey(ENV, "DRWATSON_STOREPATCH")
     ENV["DRWATSON_STOREPATCH"] = "true"
 end
@@ -57,14 +74,89 @@ using Distributed
 using Foresight
 using TimeseriesTools.Unitful
 using Peaks
+using DimensionalData
+using JLD2
 using GeneralizedPhase
 using TimeseriesTools
 using ModulationIndices
+using DataFrames
 using ComplexityMeasures
 using JSON
 using DrWatson
 import AllenNeuropixels as AN
 import AllenNeuropixelsBase as ANB
+
+function calcquality(dirname; suffix = "jld2", connector = connector)
+    files = readdir(dirname)
+    ps = []
+    for f in files
+        f = joinpath(dirname, f)
+        _, parameters, _suffix = parse_savename(f; connector)
+        if _suffix == suffix
+            try
+                fl = jldopen(f)
+                if haskey(fl, "error")
+                    continue
+                else
+                    push!(ps, parameters)
+                end
+            catch
+                @warn e
+                continue
+            end
+        end
+    end
+    ks = keys.(ps) |> collect
+    vs = values.(ps) .|> collect
+    vs = stack(vs)
+    dims = unique(stack(ks))
+    uvs = unique.(eachrow(vs))
+    ddims = Tuple([Dim{Symbol(d)}(s) for (s, d) in zip(uvs, dims)])
+    Q = Array{Bool}(undef, length.(uvs)...)
+    Q = DimArray(Q, ddims)
+    Q .= false
+    for v in eachcol(vs)
+        ds = [Dim{Symbol(d)}(At(s)) for (s, d) in zip(v, dims)]
+        Q[ds...] = true
+    end
+    return Q
+end
+
+function commondepths(depths)
+    # Find a Range of depths that best approximates the given collection of depths
+    # * Get the smallest possible bound
+    I = ceil(maximum(minimum.(depths)), sigdigits = 2) ..
+        floor(minimum(maximum.(depths)), sigdigits = 2)
+    depths = map(depths) do d
+        d[d .∈ (I,)]
+    end
+    N = minimum(length.(depths)) # * We never want to sample a depth twice
+    guess = range(start = I.left, stop = I.right,
+                  length = 20)
+end
+
+function parselayernum(layername)
+    m = match(r"\d+", layername)
+    if m !== nothing
+        m = parse(Int, m.match)
+    else
+        m = 0
+    end
+    if m > 2
+        m -= 1 # Merge layer 2 and 3
+    end
+    return m
+end
+
+function layernum2name(num)
+    if num < 2
+        return string(num)
+    elseif num == 2
+        return "2/3"
+    else
+        return string(num + 1)
+    end
+end
 
 function send_powerspectra(sessionid; outpath = datadir("PowerSpectra"),
                            plotpath = plotdir("PowerSpectra", "full"),
@@ -74,88 +166,113 @@ function send_powerspectra(sessionid; outpath = datadir("PowerSpectra"),
               epoch = :longest,
               pass = (1, 300))
 
-    savefile = joinpath(outpath, "powerspectra_sessionid=$(params[:sessionid]).jld2")
-
-    if !rewrite && isfile(savefile)
-        return nothing
-    end
-    stimuli = ["spontaneous", "flash_250ms", r"Natural_Images"]
+    stimuli = ["spontaneous", "flash_250ms"] #, r"Natural_Images"]
     structures = SM.structures
 
-    session = AN.Session(params[:sessionid])
+    ssession = []
 
     for stimulus in stimuli
         for structure in structures
-            try
-                @info "Loading $(stimulus) LFP in $(structure) for session $(params[:sessionid])"
-                # if stimulus == "flashes" && partition
-                #     @info "Partitioning $stimulus"
-                #     _params = (; params..., stimulus, structure)
-                #     LFP = AN.extracttheta(_params)u"V"
-                # else
-                _params = (; params..., stimulus, structure)
-                if stimulus == r"Natural_Images"
-                    _params = (; _params..., epoch = (:longest, :active))
-                end
-                LFP = AN.formatlfp(session; tol = 4, _params...)u"V"
-                # end
-                LFP = set(LFP, Ti => Ti((times(LFP))u"s"))
-                # N = fit(UnitPower, LFP, dims=1)
-                # normalize!(LFP, N)
-                S = powerspectrum(LFP, 0.1; padding = 10000)
-
-                S = S[Freq(params[:pass][1] * u"Hz" .. params[:pass][2] * u"Hz")]
-                depths = AN.getchanneldepths(LFP; method = :probe)
-                S = set(S, Dim{:channel} => Dim{:depth}(depths))
-
-                # * Find peaks in the average power spectrum
-                s = mean(S, dims = Dim{:depth})[:, 1]
-                pks, vals = findmaxima(s, 10)
-                pks, proms = peakproms(pks, s)
-                promidxs = (proms ./ vals .> 0.25) |> collect
-                maxs = maximum(S, dims = Dim{:depth})[:, 1]
-                pks = pks[promidxs]
-                pks = TimeseriesTools.freqs(s)[pks]
-                vals = s[Freq(At(pks))]
-
-                f = Figure()
-                colorrange = extrema(depths)
-                ax = Axis(f[1, 1]; xscale = log10, yscale = log10, xtickformat = "{:.1f}",
-                          limits = (params[:pass], (nothing, nothing)), xgridvisible = true,
-                          ygridvisible = true, topspinevisible = true,
-                          title = "$(_params[:structure]), $(_params[:stimulus])",
-                          xminorticksvisible = true, yminorticksvisible = true,
-                          xminorgridvisible = true, yminorgridvisible = true,
-                          xminorgridstyle = :dash)
-                p = traces!(ax, S[2:end, :]; colormap = cgrad(sunset, alpha = 0.4),
-                            linewidth = 3, colorrange)
-                scatter!(ax, ustrip.(pks), collect(ustrip.(vals)), color = :black,
-                         markersize = 10, marker = :dtriangle)
-                text!(ax, ustrip.(pks), collect(ustrip.(vals));
-                      text = string.(round.(eltype(pks), pks, digits = 1)),
-                      align = (:center, :bottom), color = :black, rotation = 0,
-                      fontsize = 12,
-                      offset = (0, 3))
-
-                c = Colorbar(f[1, 2]; label = "Channel depth (μm)", colorrange,
-                             colormap = sunset)
-                # rowsize!(f.layout, 1, Relative(0.8))
-                mkpath(joinpath(plotpath, "$(_params[:sessionid])"))
-                wsave(joinpath(plotpath, "$(_params[:sessionid])",
-                               "$(_params[:stimulus])_$(_params[:structure]).pdf"), f)
-
-                # * Format data for saving
-                channels = lookup(LFP, :channel)
-                streamlinedepths = AN.getchanneldepths(session, LFP; method = :streamlines)
-                layerinfo = AN.Plots._layerplot(session, channels)
-                D = DimensionalData.metadata(S)
-                @pack! D = channels, streamlinedepths, layerinfo
-                S = set(S; metadata = D)
-                tagsave(outfile, @strdict S)
-            catch e
-                @warn e
-                tagsave(outfile, "error" => e)
+            @info "Loading $(stimulus) LFP in $(structure) for session $(params[:sessionid])"
+            # if stimulus == "flashes" && partition
+            #     @info "Partitioning $stimulus"
+            #     _params = (; params..., stimulus, structure)
+            #     LFP = AN.extracttheta(_params)u"V"
+            # else
+            _params = (; params..., stimulus, structure)
+            if stimulus == r"Natural_Images"
+                _params = (; _params..., epoch = (:longest, :active))
             end
+            outfile = joinpath(outpath,
+                               savename(Dict("sessionid" => params[:sessionid],
+                                             "stimulus" => string(stimulus),
+                                             "structure" => structure), "jld2",
+                                        connector = "-"))
+            @info outfile
+            function isbad()
+                if !isfile(outfile)
+                    return true
+                end
+                f = jldopen(outfile)
+                ind = haskey(f, "error")
+                close(f)
+                if ind
+                    return true
+                else
+                    return false
+                end
+            end
+            if !rewrite && !isbad()
+                @info "Already calculated: $(stimulus), $(structure), $(params[:sessionid])"
+                continue
+            end
+            if isempty(ssession) # Only initialize session if we have to
+                session = AN.Session(params[:sessionid])
+                push!(ssession, session)
+            else
+                session = ssession[1]
+            end
+            @info "Calculating $(stimulus) LFP in $(structure) for session $(params[:sessionid])"
+            # try
+            LFP = AN.formatlfp(session; tol = 4, _params...)u"V"
+            # end
+            LFP = set(LFP, Ti => Ti((times(LFP))u"s"))
+            channels = lookup(LFP, :channel)
+            # N = fit(UnitPower, LFP, dims=1)
+            # normalize!(LFP, N)
+            S = powerspectrum(LFP, 0.1; padding = 10000)
+
+            S = S[Freq(params[:pass][1] * u"Hz" .. params[:pass][2] * u"Hz")]
+            depths = AN.getchanneldepths(session, LFP; method = :probe)
+            S = set(S, Dim{:channel} => Dim{:depth}(depths))
+
+            # * Find peaks in the average power spectrum
+            s = mean(S, dims = Dim{:depth})[:, 1]
+            pks, vals = findmaxima(s, 10)
+            pks, proms = peakproms(pks, s)
+            promidxs = (proms ./ vals .> 0.25) |> collect
+            maxs = maximum(S, dims = Dim{:depth})[:, 1]
+            pks = pks[promidxs]
+            pks = TimeseriesTools.freqs(s)[pks]
+            vals = s[Freq(At(pks))]
+
+            f = Figure()
+            colorrange = extrema(depths)
+            ax = Axis(f[1, 1]; xscale = log10, yscale = log10, xtickformat = "{:.1f}",
+                      limits = (params[:pass], (nothing, nothing)), xgridvisible = true,
+                      ygridvisible = true, topspinevisible = true,
+                      title = "$(_params[:structure]), $(_params[:stimulus])",
+                      xminorticksvisible = true, yminorticksvisible = true,
+                      xminorgridvisible = true, yminorgridvisible = true,
+                      xminorgridstyle = :dash)
+            p = traces!(ax, S[2:end, :]; colormap = cgrad(sunset, alpha = 0.4),
+                        linewidth = 3, colorrange)
+            scatter!(ax, ustrip.(pks), collect(ustrip.(vals)), color = :black,
+                     markersize = 10, marker = :dtriangle)
+            text!(ax, ustrip.(pks), collect(ustrip.(vals));
+                  text = string.(round.(eltype(pks), pks, digits = 1)),
+                  align = (:center, :bottom), color = :black, rotation = 0,
+                  fontsize = 12,
+                  offset = (0, 3))
+
+            c = Colorbar(f[1, 2]; label = "Channel depth (μm)", colorrange,
+                         colormap = sunset)
+            # rowsize!(f.layout, 1, Relative(0.8))
+            mkpath(joinpath(plotpath, "$(_params[:sessionid])"))
+            wsave(joinpath(plotpath, "$(_params[:sessionid])",
+                           "$(_params[:stimulus])_$(_params[:structure]).pdf"), f)
+
+            # * Format data for saving
+            streamlinedepths = AN.getchanneldepths(session, LFP; method = :streamlines)
+            layerinfo = AN.Plots._layerplot(session, channels)
+            D = Dict(DimensionalData.metadata(LFP))
+            @pack! D = channels, streamlinedepths, layerinfo
+            S = rebuild(S; metadata = D)
+            tagsave(outfile, @strdict S)
+            # catch e
+            #     @warn e
+            #     tagsave(outfile, Dict("error" => sprint(showerror, e)))
+            # end
             LFP = []
             S = []
             s = []
@@ -167,14 +284,14 @@ function send_powerspectra(sessionid; outpath = datadir("PowerSpectra"),
 end
 
 function send_calculations(D;
-                           pass_θ = (5, 10) .* u"Hz",
+                           pass_θ = (4, 10) .* u"Hz",
                            pass_γ = (40, 100) .* u"Hz",
                            ΔT = -0.10u"s" .. 0.6u"s",
                            doupsample = 0,
                            rewrite = false,
                            outpath)
     @unpack sessionid, structure, stimulus = D
-    filename = joinpath(outpath, savename(D, "jld2"))
+    filename = joinpath(outpath, savename(D, "jld2"), connector = "-")
     if !rewrite && isfile(filename)
         @info "Calculations already complete for $(sessionid), $(structure), $(stimulus)"
         return GC.gc()
