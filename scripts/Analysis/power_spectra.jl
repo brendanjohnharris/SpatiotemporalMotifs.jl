@@ -13,10 +13,11 @@ import SpatiotemporalMotifs: plotdir
 SM.@preamble
 set_theme!(foresight(:physics))
 
-stimulus = "spontaneous"
+stimulus = "flash_250ms"
 xtickformat = x -> string.(round.(Int, x))
 theta = 4 .. 10
 gamma = 40 .. 100
+alpha = 0.8
 
 session_table = load(datadir("session_table.jld2"), "session_table")
 oursessions = session_table.ecephys_session_id
@@ -146,6 +147,7 @@ begin # * Mean power spectrum in V1
                framevisible = true, padding = (5, 5, 5, 5))
     f
 end
+
 begin # * Calculate the channel-wise fits
     Sl = map(S) do s
         s = dropdims(mean(s, dims = :sessionid), dims = :sessionid)
@@ -156,12 +158,13 @@ begin # * Calculate the channel-wise fits
     χ = [getindex.(last.(l), :χ) for l in L]
     L = [first.(l) for l in L]
 end
+
 begin # * Plot the exponent
     # f = Figure()
     ax = Axis(f[2, 1]; xlabel = "Cortical depth (%)", ylabel = "1/f exponent",
               limits = ((0, 1), (nothing, nothing)))
     for (i, l) in enumerate(upsample.(χ, 10))
-        lines!(ax, lookup(l, 1), l; color = (SM.structurecolors[i], 1),
+        lines!(ax, lookup(l, 1), l; color = (SM.structurecolors[i], alpha),
                label = SM.structures[i])
     end
     axislegend(ax, position = :lt, nbanks = 2)
@@ -172,7 +175,7 @@ begin # * Plot fooof residuals
     # f = Figure()
     ax2 = Axis(f[1, 2]; xscale = log10,
                limits = ((3, 300), (-0.2, 0.9)), xtickformat, xlabel = "Frequency (Hz)",
-               ylabel = "Residual power (log, a.u.)", title = structure) # xticksvisible = false, yaxisposition = :right,
+               ylabel = "Residual power (dB)", title = structure) # xticksvisible = false, yaxisposition = :right,
     #    xticklabelsvisible = false,
     Sr_log = deepcopy(ustripall.(Sl))
     Sr_log = map(Sr_log, meanlayers) do s, m
@@ -197,13 +200,14 @@ begin # * Plot fooof residuals
         end
         # σ = std(s, dims = :layer) ./ 2
         # σ = dropdims(σ, dims = :layer) |> ustripall
-        lines!(ax2, TimeseriesTools.freqs(μ), μ; color = (c, 0.7))
+        lines!(ax2, TimeseriesTools.freqs(μ), μ; color = (c, alpha))
         # band!(ax, TimeseriesTools.freqs(μ), collect(μ .- σ), collect(μ .+ σ);
         #       color = (c, 0.32))
     end
     C = Colorbar(f[1, 2][1, 2], colormap = cgrad(SM.layercolors, categorical = true),
                  ticks = (range(0, 1, length = (2 * length(SM.layercolors) + 1))[2:2:end],
-                          ["VISp"] .* SM.layers), ticklabelrotation = π / 2)
+                          ["VISp"] .* SM.layers), ticklabelrotation = π / 2,
+                 ticklabelsize = 13)
     # linkxaxes!(ax, ax2)
     f
 end
@@ -219,7 +223,7 @@ end
 
 begin # * Plot the total residual theta power across channels
     # f = Figure()
-    ax = Axis(f[2, 2]; xlabel = "Cortical depth (%)", yticks = WilkinsonTicks(4),
+    ax = Axis(f[3, 1]; xlabel = "Cortical depth (%)", yticks = WilkinsonTicks(4),
               ylabel = "Residual 𝜽 ($(theta.left) – $(theta.right) Hz) [$(unit(eltype(S[1][1])))]",
               yticklabelrotation = π / 2)
 
@@ -227,12 +231,13 @@ begin # * Plot the total residual theta power across channels
         ss = Sr[structure = At(s)][Freq(theta)]
         ss = upsample(ss, 5)
         lines!(ax, lookup(ss, 2), sum(parent(ss), dims = 1)[:] ./ step(lookup(ss, 1));
-               color = SM.structurecolors[i], label = SM.structures[i])
+               color = (SM.structurecolors[i], alpha), label = SM.structures[i])
     end
 
     axislegend(ax, position = :lt, nbanks = 2)
     display(f)
 end
+
 begin # * Residual gamma power across channels
     # f = Figure()
     ax = Axis(f[3, 2]; xlabel = "Cortical depth (%)", yticks = WilkinsonTicks(4),
@@ -243,7 +248,7 @@ begin # * Residual gamma power across channels
         ss = Sr[structure = At(s)][Freq(gamma)]
         ss = upsample(ss, 5)
         lines!(ax, lookup(ss, 2), sum(parent(ss), dims = 1)[:] ./ step(lookup(ss, 1));
-               color = SM.structurecolors[i], label = SM.structures[i])
+               color = (SM.structurecolors[i], alpha), label = SM.structures[i])
     end
 
     axislegend(ax, position = :rt, nbanks = 2)
@@ -252,12 +257,13 @@ end
 
 begin # * Plot the spectral width of the gamma band
     # f = Figure()
-    ax = Axis(f[3, 1]; xlabel = "Cortical depth (%)", yticks = WilkinsonTicks(4),
+    ax = Axis(f[2, 2]; xlabel = "Cortical depth (%)", yticks = WilkinsonTicks(4),
               ylabel = "𝜸 spectral width ($(gamma.left) – $(gamma.right) Hz) [Hz]",
               yticklabelrotation = π / 2)
 
     for (i, s) in enumerate(SM.structures)
         ss = Sr[structure = At(s)][Freq(gamma)]
+        ss[ss .< 0] .= 0.0 # ! Ok?
         df = ustrip(step(lookup(Sr[1], Freq)))
         N = parent(ss) ./ (sum(parent(ss), dims = 1) ./ df) # A density
         fs = collect(lookup(ss, 1))
@@ -266,7 +272,7 @@ begin # * Plot the spectral width of the gamma band
         σ = DimArray(σ, (Dim{:depth}(lookup(ss, 2)),))
         σ = upsample(σ, 5)
         lines!(ax, lookup(σ, 1), σ[:];
-               color = SM.structurecolors[i], label = SM.structures[i])
+               color = (SM.structurecolors[i], alpha), label = SM.structures[i])
     end
 
     axislegend(ax, position = :lb, nbanks = 2)

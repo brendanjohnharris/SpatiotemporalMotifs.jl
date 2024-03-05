@@ -56,14 +56,14 @@ export plotdir
 const structures = ["VISp", "VISl", "VISrl", "VISal", "VISpm", "VISam"]
 const connector = "-"
 const layers = ["1", "2/3", "4", "5", "6"]
-const layercolors = cgrad(:inferno)[range(start = 0, stop = 1, length = length(layers) + 1)][1:length(layers)]
+const layercolors = reverse(binarysunset[range(start = 0, stop = 1,
+                                               length = length(layers))])
 colors = [Foresight.cornflowerblue,
           Foresight.crimson,
           Foresight.cucumber,
           Foresight.california,
           Foresight.juliapurple]
-const structurecolors = [Makie.RGB(0.5, 0.5, 0.5),
-                         colors...]
+const structurecolors = [colors..., Makie.RGB(0.5, 0.5, 0.5)]
 
 if !haskey(ENV, "DRWATSON_STOREPATCH")
     ENV["DRWATSON_STOREPATCH"] = "true"
@@ -159,6 +159,20 @@ function layernum2name(num)
     end
 end
 
+function isbad()
+    if !isfile(outfile)
+        return true
+    end
+    f = jldopen(outfile)
+    ind = haskey(f, "error")
+    close(f)
+    if ind
+        return true
+    else
+        return false
+    end
+end
+
 function send_powerspectra(sessionid; outpath = datadir("PowerSpectra"),
                            plotpath = plotdir("PowerSpectra", "full"),
                            rewrite = false)
@@ -190,19 +204,7 @@ function send_powerspectra(sessionid; outpath = datadir("PowerSpectra"),
                                              "structure" => structure), "jld2",
                                         connector = "-"))
             @info outfile
-            function isbad()
-                if !isfile(outfile)
-                    return true
-                end
-                f = jldopen(outfile)
-                ind = haskey(f, "error")
-                close(f)
-                if ind
-                    return true
-                else
-                    return false
-                end
-            end
+
             if !rewrite && !isbad()
                 @info "Already calculated: $(stimulus), $(structure), $(params[:sessionid])"
                 continue
@@ -292,7 +294,9 @@ function send_calculations(D;
                            rewrite = false,
                            outpath)
     @unpack sessionid, structure, stimulus = D
-    filename = joinpath(outpath, savename(D, "jld2"), connector = "-")
+    outfile = joinpath(outpath, savename(D, "jld2"), connector = "-")
+
+    @info outfile
     if !rewrite && isfile(filename)
         @info "Calculations already complete for $(sessionid), $(structure), $(stimulus)"
         return GC.gc()
