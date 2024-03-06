@@ -173,8 +173,8 @@ function isbad()
     end
 end
 
-function send_powerspectra(sessionid; outpath = datadir("PowerSpectra"),
-                           plotpath = plotdir("PowerSpectra", "full"),
+function send_powerspectra(sessionid; outpath = datadir("power_spectra"),
+                           plotpath = plotdir("power_spectra", "full"),
                            rewrite = false)
     params = (;
               sessionid,
