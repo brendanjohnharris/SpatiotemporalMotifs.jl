@@ -73,12 +73,13 @@ using IntervalSets
 using Normalization
 using Distributed
 using Foresight
-using TimeseriesTools.Unitful
+using DSP
 using Peaks
 using DimensionalData
 using JLD2
 using GeneralizedPhase
 using TimeseriesTools
+using TimeseriesTools.Unitful
 using ModulationIndices
 using DataFrames
 using ComplexityMeasures
@@ -173,6 +174,11 @@ function isbad()
     end
 end
 
+function on_error(e)
+    @warn e
+    return false
+end
+
 function send_powerspectra(sessionid; outpath = datadir("power_spectra"),
                            plotpath = plotdir("power_spectra", "full"),
                            rewrite = false)
@@ -189,11 +195,8 @@ function send_powerspectra(sessionid; outpath = datadir("power_spectra"),
     for stimulus in stimuli
         for structure in structures
             @info "Loading $(stimulus) LFP in $(structure) for session $(params[:sessionid])"
-            # if stimulus == "flashes" && partition
-            #     @info "Partitioning $stimulus"
-            #     _params = (; params..., stimulus, structure)
-            #     LFP = AN.extracttheta(_params)u"V"
-            # else
+            # if stimulus == "flashes" && partition @info "Partitioning $stimulus" _params =
+            #     (; params..., stimulus, structure) LFP = AN.extracttheta(_params)u"V" else
             _params = (; params..., stimulus, structure)
             if stimulus == r"Natural_Images"
                 _params = (; _params..., epoch = (:longest, :active))
@@ -221,8 +224,7 @@ function send_powerspectra(sessionid; outpath = datadir("power_spectra"),
             # end
             LFP = set(LFP, Ti => Ti((times(LFP))u"s"))
             channels = lookup(LFP, :channel)
-            # N = fit(UnitPower, LFP, dims=1)
-            # normalize!(LFP, N)
+            # N = fit(UnitPower, LFP, dims=1) normalize!(LFP, N)
             S = powerspectrum(LFP, 0.1; padding = 10000)
 
             S = S[Freq(params[:pass][1] * u"Hz" .. params[:pass][2] * u"Hz")]
@@ -272,10 +274,7 @@ function send_powerspectra(sessionid; outpath = datadir("power_spectra"),
             @pack! D = channels, streamlinedepths, layerinfo
             S = rebuild(S; metadata = D)
             tagsave(outfile, @strdict S)
-            # catch e
-            #     @warn e
-            #     tagsave(outfile, Dict("error" => sprint(showerror, e)))
-            # end
+            # catch e @warn e tagsave(outfile, Dict("error" => sprint(showerror, e))) end
             LFP = []
             S = []
             s = []
@@ -286,7 +285,7 @@ function send_powerspectra(sessionid; outpath = datadir("power_spectra"),
     end
 end
 
-function send_calculations(D;
+function send_calculations(D::Dict, session = AN.Session(D[:sessionid]);
                            pass_θ = (4, 10) .* u"Hz",
                            pass_γ = (40, 100) .* u"Hz",
                            ΔT = -0.10u"s" .. 0.6u"s",
@@ -294,14 +293,13 @@ function send_calculations(D;
                            rewrite = false,
                            outpath)
     @unpack sessionid, structure, stimulus = D
-    outfile = joinpath(outpath, savename(D, "jld2"), connector = "-")
+    outfile = joinpath(outpath, savename(D, "jld2"; connector = "-"))
 
     @info outfile
-    if !rewrite && isfile(filename)
+    if !rewrite && isfile(outfile)
         @info "Calculations already complete for $(sessionid), $(structure), $(stimulus)"
         return GC.gc()
     end
-    session = AN.Session(sessionid)
 
     probeid = AN.getprobe(session, structure)
 
@@ -336,8 +334,7 @@ function send_calculations(D;
     tmap = set(tmap .* u"s", Ti => times(tmap) .* u"s")
     LFP = rectify(LFP, dims = Dim{:depth})
 
-    # N = fit(RobustZScore, LFP, dims=1)
-    # LFP = normalize(LFP, N)
+    # N = fit(RobustZScore, LFP, dims=1) LFP = normalize(LFP, N)
 
     θ = bandpass(LFP, pass_θ)
     doupsample > 0 && (θ = upsample(θ, doupsample, Dim{:depth}))
@@ -348,17 +345,15 @@ function send_calculations(D;
     a = hilbert(θ)
     aᵧ = hilbert(γ)
 
-    # r = abs.(aᵧ)
-    # ∂r∂t = centralderiv(r, dims=Ti)
-    # ∂r∂x = centralderiv(r, dims=Dim{:depth})
-    # v̂ᵧ = ∂r∂x ./ ∂r∂t
+    r = abs.(aᵧ)
 
     ϕ = angle.(a) # _generalized_phase(ustrip(θ)) #
     ϕᵧ = angle.(aᵧ) # _generalized_phase(ustrip(γ)) #
 
     ω = centralderiv(ϕ, dims = Ti, grad = phasegrad) # Angular Frequency
     k = -centralderiv(ϕ, dims = Dim{:depth}, grad = phasegrad) # Wavenumber
-    # We have a minus sign because the hilbert transform uses the convention of ϕ = ωt (for univariate; phase increases with time), which implies ϕ = ωt - kx (for multivariate).
+    # We have a minus sign because the hilbert transform uses the convention of ϕ = ωt (for
+    # univariate; phase increases with time), which implies ϕ = ωt - kx (for multivariate).
     v = ω ./ k # Phase velocity of theta
 
     ωᵧ = centralderiv(ϕᵧ, dims = Ti, grad = phasegrad) # Frequency
@@ -373,16 +368,18 @@ function send_calculations(D;
         x = matchdim(x; dims = 1)
         x = stack(Dim{:changetime}(times(x)), x)
     end
+    V = alignmatchcat(LFP)
     x = alignmatchcat(θ)
     y = alignmatchcat(γ)
     a, ϕ, ϕᵧ, ω, k, v, aᵧ, ωᵧ, kᵧ, vₚ, vᵧ = alignmatchcat.([a, ϕ, ϕᵧ, ω, k, v, aᵧ, ωᵧ, kᵧ,
                                                             vₚ, vᵧ])
     out = Dict("channels" => channels,
-               "trials" => trials[2:(end - 2), :],
+               "trials" => trials[2:(end - 1), :],
                "streamlinedepths" => streamlinedepths,
                "layerinfo" => layerinfo,
                "pass_θ" => pass_θ,
                "pass_γ" => pass_γ,
+               "V" => V,
                "x" => x,
                "y" => y,
                "a" => a,
@@ -392,15 +389,12 @@ function send_calculations(D;
                "k" => k,
                "v" => v,
                "aᵧ" => aᵧ,
-               # "r" => r,
-               # "∂r∂t" => ∂r∂t,
-               # "∂r∂x" => ∂r∂x,
-               # "v̂ᵧ" => v̂ᵧ,
+               "r" => r,
                "ωᵧ" => ωᵧ,
                "kᵧ" => kᵧ,
                "vₚ" => vₚ,
                "vᵧ" => vᵧ)
-    @tagsave filename out
+    @tagsave outfile out
 
     x = []
     y = []
@@ -412,29 +406,34 @@ function send_calculations(D;
     v = []
     aᵧ = []
     r = []
-    ∂r∂t = []
-    ∂r∂x = []
-    v̂ᵧ = []
     ωᵧ = []
     kᵧ = []
     vₚ = []
     vᵧ = []
     GC.gc()
+    return true
 end
 
-function send_SaveBehaviorResponse(sessionid;
-                                   structures = ["VISp", "VISl", "VISrl", "VISal", "VISpm",
-                                                 "VISam"], kwargs...)
+function send_calculations(sessionid;
+                           structures = ["VISp", "VISl", "VISrl", "VISal", "VISpm",
+                                         "VISam"], kwargs...)
     session = AN.Session(sessionid)
     probestructures = AN.getprobestructures(session, structures)
     for (probeid, structure) in probestructures
         for stimulus in ["flash_250ms", r"Natural_Images"]
             @info "Saving $(sessionid) $(structure) $(stimulus)"
-            D = Dict()
-            @pack! D = sessionid, structure, stimulus
-            send_SaveBehaviorResponse(sessionid, structure, stimulus; kwargs...)
+            D = @dict sessionid structure stimulus
+            send_calculations(D, session; kwargs...)
         end
+    end
+    return true
+end
+
+function test_calculations(args...; kwargs...)
+    while true
+        sleep(60)
+        @info "Poll: $(ENV["PBS_JOBID"])"
     end
 end
 
-end
+end # module

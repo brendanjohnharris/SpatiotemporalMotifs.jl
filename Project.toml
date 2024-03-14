@@ -37,6 +37,7 @@ TimeseriesFeatures = "f3112013-b923-4dfa-b867-8806c885f823"
 TimeseriesTools = "380cddd1-6ef2-46ca-b087-e7151fb095ff"
 USydClusters = "0d53aa51-fded-4285-958f-a79747f7b7b4"
 UnPack = "3a884ed6-31ef-47d7-9d2a-63182c4928ed"
+Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
 
 [compat]
 AllenNeuropixelsBase = "0.1"
