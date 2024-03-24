@@ -694,7 +694,9 @@ version = "2.13.93+0"
 
 [[deps.Foresight]]
 deps = ["Clustering", "Colors", "FileIO", "Format", "ImageClipboard", "Images", "LinearAlgebra", "Makie", "Preferences", "Random", "Requires"]
-git-tree-sha1 = "b89db46c42a36fbd32a20f024e80d3a17210dfb4"
+git-tree-sha1 = "b73cdc1c551f8b6d7f821f79c1f3ea0325884596"
+repo-rev = "main"
+repo-url = "https://github.com/brendanjohnharris/Foresight.jl.git"
 uuid = "c6e1034d-1844-4b96-abf2-c5824a5aa8c3"
 version = "0.2.1"
 
@@ -1570,9 +1572,9 @@ version = "1.2.0"
 
 [[deps.Normalization]]
 deps = ["Accessors", "JuliennedArrays", "LinearAlgebra", "Statistics", "StatsAPI"]
-git-tree-sha1 = "15e38c731d861896dc34c6c6f389dcb6ff54a15f"
+git-tree-sha1 = "0d9ad049c630f631229493d59250d2b246c3043f"
 uuid = "be38d6a3-8366-4a42-ad57-222272b5bbe7"
-version = "0.6.0"
+version = "0.6.1"
 weakdeps = ["DataFrames", "DimensionalData", "Unitful"]
 
     [deps.Normalization.extensions]

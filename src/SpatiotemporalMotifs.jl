@@ -1,5 +1,6 @@
 module SpatiotemporalMotifs
 import SpatiotemporalMotifs as SM
+using DrWatson.Dates
 using DimensionalData
 using PythonCall
 using Conda
@@ -56,8 +57,10 @@ export plotdir
 const structures = ["VISp", "VISl", "VISrl", "VISal", "VISpm", "VISam"]
 const connector = "-"
 const layers = ["1", "2/3", "4", "5", "6"]
-const layercolors = reverse(binarysunset[range(start = 0, stop = 1,
-                                               length = length(layers))])
+# const layercolors = reverse(binarysunset[range(start = 0, stop = 1,
+const layercolors = (cgrad(:inferno)[range(start = 0, stop = 0.8,
+                                           length = length(layers))])
+
 colors = [Foresight.cornflowerblue,
           Foresight.crimson,
           Foresight.cucumber,
@@ -113,7 +116,13 @@ function calcquality(dirname; suffix = "jld2", connector = connector)
     vs = stack(vs)
     dims = unique(stack(ks))
     uvs = unique.(eachrow(vs))
+    si = findfirst(dims .== ["stimulus"])
+    if !isnothing(si)
+        vs = replace(vs, "Natural_Images" => r"Natural_Images")
+        uvs[si] = replace(uvs[si], "Natural_Images" => r"Natural_Images")
+    end
     ddims = Tuple([Dim{Symbol(d)}(s) for (s, d) in zip(uvs, dims)])
+
     Q = Array{Bool}(undef, length.(uvs)...)
     Q = DimArray(Q, ddims)
     Q .= false
@@ -127,8 +136,8 @@ end
 function commondepths(depths)
     # Find a Range of depths that best approximates the given collection of depths
     # * Get the smallest possible bound
-    I = ceil(maximum(minimum.(depths)), sigdigits = 2) ..
-        floor(minimum(maximum.(depths)), sigdigits = 2)
+    I = ceil(median(minimum.(depths)), sigdigits = 2) ..
+        floor(median(maximum.(depths)), sigdigits = 2)
     depths = map(depths) do d
         d[d .∈ (I,)]
     end
@@ -179,6 +188,21 @@ function on_error(e)
     return false
 end
 
+function val_to_string(v)
+    if v isa Regex
+        return v.pattern
+    else
+        return string(v)
+    end
+end
+
+allowedtypes = (Real, String, Regex, Symbol, TimeType, Vector, Tuple)
+
+function savepath(D, ext = "", args...)
+    filename = savename(D, ext; connector, val_to_string, allowedtypes)
+    return joinpath(args..., filename)
+end
+
 function send_powerspectra(sessionid; outpath = datadir("power_spectra"),
                            plotpath = plotdir("power_spectra", "full"),
                            rewrite = false)
@@ -201,11 +225,9 @@ function send_powerspectra(sessionid; outpath = datadir("power_spectra"),
             if stimulus == r"Natural_Images"
                 _params = (; _params..., epoch = (:longest, :active))
             end
-            outfile = joinpath(outpath,
-                               savename(Dict("sessionid" => params[:sessionid],
-                                             "stimulus" => string(stimulus),
-                                             "structure" => structure), "jld2",
-                                        connector = "-"))
+            outfile = savepath(Dict("sessionid" => params[:sessionid],
+                                    "stimulus" => string(stimulus),
+                                    "structure" => structure), "jld2", outpath)
             @info outfile
 
             if !rewrite && !isbad()
@@ -293,7 +315,7 @@ function send_calculations(D::Dict, session = AN.Session(D[:sessionid]);
                            rewrite = false,
                            outpath)
     @unpack sessionid, structure, stimulus = D
-    outfile = joinpath(outpath, savename(D, "jld2"; connector = "-"))
+    outfile = savepath(D, "jld2", outpath)
 
     @info outfile
     if !rewrite && isfile(outfile)
@@ -374,7 +396,7 @@ function send_calculations(D::Dict, session = AN.Session(D[:sessionid]);
     a, ϕ, ϕᵧ, ω, k, v, aᵧ, ωᵧ, kᵧ, vₚ, vᵧ = alignmatchcat.([a, ϕ, ϕᵧ, ω, k, v, aᵧ, ωᵧ, kᵧ,
                                                             vₚ, vᵧ])
     out = Dict("channels" => channels,
-               "trials" => trials[2:(end - 1), :],
+               "trials" => trials[2:(end - 2), :],
                "streamlinedepths" => streamlinedepths,
                "layerinfo" => layerinfo,
                "pass_θ" => pass_θ,
@@ -431,9 +453,160 @@ end
 
 function test_calculations(args...; kwargs...)
     while true
-        sleep(60)
+        X = randn(20000, 20000) # Requires at least 3Gb memory
+        sleep(120)
         @info "Poll: $(ENV["PBS_JOBID"])"
     end
+end
+
+function load_calculations(Q; path = datadir("calculations"), stimulus, vars = [:x, :k])
+    out = map(lookup(Q, :structure)) do structure
+        out = map(lookup(Q, :sessionid)) do sessionid
+            if Q[sessionid = At(sessionid), structure = At(structure)] == 0
+                return nothing
+            end
+            filename = savepath((@strdict sessionid structure stimulus), "jld2", path)
+            f = jldopen(filename, "r")
+            @unpack streamlinedepths, layerinfo, pass_γ, pass_θ, trials = f
+            ovars = Dict()
+            for v in vars
+                push!(ovars, v => f[string(v)])
+            end
+            close(f)
+
+            # Depth and layer info
+            layernames = DimArray(layerinfo[1],
+                                  Dim{:depth}(lookup(ovars[first(vars)], Dim{:depth})))
+            layernums = DimArray(layerinfo[3],
+                                 Dim{:depth}(lookup(ovars[first(vars)], Dim{:depth})))
+
+            # Remove poor quality depth estimates
+            idxs = 1:size(ovars[first(vars)], 2)
+            try
+                while !issorted(streamlinedepths)
+                    idxs = idxs[1:(end - 1)]
+                    streamlinedepths = streamlinedepths[idxs]
+                end
+            catch e
+                return nothing
+            end
+            layernames = layernames[idxs]
+
+            ovars = map(collect(ovars)) do (v, k)
+                k = k[:, idxs, :]
+
+                # We know the depths are sorted from above
+                k = set(k, Dim{:depth}(streamlinedepths))
+                k = set(k,
+                        Dim{:depth} => DimensionalData.Irregular(extrema(streamlinedepths)))
+
+                @assert issorted(lookup(k, Dim{:depth}))
+                push!(k.metadata.val, :layernames => layernames)
+                return v => k
+            end
+
+            return (; streamlinedepths, layernames, pass_γ, pass_θ, trials,
+                    sessionid, ovars...)
+        end
+        out = filter(!isnothing, out)
+        out = filter(x -> maximum(x[:streamlinedepths]) > 0.90, out) # Remove sessions that don't have data to a reasonable depth
+    end
+    return out
+end
+
+function unify_calculations(out; vars = [:x, :k])
+    stimuli = [[DimensionalData.metadata(o[first(vars)])[:stimulus] for o in out[i]]
+               for i in eachindex(out)]
+    stimulus = only(unique(vcat(stimuli...)))
+    uni = map(out) do o
+        sessionids = getindex.(o, :sessionid)
+        streamlinedepths = getindex.(o, :streamlinedepths)
+        unidepths = commondepths(streamlinedepths)
+        layernames = map(o) do p
+            l = p[:layernames]
+            l = set(l, Dim{:depth} => p[:streamlinedepths])
+            if last(l) ∈ ["or", "scwm"] # Sometime anomalies at the boundary; we fall back on the channel structure labels, the ground truth, for confidence that this is still a cortical channel
+                l[end] = l[end - 1]
+            end
+            l[depth = Near(unidepths)]
+        end
+        layernums = [DimArray(parselayernum.(parent(p)), dims(p)) for p in layernames]
+
+        # * We want to get a unified array, plus (potentially overlapping) intervals for
+        # * each layer
+        layerints = map(unique(vcat(parent.(layernums)...))) do l
+            depths = map(layernums) do ls
+                if sum(ls .== l) == 0
+                    m = mean([maximum(lookup(ls[ls .== l - 1], :depth)),
+                              minimum(lookup(ls[ls .== l + 1], :depth))])
+                    [m, m]
+                else
+                    collect(extrema(lookup(ls, :depth)[ls .== l]))
+                end
+            end
+            Interval(extrema(vcat(depths...))...)
+        end
+        ovars = Dict()
+        for v in vars
+            k = map(o) do p
+                k = p[v]
+                k = k[depth = Near(unidepths)]
+                k = set(k, Dim{:depth} => Dim{:depth}(unidepths))
+                if stimulus == r"Natural_Images"
+                    k = set(k,
+                            Dim{:changetime} => Dim{:trial}(p[:trials].hit[1:size(k,
+                                                                                  :changetime)]))
+                else
+                    k = set(k, Dim{:changetime} => Dim{:trial}(1:size(k, :changetime)))
+                end
+                return k
+            end
+            if stimulus == r"Natural_Images"
+                k = cat(k...; dims = Dim{:trial}(vcat(lookup.(k, :trial)...)))
+            else
+                k = stack(Dim{:sessionid}(sessionids), k)
+            end
+            push!(ovars, v => k)
+        end
+
+        return (; unidepths, layerints, layernames, layernums, ovars...)
+    end
+    return uni
+end
+
+function plotlayerints!(ax, ints; dx = 0.02)
+    acronyms = "L" .* layers
+    ticks = mean.(ints)
+    freeze!(ax)
+    ax.yticks = (ticks, acronyms)
+    ax.yticksvisible = false
+    xmins = [!Bool(mod(i, 2)) * dx for i in 1:length(acronyms)]
+    xmaxs = xmins .+ dx
+    hspan!(ax, extrema(vcat(collect.(extrema.(ints))...))...; xmin = 0, xmax = dx * 2,
+           color = :white)
+    ps = map(ints, layercolors, xmins, xmaxs) do i, color, xmin, xmax
+        hspan!(ax, extrema(i)...; xmin, xmax, color)
+    end
+    return ps
+end
+
+function plotlayermap!(ax, m, ints; arrows = false,
+                       colorrange = maximum(abs.(ustripall(m))) * [-1, 1],
+                       colormap = binarysunset, kwargs...)
+    p = heatmap!(ax, upsample(ustripall(m), 5, 2); colormap, colorrange, kwargs...)
+
+    if arrows
+        q = ustripall((m))[1:100:end, 1:3:end]
+        q ./= maximum(abs.(q))
+        arrows!(ax, lookup(q, 1), lookup(q, 2), zeros(size(q)), parent(q);
+                lengthscale = 0.07,
+                normalize = false, color = (:black, 0.4))
+    end
+
+    ps = vlines!(ax, [0, 0.25]; color = (:white, 0.5), linestyle = :dash, linewidth = 3)
+
+    pl = plotlayerints!(ax, ints)
+    return p, ps, pl
 end
 
 end # module
