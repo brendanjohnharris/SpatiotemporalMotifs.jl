@@ -4,11 +4,7 @@ exec julia -t 1 "${BASH_SOURCE[0]}" "$@"
 =#
 using DrWatson
 @quickactivate "SpatiotemporalMotifs"
-
 import SpatiotemporalMotifs as SM
-using IntervalSets
-using FileIO
-import AllenNeuropixels as AN
 
 session_table = load(datadir("session_table.jld2"), "session_table")
 oursessions = session_table.ecephys_session_id

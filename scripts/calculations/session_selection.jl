@@ -3,8 +3,8 @@ using DrWatson
 
 using DataFrames, Statistics, JLD2, JSON
 using PythonCall
-import SpatiotemporalMotifs as SM
 import AllenNeuropixels as AN
+import SpatiotemporalMotifs as SM
 session_table = AN.VisualBehavior.getsessiontable()
 probes = AN.VisualBehavior.getprobes()
 
@@ -21,7 +21,7 @@ function targetintersections(sessionid)
     return mean(targetsintersected)
 end;
 
-blacklist = [1047969464] # Cannot identify surface position (probe probably inserted too deep)
+blacklist = [1047969464, 1099598937, 1069461581, 1099869737] # Cannot identify surface position (probe probably inserted too deep)
 
 nonan = x -> sum(.!isnan.(x)) ./ length(x)
 
@@ -101,8 +101,8 @@ oursessions = subset(session_metrics,
                      # :presence_ratio_median_skipnan => ByRow(>(0.95)),
                      # :snr_median_skipnan => ByRow(>(2.0)),
                      :probes_with_lfp => ByRow(==(6)),
-                     :has_target_location => ByRow(==(1)),
-                     :equipment_name => ByRow(==("NP.1")))
+                     #  :equipment_name => ByRow(==("NP.1")),
+                     :has_target_location => ByRow(==(1)))
 
 tagsave(datadir("session_table.jld2"), Dict("session_table" => oursessions))
 write(datadir("session_table.json"), JSON.json(oursessions))
