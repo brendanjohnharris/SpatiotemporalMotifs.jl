@@ -29,4 +29,27 @@ include("Utils.jl")
 include("Calculations.jl")
 include("Plots.jl")
 
+export classifier,
+       classify_kfold,
+       commondepths,
+       crossvalidate,
+       load_calculations,
+       load_performance,
+       parselayernum,
+       plotlayerints!,
+       plotlayermap!,
+       structurecolormap,
+       structurecolors,
+       structures,
+       lfpcolormap,
+       amplitudecolormap,
+       phasecolormap,
+       unify_calculations,
+       calcquality,
+       layernum2name,
+       plotdir,
+       savepath,
+       symextrema,
+       @preamble
+
 end # module

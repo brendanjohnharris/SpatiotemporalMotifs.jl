@@ -10,14 +10,15 @@ const layercolors = (cgrad(:inferno)[range(start = 0, stop = 0.8,
                                            length = length(layers))])
 
 colors = [Foresight.cornflowerblue,
-          Foresight.crimson,
-          Foresight.cucumber,
-          Foresight.california,
-          Foresight.juliapurple]
+    Foresight.crimson,
+    Foresight.cucumber,
+    Foresight.california,
+    Foresight.juliapurple]
 const structurecolors = [colors..., Makie.RGB(0.5, 0.5, 0.5)]
 const structurecolormap = Dict(structures .=> structurecolors)
 const lfpcolormap = darksunset
 const amplitudecolormap = :bone
+const phasecolormap = cyclic
 
 function plotlayerints!(ax, ints; dx = 0.02, width = dx)
     acronyms = "L" .* layers
@@ -36,18 +37,41 @@ function plotlayerints!(ax, ints; dx = 0.02, width = dx)
 end
 function plotlayerints!(ax, ints::DimArray{<:String, 1}; width = 0.02)
     ints = parselayernum.(ints)
-    d = step(lookup(ints, :depth)) / 2
-    ints = map(unique(ints)) do i
+    ds = diff(lookup(ints, :depth)) / 2
+    append!(ds, first(ds))
+    ints = map(unique(ints), ds) do i, d
         x = lookup(ints[ints .== i], :depth)
         return ustrip(minimum(x) - d) .. ustrip(maximum(x) + d)
     end
     return plotlayerints!(ax, ints; width, dx = 0)
 end
 
+function wrap(x; domain)
+    domain_min, domain_max = extrema(domain)
+    domain_range = domain_max - domain_min
+    y = mod(x - domain_min, domain_range) + domain_min
+    if y < domain_min
+        y += domain_range
+    end
+    return y
+end
+
 function plotlayermap!(ax, m, ints; arrows = false,
                        colorrange = maximum(abs.(ustripall(m))) * [-1, 1],
-                       colormap = binarysunset, kwargs...)
-    p = heatmap!(ax, upsample(ustripall(m), 5, 2); colormap, colorrange, kwargs...)
+                       colormap = binarysunset, doupsample = true, domain = nothing,
+                       rasterize = 10, kwargs...)
+    if doupsample
+        if isnothing(domain)
+            x = upsample(ustripall(m), 5, 2)
+        else
+            x = mapslices(unwrap, ustripall(m), dims = 2)
+            x = upsample(x, 5, 2)
+            x = wrap.(x; domain)
+        end
+    else
+        x = ustripall(m)
+    end
+    p = heatmap!(ax, x; colormap, colorrange, rasterize, kwargs...)
     if arrows
         q = ustripall((m))[1:100:end, 1:3:end]
         q ./= maximum(abs.(q))
@@ -57,7 +81,6 @@ function plotlayermap!(ax, m, ints; arrows = false,
     end
 
     ps = vlines!(ax, [0, 0.25]; color = (:white, 0.5), linestyle = :dash, linewidth = 3)
-
     pl = plotlayerints!(ax, ints)
     return p, ps, pl
 end

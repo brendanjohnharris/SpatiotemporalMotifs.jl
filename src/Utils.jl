@@ -153,6 +153,8 @@ end
 
 allowedtypes = (Real, String, Regex, Symbol, TimeType, Vector, Tuple)
 
+symextrema(x) = (m = maximum(abs.(extrema(x))); (-m, m))
+
 function savepath(D, ext = "", args...)
     filename = savename(D, ext; connector, val_to_string, allowedtypes)
     return joinpath(args..., filename)
