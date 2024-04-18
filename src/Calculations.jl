@@ -140,9 +140,9 @@ function _calculations(LFP; pass_θ, pass_γ, ΔT, doupsample, starttimes)
     # a, ϕ, ϕᵧ, ω, k, v, aᵧ, ωᵧ, kᵧ, vₚ, vᵧ = alignmatchcat.([a, ϕ, ϕᵧ, ω, k, v, aᵧ, ωᵧ, kᵧ,
     #                                                         vₚ, vᵧ])
     V, x, y, a, ϕ, ϕᵧ, ω, k, v, aᵧ, ωᵧ, kᵧ = alignmatchcat.([LFP, θ, γ, a, ϕ, ϕᵧ, ω, k,
-                                                             v,
-                                                             aᵧ, ωᵧ,
-                                                             kᵧ])
+                                                                v,
+                                                                aᵧ, ωᵧ,
+                                                                kᵧ])
     r = abs.(aᵧ) .* unit(eltype(V))
 
     return V, x, y, a, ϕ, ϕᵧ, ω, k, v, r, ωᵧ, kᵧ
@@ -194,7 +194,7 @@ function send_calculations(D::Dict, session = AN.Session(D[:sessionid]);
         tmap[Ti(Near(ts))] .= ts
         tmap = rectify(tmap, dims = Ti, tol = 3)
         ts = times(tmap[tmap .> 1]) |> collect
-        return u => ts
+        return u => Float32.(ts)
     end |> Dict
 
     channels = lookup(LFP, :channel)
@@ -244,7 +244,7 @@ end
 
 function send_calculations(sessionid;
                            structures = ["VISp", "VISl", "VISrl", "VISal", "VISpm",
-                                         "VISam"], kwargs...)
+                               "VISam"], kwargs...)
     session = AN.Session(sessionid)
     probestructures = AN.getprobestructures(session, structures)
     for (probeid, structure) in probestructures
@@ -321,7 +321,7 @@ function load_calculations(Q; path = datadir("calculations"), stimulus, vars = [
             layernames = layernames[idxs]
 
             ovars = map(collect(ovars)) do (v, k)
-                k = k[:, idxs, :]
+                k = k[:, idxs, :] .|> Float32
 
                 # We know the depths are sorted from above
                 k = set(k, Dim{:depth}(streamlinedepths))
@@ -354,14 +354,15 @@ function unify_calculations(out; vars = [:x, :k])
     stimuli = [[DimensionalData.metadata(o[first(vars)])[:stimulus] for o in out[i]]
                for i in eachindex(out)]
     stimulus = only(unique(vcat(stimuli...)))
-    uni = map(out) do o
+    uni = map(enumerate(out)) do (si, o)
+        @info "Collecting data for structure $(structures[si])"
         sessionids = getindex.(o, :sessionid)
         streamlinedepths = getindex.(o, :streamlinedepths)
         unidepths = commondepths(streamlinedepths)
         layernames = map(o) do p
             l = p[:layernames]
             l = set(l, Dim{:depth} => p[:streamlinedepths])
-            if last(l) ∈ ["or", "scwm"] # Sometime anomalies at the boundary; we fall back on the channel structure labels, the ground truth, for confidence that this is still a cortical channel
+            if last(l) ∈ ["or", "scwm", "cing"] # Sometime anomalies at the boundary; we fall back on the channel structure labels, the ground truth, for confidence that this is still a cortical channel
                 l[end] = l[end - 1]
             end
             l[depth = Near(unidepths)]
@@ -371,10 +372,14 @@ function unify_calculations(out; vars = [:x, :k])
         # * We want to get a unified array, plus (potentially overlapping) intervals for
         # * each layer
         layerints = map(unique(vcat(parent.(layernums)...))) do l
-            depths = map(layernums) do ls
-                if sum(ls .== l) == 0 # !!! BROKEN!!!
-                    m = mean([maximum(lookup(ls[ls .== l - 1], :depth)),
-                              minimum(lookup(ls[ls .== l + 1], :depth))])
+            depths = map(enumerate(layernums)) do (sid, ls)
+                if sum(ls .== l) == 0 # !!! BROKEN!!! No intersections with this layer??
+                    ma = sum(ls .== l - 1) == 0 ? 1.0 :
+                         maximum(lookup(ls[ls .== l - 1], :depth))
+                    mi = sum(ls .== l + 1) == 0 ? 0.0 :
+                         minimum(lookup(ls[ls .== l + 1], :depth))
+                    m = mean([ma, mi])
+                    @info "Session $(sessionids[sid]) has no layer $(l)"
                     [m, m]
                 else
                     collect(extrema(lookup(ls, :depth)[ls .== l]))
@@ -404,7 +409,8 @@ function unify_calculations(out; vars = [:x, :k])
                 p[Ti(At(mints))]
             end
             if stimulus == r"Natural_Images"
-                k = cat(k...; dims = Dim{:trial}(vcat(lookup.(k, :trial)...)))
+                d = Dim{:trial}(vcat(lookup.(k, :trial)...))
+                k = cat(k...; dims = d)
             else
                 k = stack(Dim{:sessionid}(sessionids), k)
             end
@@ -415,3 +421,18 @@ function unify_calculations(out; vars = [:x, :k])
     end
     return uni
 end
+
+function produce_out(Q, config; path = datadir("calculations"))
+    out = load_calculations(Q; path, stimulus = config["stimulus"], vars = config["vars"])
+    @strdict out
+end
+produce_out(Q; kwargs...) = config -> produce_out(Q, config; kwargs...)
+
+function produce_uni(config; path = datadir("calculations"))
+    data, outfile = produce_or_load(produce_out, config, datadir(); filename = savepath,
+                                    path, prefix = "out")
+    out = data["out"]
+    uni = unify_calculations(out; vars = config["vars"])
+    @strdict uni outfile
+end
+produce_uni(; kwargs...) = config -> produce_uni(config; kwargs...)

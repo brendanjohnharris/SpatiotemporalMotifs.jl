@@ -25,6 +25,8 @@ using DrWatson
 import AllenNeuropixels as AN
 import AllenNeuropixelsBase as ANB
 
+import DimensionalData: metadata
+
 include("Utils.jl")
 include("Calculations.jl")
 include("Plots.jl")
@@ -50,6 +52,9 @@ export classifier,
        plotdir,
        savepath,
        symextrema,
+       produce_out,
+       produce_uni,
+       plotstructurecenters!,
        @preamble
 
 end # module

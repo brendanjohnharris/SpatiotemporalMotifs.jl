@@ -1,3 +1,7 @@
+using GraphMakie
+using GraphMakie.Graphs
+using SimpleWeightedGraphs
+using LinearAlgebra
 
 plotdir(args...) = projectdir("plots", args...)
 export plotdir
@@ -124,4 +128,61 @@ function tortinset!(gl, ϕ, r; width = Relative(0.15),
     i = findmax(cs)[2]
     scatter!(inset_ax, [xs[i]], [ys[i]]; color, markersize = 15,
              strokecolor = :white, strokewidth = 2)
+end
+
+function plotstructurecenters!(ax,
+                               ag = SimpleWeightedDiGraph(zeros(length(structures),
+                                                                length(structures)));
+                               colormap = getindex.([structurecolormap], structures),
+                               structures = structures, arrow_size = 10,
+                               arrow_shift = :end, curve_distance = 20,
+                               curve_distance_usage = true,
+                               kwargs...)
+    function offset(x, y, p)
+        d = norm(x - y)
+        x = (x + y) ./ 2
+        u = reverse(x - y) |> collect
+        u[1] = -u[1]
+        u = u ./ norm(u)
+        x = x .+ u .* p .* d
+    end
+
+    layout = Point2f[(350, 350), # VISp
+                     (170, 310), # VISl
+                     (300, 130), # VISrl
+                     (180, 195), # VISal
+                     (475, 240), # VISpm
+                     (450, 140)] # VISam
+    fwaypoints = Dict(1 => [offset(layout[2], layout[3], 0.4)],
+                      2 => [offset(layout[4], layout[3], 0.1)],
+                      6 => [offset(layout[4], layout[6], 0.3)],
+                      3 => [offset(layout[1], layout[5], -0.1)],
+                      4 => [offset(layout[4], layout[5], -0.1)])
+
+    if !(ag isa Observable)
+        ag = Observable(ag)
+    end
+    if !isempty(edges(ag[]))
+        ew = lift(ag -> weight.(edges(ag)), ag)
+        aw = lift(ew -> ew .* arrow_size, ew)
+    else
+        ew = 10
+        aw = arrow_size .* ew
+    end
+    p = graphplot!(ax, ag;
+                   edge_width = ew,
+                   selfedge_size = 0,
+                   layout,
+                   edge_plottype = :beziersegments,
+                   curve_distance,
+                   curve_distance_usage,
+                   node_size = 30,
+                   ilabels = structures,
+                   ilabels_fontsize = 9,
+                   node_color = colormap,
+                   # waypoints=fwaypoints,
+                   arrow_size = aw,
+                   arrow_shift,
+                   arrow_color = (colorant"#0072BD", 0.7),
+                   edge_color = (colorant"#0072BD", 0.7), kwargs...)
 end

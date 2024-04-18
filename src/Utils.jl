@@ -40,6 +40,7 @@ function _preamble()
         using UnPack
         import Foresight.clip
         import CairoMakie.save
+        import DimensionalData: metadata
     end
 end
 macro preamble()
