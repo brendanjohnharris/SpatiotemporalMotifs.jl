@@ -1,5 +1,5 @@
 *.code-workspace
-*.csv
+*.mp4
 *.jl.*.cov
 *.jl.cov
 *.jl.mem
