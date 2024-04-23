@@ -2,6 +2,7 @@ using GraphMakie
 using GraphMakie.Graphs
 using SimpleWeightedGraphs
 using LinearAlgebra
+using JSON
 
 plotdir(args...) = projectdir("plots", args...)
 export plotdir
@@ -185,4 +186,65 @@ function plotstructurecenters!(ax,
                    arrow_shift,
                    arrow_color = (colorant"#0072BD", 0.7),
                    edge_color = (colorant"#0072BD", 0.7), kwargs...)
+end
+
+const visual_cortex_file = datadir("visual_cortex.json")
+const _visdraworder = ["VISpm", "VISam", "VISrl", "VISal", "VISl", "VISp"]
+const _vishierarchyorder = ["VISp", "VISl", "VISrl", "VISal", "VISpm", "VISam"]
+function load_visual_cortex(file = visual_cortex_file)
+    D = JSON.parsefile(file)
+    outline = D["outline"]
+    fill = D["fill"]
+    fill = map(collect(fill)) do (k, v)
+        v = [Float32.(_v) for _v in v]
+        v = Makie.Polygon(Point{2}.(v))
+        k => v
+    end |> Dict
+    fill = Dict(_visdraworder .=> getindex.([fill], _visdraworder))
+    outline = Dict(k => Vec2f.(v) for (k, v) in collect(outline))
+    outline = Dict(_visdraworder .=> getindex.([outline], _visdraworder))
+    return fill, outline
+end
+
+function plot_visual_cortex!(ax = Axis(Figure()[1, 1], aspect = 1, yreversed = true),
+                             showoutline = true,
+                             strokewidth = 0,
+                             draworder = _visdraworder,
+                             colororder = _vishierarchyorder,
+                             legendorder = colororder,
+                             colormap = cgrad(:inferno, length(legendorder),
+                                              categorical = true),
+                             alpha = 0.5,
+                             kwargs...)
+    fill, outline = load_visual_cortex()
+    colormap = cgrad(colormap, length(legendorder), categorical = true)
+    _colormap = cgrad(colormap, length(legendorder); categorical = true, alpha)
+    k = keys(fill) |> collect
+    legendorder = indexin(legendorder, k)
+
+    colors = indexin(k, colororder)
+    colors = _colormap[colors] # To original ordering of structures
+    v = values(outline) |> collect
+    p1 = map(legendorder) do i
+        poly!(v[i]; label = k[i], strokewidth, color = colors[i], kwargs...)
+    end
+    if showoutline
+        draworder = indexin(draworder, k)
+        colors = indexin(k, colororder)
+        colors = colormap[colors]
+        p2 = map(draworder) do i
+            lines!(v[i]; linewidth = 5, color = colors[i])
+        end
+    else
+        p2 = []
+    end
+    axislegend(ax)
+    return p1, p2
+end
+function plot_visual_cortex(; kwargs...)
+    f = Figure()
+    ax = Axis(f[1, 1], aspect = 1, yreversed = true)
+    p1, p2 = plot_visual_cortex!(ax; kwargs...)
+    display(f)
+    return f, ax, [p1, p2]
 end

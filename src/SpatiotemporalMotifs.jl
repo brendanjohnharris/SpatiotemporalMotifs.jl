@@ -55,6 +55,9 @@ export classifier,
        produce_out,
        produce_uni,
        plotstructurecenters!,
+       load_unitdepths,
+       regressor,
+       regress_kfold,
        @preamble
 
 end # module

@@ -436,3 +436,60 @@ function produce_uni(config; path = datadir("calculations"))
     @strdict uni outfile
 end
 produce_uni(; kwargs...) = config -> produce_uni(config; kwargs...)
+
+function produce_unitdepths(sessionids)
+    Ds = map(sessionids) do sessionid
+        @info "Computing depths for session $sessionid"
+        # * Want to get a dataframe mapping all untis to a probe depth and a streamline
+        #   depth.
+        session = AN.Session(sessionid)
+        probes = AN.getprobes(session)
+        unitmetrics = AN.getunitmetrics(session)
+        cdf = AN.getchannels(session)
+        probedepths = Dict{Any, Any}()
+        streamlinedepths = Dict{Any, Any}()
+        for probe in probes.id
+            _cdf = cdf[cdf.probe_id .== probe, :]
+            channels = _cdf.id
+            _probedepths = Dict(channels .=>
+                                    AN.AllenNeuropixelsBase._getchanneldepths(_cdf,
+                                                                              channels;
+                                                                              method = :probe))
+            _streamlinedepths = Dict(channels .=>
+                                         AN.AllenNeuropixelsBase._getchanneldepths(_cdf,
+                                                                                   channels;
+                                                                                   method = :streamlines))
+
+            p = Dict(channels .=> getindex.([_probedepths], channels))
+            s = Dict(channels .=> getindex.([_streamlinedepths], channels))
+            merge!(probedepths, p)
+            merge!(streamlinedepths, s)
+        end
+        D = DataFrame([keys(probedepths) |> collect, values(probedepths) |> collect,
+                          getindex.([streamlinedepths], keys(probedepths))
+                      ],
+                      [
+                          :peak_channel_id,
+                          :probedepth,
+                          :streamlinedepth
+                      ])
+        D = innerjoin(D, unitmetrics, on = :peak_channel_id)
+        D = innerjoin(D, cdf, on = :peak_channel_id => :id)
+        D.ecephys_session_id .= sessionid
+        return D
+    end
+    return vcat(Ds...)
+end
+
+function load_unitdepths(oursessions; filepath = datadir("unitdepths.jld2"),
+                         rewrite = true)
+    if isfile(filepath) && !rewrite
+        D = load(filepath, "unitdepths")
+        sessionids = load(filepath, "sessionids")
+    end
+    if !isfile(filepath) || rewrite || (sort(oursessions) != sort(sessionids))
+        D = produce_unitdepths(oursessions)
+        save(filepath, Dict("unitdepths" => D, "sessionids" => oursessions))
+    end
+    return D
+end

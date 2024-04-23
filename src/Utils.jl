@@ -1,5 +1,6 @@
 using Random
 using MultivariateStats
+using Lasso
 
 if !haskey(ENV, "DRWATSON_STOREPATCH")
     ENV["DRWATSON_STOREPATCH"] = "true"
@@ -176,10 +177,26 @@ function unique_inverse(A::AbstractArray)
     out, out_idx
 end
 
+function crossvalidate(n::Integer, k, rng::AbstractRNG = Random.default_rng())
+    idxs = 1:n
+    idxs = shuffle(rng, idxs)
+    N = Int(round(n / k))
+    test = map(1:k) do i
+        if i == k
+            view(idxs, (1 + (i - 1) * N):n)
+        else
+            view(idxs, (1 + (i - 1) * N):min(i * N, n))
+        end
+    end
+    train = setdiff.([idxs], test)
+    return train, test
+end
+
 """
 Stratified k-fold cross validation
 """
-function crossvalidate(classlabels, k, rng::AbstractRNG = Random.default_rng())
+function crossvalidate(classlabels::AbstractVector, k,
+                       rng::AbstractRNG = Random.default_rng())
     labels = unique(classlabels)
     idxs = findall.(map(x -> x .== classlabels, unique(labels)))
     @assert minimum(length.(idxs)) ≥ k # Otherwise one or more folds contain only one class
@@ -196,7 +213,7 @@ function crossvalidate(classlabels, k, rng::AbstractRNG = Random.default_rng())
     return train, test
 end
 
-function classification_metrics(y::Vector{<:Bool}, ŷ::Vector{<:Bool}; sessionids = nothing)
+function classification_metrics(y::Vector{<:Bool}, ŷ::Vector{<:Bool})
     @assert eltype(y) == eltype(ŷ) == Bool
     Np = sum(y)
     Nn = sum(.!y)
@@ -216,11 +233,11 @@ balanced_accuracy(args...) = classification_metrics(args...).bacc |> only
 accuracy(args...) = classification_metrics(args...).acc |> only
 
 function classifier(h, labels; regcoef = 0.1)
-    # * First pca as regularization (classification only operates on nd dimensions,regardless of input size)
     N = fit(Normalization.MixedZScore, h; dims = 2)
     h = normalize(h, N)
 
-    M = fit(MulticlassLDA, collect(h), collect(labels); regcoef = Float64(regcoef))
+    M = fit(MulticlassLDA, collect(h), collect(labels);
+            regcoef = convert(eltype(h), regcoef))
 
     ŷ = (predict(M, h) .> 0) |> vec |> collect # Predicted output classes
     if cor(labels, ŷ) < 0
@@ -262,4 +279,61 @@ function classify_kfold(H, rng::AbstractRNG = Random.default_rng(); k = 5, dim =
         end
     end
     return mean(bac)
+end
+
+mutable struct Regressor{T}
+    a::Vector{T}
+    b::T
+end
+function (M::Regressor{T})(x::AbstractMatrix{<:T})::Vector{T} where {T}
+    return M.a' * x .+ M.b |> vec |> collect
+end
+
+function regressor(h::AbstractMatrix, targets; regcoef = 0.1)
+    N = fit(Normalization.MixedZScore, h; dims = 2)
+    h = normalize(h, N)
+    # a..., b = ridge(h', convert.(eltype(h), targets), regcoef)
+    idxs = targets .< 1
+
+    m = fit(LassoPath, Float64.(h[:, idxs]'), Float64.(targets[idxs]))
+
+    M = Regressor(a, b)
+    return N, M
+end
+
+function regressor(H::AbstractArray{T, 3}, targets; dim = :trial, regcoef = 0.1) where {T}
+    negdims = setdiff(1:ndims(H), [dimnum(H, dim)])
+    negsize = size(H)[negdims]
+    h = reshape(H, (prod(negsize), size(H, dim))) # Flattened data, _ × trial
+    regressor(h, targets; regcoef)
+end
+
+function regress_kfold(H, reaction_times, rng::AbstractRNG = Random.default_rng(); k = 5,
+                       dim = :trial,
+                       kwargs...)
+    labels = lookup(H, dim)
+    @assert eltype(labels) == Bool
+    negdims = setdiff(1:ndims(H), [dimnum(H, dim)])
+    negsize = size(H)[negdims]
+    h = reshape(H, (prod(negsize), size(H, dim))) # Flattened data, _ × trial
+
+    h = h[:, .!isnan.(reaction_times)]
+    reaction_times = reaction_times[.!isnan.(reaction_times)]
+
+    trains, tests = crossvalidate(length(reaction_times), k, rng)
+
+    ρ = map(trains, tests) do train, test
+        try
+            N, M = regressor(h[:, train], reaction_times[train]; kwargs...)
+            y = reaction_times[test] |> collect
+            ŷ = M(normalize(h[:, test], N))
+            ρ = corspearman(y, ŷ)
+            display(ρ)
+            return ρ
+        catch e
+            @warn e
+            return NaN
+        end
+    end
+    return mean(ρ) # Use fisher z transform
 end
