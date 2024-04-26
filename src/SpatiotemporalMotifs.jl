@@ -24,6 +24,7 @@ using JSON
 using DrWatson
 import AllenNeuropixels as AN
 import AllenNeuropixelsBase as ANB
+using Term.Progress
 
 import DimensionalData: metadata
 
@@ -58,6 +59,9 @@ export classifier,
        load_unitdepths,
        regressor,
        regress_kfold,
+       hierarchy_scores,
+       visual_cortex_layout,
+       ppc, spc!, sac, sac!, Bins,
        @preamble
 
 end # module

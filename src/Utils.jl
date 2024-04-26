@@ -1,6 +1,12 @@
 using Random
 using MultivariateStats
 using Lasso
+using HypothesisTests
+using Term.Progress
+using RobustModels
+import MLJ
+import MLJScikitLearnInterface
+import MLJLinearModels
 
 if !haskey(ENV, "DRWATSON_STOREPATCH")
     ENV["DRWATSON_STOREPATCH"] = "true"
@@ -8,8 +14,6 @@ end
 
 function _preamble()
     quote
-        file = @__FILE__
-        display(file)
         using Statistics
         using StatsBase
         using MultivariateStats
@@ -42,6 +46,8 @@ function _preamble()
         import Foresight.clip
         import CairoMakie.save
         import DimensionalData: metadata
+        using Term
+        using Term.Progress
     end
 end
 macro preamble()
@@ -293,11 +299,21 @@ function regressor(h::AbstractMatrix, targets; regcoef = 0.1)
     N = fit(Normalization.MixedZScore, h; dims = 2)
     h = normalize(h, N)
     # a..., b = ridge(h', convert.(eltype(h), targets), regcoef)
-    idxs = targets .< 1
+    idxs = 0.2 .< targets .< 1 # Remove outliers
+    # idxs = trues(length(targets))
 
-    m = fit(LassoPath, Float64.(h[:, idxs]'), Float64.(targets[idxs]))
+    # # m = fit(LassoPath, Float64.(h[:, idxs]'), Float64.(targets[idxs]))
+    # m = fit(RobustLinearModel, Float64.(h[:, idxs]'), Float64.(targets[idxs]),
+    #         MEstimator{HuberLoss}(); σ0 = 2)
 
-    M = Regressor(a, b)
+    HuberRegressor = MLJ.@load HuberRegressor verbosity=0 pkg=MLJScikitLearnInterface
+    h = DataFrame(h[:, idxs]', Symbol.(1:size(h, 1)))
+    mach = MLJ.machine(HuberRegressor(; max_iter = 10000, alpha = regcoef), h,
+                       targets[idxs])
+    MLJ.fit!(mach; verbosity = 0)
+
+    # M = Regressor(a, b)
+    M = x -> MLJ.predict(mach, DataFrame(x', Symbol.(1:size(x, 1))))
     return N, M
 end
 
@@ -326,9 +342,8 @@ function regress_kfold(H, reaction_times, rng::AbstractRNG = Random.default_rng(
         try
             N, M = regressor(h[:, train], reaction_times[train]; kwargs...)
             y = reaction_times[test] |> collect
-            ŷ = M(normalize(h[:, test], N))
+            ŷ = M(normalize(h[:, test], N))[:]
             ρ = corspearman(y, ŷ)
-            display(ρ)
             return ρ
         catch e
             @warn e
@@ -336,4 +351,189 @@ function regress_kfold(H, reaction_times, rng::AbstractRNG = Random.default_rng(
         end
     end
     return mean(ρ) # Use fisher z transform
+end
+
+function ppc(x::AbstractVector{T})::T where {T} # Eq. 14 of Vinck 2010
+    isempty(x) && return NaN
+    N = length(x)
+    Δ = zeros(N - 1)
+    Threads.@threads for i in 1:(N - 1)
+        δ = @views x[i] .- x[(i + 1):end]
+        Δ[i] = sum(cos.(δ))
+    end
+    return (2 / (N * (N - 1))) * sum(Δ)
+end
+function ppc(ϕ::UnivariateTimeSeries{T}, spikes::AbstractVector)::NTuple{2, T} where {T}
+    spikes = spikes[spikes .∈ [Interval(ϕ)]]
+    isempty(spikes) && return (NaN, NaN)
+    phis = ϕ[Ti(Near(spikes))] |> parent
+    γ = ppc(phis)
+    𝑝 = isempty(phis) ? 1.0 : HypothesisTests.pvalue(RayleighTest(phis))
+    return (γ, 𝑝)
+end
+function ppc(ϕ::AbstractVector{<:UnivariateTimeSeries}, spikes::AbstractVector)
+    γs = ppc.(ϕ, [spikes])
+    return first.(γs), last.(γs)
+end
+
+function initialize_spc_dataframe!(spikes, T)
+    if !("trial_pairwise_phase_consistency" ∈ names(spikes))
+        @debug "Initializing missing columns"
+        spikes[!, :trial_pairwise_phase_consistency] = [Vector{T}()
+                                                        for _ in 1:size(spikes, 1)]
+    end
+    if !("trial_pairwise_phase_consistency_pvalue" ∈ names(spikes))
+        @debug "Initializing missing columns"
+        spikes[!, :trial_pairwise_phase_consistency_pvalue] = [Vector{T}()
+                                                               for _ in 1:size(spikes,
+                                                                               1)]
+    end
+    if !("pairwise_phase_consistency" ∈ names(spikes))
+        @debug "Initializing missing columns"
+        spikes[!, :pairwise_phase_consistency] .= NaN
+    end
+    if !("pairwise_phase_consistency_pvalue" ∈ names(spikes))
+        @debug "Initializing missing columns"
+        spikes[!, :pairwise_phase_consistency_pvalue] .= NaN
+    end
+end
+
+function spc!(spikes::AbstractDataFrame, ϕ::AbstractTimeSeries; pbar = nothing) # Mutate the dataframe
+    T = eltype(lookup(ϕ, Ti) |> ustripall)
+    initialize_spc_dataframe!(spikes, T)
+
+    probeid = metadata(ϕ)[:probeid]
+
+    !isnothing(pbar) &&
+        (job = addjob!(pbar; N = size(spikes, 1), transient = true, description = "Unit"))
+    for unit in eachrow(spikes)
+        if unit.probe_id == probeid
+            unitid = unit.ecephys_unit_id
+            _ϕ = ϕ[Dim{:depth}(Near(unit.streamlinedepth))]
+            spiketimes = unit.spiketimes
+
+            _ϕ = map(eachslice(_ϕ, dims = 2)) do x # Individual trial
+                x = set(x, Ti => lookup(x, Ti) .+ refdims(x, :changetime))
+            end
+            γ_trial, 𝑝_trial = ppc(_ϕ, spiketimes)
+            spikes.trial_pairwise_phase_consistency[spikes.ecephys_unit_id .== unitid] .= [γ_trial]
+            spikes.trial_pairwise_phase_consistency_pvalue[spikes.ecephys_unit_id .== unitid] .= [𝑝_trial]
+
+            idxs = [any(s .∈ Interval.(_ϕ)) for s in spiketimes]
+            spiketimes = spiketimes[idxs]
+            _ϕ = cat(_ϕ..., dims = Ti(vcat(lookup.(_ϕ, Ti)...)))
+            γ, 𝑝 = ppc(_ϕ, spiketimes)
+            spikes.pairwise_phase_consistency[spikes.ecephys_unit_id .== unitid] .= γ
+            spikes.pairwise_phase_consistency_pvalue[spikes.ecephys_unit_id .== unitid] .= 𝑝
+        end
+        !isnothing(pbar) && update!(job)
+    end
+    !isnothing(pbar) && stop!(job)
+end
+# * Assumes each LFP comes from one session, from one structure, and has has the correct metadata
+function spc!(spikes::AbstractDataFrame, ϕ::AbstractVector{<:AbstractTimeSeries};
+              job = nothing)
+    T = eltype(lookup(first(ϕ), Ti) |> ustripall)
+    initialize_spc_dataframe!(spikes, T)
+
+    Threads.@threads for _ϕ in ϕ
+        idxs = spikes.probe_id .== metadata(_ϕ)[:probeid]
+        _spikes = @views spikes[idxs, :] # * Select structure
+        spc!(_spikes, ustripall(_ϕ))
+        isnothing(job) || update!(job)
+    end
+    isnothing(job) || stop!(job)
+end
+
+function sac(r::UnivariateTimeSeries{T}, spikes::AbstractVector)::T where {T}
+    spikes = spikes[spikes .∈ [Interval(r)]]
+    isempty(spikes) && return NaN
+    return r[Ti(Near(spikes))] |> parent |> mean
+end
+sac(r::AbstractVector{<:UnivariateTimeSeries}, spikes::AbstractVector) = sac.(r, [spikes])
+
+function initialize_sac_dataframe!(spikes, T)
+    if !("trial_spike_amplitude_coupling" ∈ names(spikes))
+        @debug "Initializing missing columns"
+        spikes[!, :trial_spike_amplitude_coupling] = [Vector{T}()
+                                                      for _ in 1:size(spikes, 1)]
+    end
+    if !("spike_amplitude_coupling" ∈ names(spikes))
+        @debug "Initializing missing columns"
+        spikes[!, :spike_amplitude_coupling] .= NaN
+    end
+end
+
+function sac!(spikes::AbstractDataFrame, r::AbstractTimeSeries; pbar = nothing,
+              normfunc = HalfZScore) # At the level of each probe. We normalize here
+    T = eltype(lookup(r, Ti) |> ustripall)
+    initialize_sac_dataframe!(spikes, T)
+
+    probeid = metadata(r)[:probeid]
+
+    !isnothing(pbar) &&
+        (job = addjob!(pbar; N = size(spikes, 1), transient = true, description = "Unit"))
+    for unit in eachrow(spikes)
+        if unit.probe_id == probeid
+            unitid = unit.ecephys_unit_id
+            _r = r[Dim{:depth}(Near(unit.streamlinedepth))]
+            if !isnothing(normfunc) # * Normalize over trials AND time
+                N = fit(normfunc, _r) # * Crucial; normalization makes this correlation-like
+                _r = normalize(_r, N)
+            end
+            spiketimes = unit.spiketimes
+
+            _r = map(eachslice(_r, dims = 2)) do x # Individual trial
+                x = set(x, Ti => lookup(x, Ti) .+ refdims(x, :changetime))
+            end
+            γ_trial = sac(_r, spiketimes)
+            spikes.trial_spike_amplitude_coupling[spikes.ecephys_unit_id .== unitid] .= [γ_trial]
+
+            idxs = [any(s .∈ Interval.(_r)) for s in spiketimes]
+            spiketimes = spiketimes[idxs]
+            _r = cat(_r..., dims = Ti(vcat(lookup.(_r, Ti)...)))
+            γ = sac(_r, spiketimes)
+            spikes.spike_amplitude_coupling[spikes.ecephys_unit_id .== unitid] .= γ
+        end
+        !isnothing(pbar) && update!(job)
+    end
+    !isnothing(pbar) && stop!(job)
+end
+
+# * Assumes each LFP comes from one session, from one structure, and has has the correct
+#   metadata. Each element is one subject.
+function sac!(spikes::AbstractDataFrame, r::AbstractVector{<:AbstractTimeSeries};
+              job = nothing) # At the level of structures
+    T = eltype(lookup(first(r), Ti) |> ustripall)
+    initialize_sac_dataframe!(spikes, T)
+    Threads.@threads for _r in r
+        idxs = spikes.probe_id .== metadata(_r)[:probeid]
+        _spikes = @views spikes[idxs, :] # * Select structure
+        sac!(_spikes, ustripall(_r))
+        isnothing(job) || update!(job)
+    end
+    isnothing(job) || stop!(job)
+end
+
+struct Bins
+    bints::AbstractVector{<:AbstractInterval}
+    idxs::AbstractVector{AbstractVector{<:Integer}}
+end
+bincenters(B::Bins) = mean.(B.bints)
+(B::Bins)(x) = DimArray(getindex.([x], B.idxs), (Dim{:bin}(bincenters(B)),))
+
+function Bins(x; bins = StatsBase.histrange(x, 10))
+    if bins isa Integer
+        bins = StatsBase.histrange(x, bins)
+    end
+
+    bints = map(eachindex(bins)[1:(end - 1)]) do i
+        if i == length(bins) - 1
+            Interval{:closed, :closed}(bins[i], bins[i + 1])
+        else
+            Interval{:closed, :open}(bins[i], bins[i + 1])
+        end
+    end
+    idxs = map(bin -> findall(x .∈ [bin]), bints)
+    return Bins(bints, idxs)
 end

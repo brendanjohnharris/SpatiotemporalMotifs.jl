@@ -25,6 +25,15 @@ const lfpcolormap = darksunset
 const amplitudecolormap = :bone
 const phasecolormap = cyclic
 
+const visual_cortex_layout = Dict("VISp" => [350, 350],
+                                  "VISl" => [170, 310],
+                                  "VISrl" => [300, 130],
+                                  "VISal" => [180, 195],
+                                  "VISpm" => [475, 240],
+                                  "VISam" => [450, 140])
+const hierarchy_scores = Dict("VISp" => -0.357, "VISl" => -0.093, "VISrl" => -0.059,
+                              "VISal" => 0.152, "VISpm" => 0.327, "VISam" => 0.441) # * Anatomical hierarchy scores from Siegle 2021
+
 function plotlayerints!(ax, ints; dx = 0.02, width = dx)
     acronyms = "L" .* layers
     ticks = mean.(ints)
