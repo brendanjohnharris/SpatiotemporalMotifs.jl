@@ -15,6 +15,7 @@ using Normalization
 using Distributed
 using DSP
 using Peaks
+using Term
 using TimeseriesTools
 using TimeseriesTools.Unitful
 using ModulationIndices
@@ -41,7 +42,9 @@ export classifier,
        parselayernum,
        plotlayerints!,
        plotlayermap!,
+       depthticks,
        structurecolormap,
+       structurecgrad,
        structurecolors,
        structures,
        lfpcolormap,
@@ -61,7 +64,10 @@ export classifier,
        regress_kfold,
        hierarchy_scores,
        visual_cortex_layout,
+       plot_visual_cortex!,
        ppc, spc!, sac, sac!, Bins,
+       progressmap,
+       plotspectrum!, fooof,
        @preamble
 
 end # module

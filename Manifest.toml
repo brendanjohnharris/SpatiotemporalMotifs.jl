@@ -792,7 +792,7 @@ version = "2.13.93+0"
 
 [[deps.Foresight]]
 deps = ["Clustering", "Colors", "FileIO", "Format", "ImageClipboard", "Images", "LinearAlgebra", "Makie", "Preferences", "Random", "Requires"]
-git-tree-sha1 = "776c00c7a2f5ea393045229c1ba11ba49df10394"
+git-tree-sha1 = "0daa642967c890b9ad86e81b67c99eff7234c506"
 repo-rev = "main"
 repo-url = "https://github.com/brendanjohnharris/Foresight.jl.git"
 uuid = "c6e1034d-1844-4b96-abf2-c5824a5aa8c3"
@@ -2717,9 +2717,11 @@ version = "0.1.1"
 
 [[deps.Term]]
 deps = ["AbstractTrees", "CodeTracking", "Dates", "Highlights", "InteractiveUtils", "Logging", "Markdown", "MyterialColors", "OrderedCollections", "Parameters", "PrecompileTools", "ProgressLogging", "REPL", "Tables", "UUIDs", "Unicode", "UnicodeFun"]
-git-tree-sha1 = "ffac67f6fbcbb32027d924b93ba91b7633af9220"
+git-tree-sha1 = "808c88cb66ecd42923036141d82a02f9e0f55dcd"
+repo-rev = "master"
+repo-url = "https://github.com/FedeClaudi/Term.jl.git"
 uuid = "22787eb5-b846-44ae-b979-8e399b8463ab"
-version = "2.0.5"
+version = "2.0.6"
 
 [[deps.Test]]
 deps = ["InteractiveUtils", "Logging", "Random", "Serialization"]
@@ -2771,7 +2773,7 @@ weakdeps = ["Makie"]
 
 [[deps.TimeseriesTools]]
 deps = ["Dates", "DelimitedFiles", "DimensionalData", "Distributions", "FFTW", "FileIO", "GeometryBasics", "IntervalSets", "JSON", "LaTeXStrings", "LinearAlgebra", "MakieCore", "Normalization", "Peaks", "Random", "Reexport", "Requires", "SparseArrays", "Statistics", "Unitful"]
-git-tree-sha1 = "bea9b2d0c96b7e163bcc879be69b700d7ff09e35"
+git-tree-sha1 = "96d2637981af2e804151e04d8377369b9891e079"
 repo-rev = "main"
 repo-url = "https://github.com/brendanjohnharris/TimeseriesTools.jl.git"
 uuid = "380cddd1-6ef2-46ca-b087-e7151fb095ff"
@@ -2783,6 +2785,7 @@ version = "0.3.0"
     DierckxExt = ["Dierckx"]
     GeneralizedPhaseExt = ["GeneralizedPhase"]
     NaturalNeighboursExt = ["NaturalNeighbours"]
+    TermExt = ["Term"]
 
     [deps.TimeseriesTools.weakdeps]
     CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
@@ -2793,6 +2796,7 @@ version = "0.3.0"
     Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
     Mmap = "a63ad114-7e13-5084-954f-fe012c677804"
     NaturalNeighbours = "f16ad982-4edb-46b1-8125-78e5a8b5a9e6"
+    Term = "22787eb5-b846-44ae-b979-8e399b8463ab"
     TimeseriesSurrogates = "c804724b-8c18-5caa-8579-6025a0767c70"
 
 [[deps.TranscodingStreams]]

@@ -2,8 +2,8 @@ using Random
 using MultivariateStats
 using Lasso
 using HypothesisTests
-using Term.Progress
 using RobustModels
+using Distributed
 import MLJ
 import MLJScikitLearnInterface
 import MLJLinearModels
@@ -92,6 +92,9 @@ function calcquality(dirname; suffix = "jld2", connector = connector)
     for v in eachcol(vs)
         ds = [Dim{Symbol(d)}(At(s)) for (s, d) in zip(v, dims)]
         Q[ds...] = true
+    end
+    if any(isa.(DimensionalData.dims(Q), (Dim{:structure},)))
+        Q = Q[structure = At(structures)] # * Sort to global structures order
     end
     return Q
 end

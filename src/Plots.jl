@@ -3,6 +3,7 @@ using GraphMakie.Graphs
 using SimpleWeightedGraphs
 using LinearAlgebra
 using JSON
+import TimeseriesTools: freqs
 
 plotdir(args...) = projectdir("plots", args...)
 export plotdir
@@ -21,6 +22,7 @@ colors = [Foresight.cornflowerblue,
     Foresight.juliapurple]
 const structurecolors = [colors..., Makie.RGB(0.5, 0.5, 0.5)]
 const structurecolormap = Dict(structures .=> structurecolors)
+const structurecgrad = cgrad(structurecolors; categorical = true)
 const lfpcolormap = darksunset
 const amplitudecolormap = :bone
 const phasecolormap = cyclic
@@ -33,7 +35,12 @@ const visual_cortex_layout = Dict("VISp" => [350, 350],
                                   "VISam" => [450, 140])
 const hierarchy_scores = Dict("VISp" => -0.357, "VISl" => -0.093, "VISrl" => -0.059,
                               "VISal" => 0.152, "VISpm" => 0.327, "VISam" => 0.441) # * Anatomical hierarchy scores from Siegle 2021
-
+function depthticks(x)
+    if all(x .< 50) # Assume percentages
+        x = x .* 100
+    end
+    return string.(round.(Int, x))
+end
 function plotlayerints!(ax, ints; dx = 0.02, width = dx)
     acronyms = "L" .* layers
     ticks = mean.(ints)
@@ -69,11 +76,10 @@ function wrap(x; domain)
     end
     return y
 end
-
-function plotlayermap!(ax, m, ints; arrows = false,
-                       colorrange = maximum(abs.(ustripall(m))) * [-1, 1],
+function plotlayermap!(ax, m; arrows = false,
+                       colorrange = extrema(ustripall(m)),
                        colormap = binarysunset, doupsample = true, domain = nothing,
-                       rasterize = 10, kwargs...)
+                       rasterize = 10, stimulus = [0, 0.25], kwargs...)
     if doupsample
         if isnothing(domain)
             x = upsample(ustripall(m), 5, 2)
@@ -93,8 +99,16 @@ function plotlayermap!(ax, m, ints; arrows = false,
                 lengthscale = 0.07,
                 normalize = false, color = (:black, 0.4))
     end
+    if !isempty(stimulus) && !isnothing(stimulus)
+        ps = vlines!(ax, stimulus; color = (:white, 0.5), linestyle = :dash, linewidth = 3)
+    else
+        ps = []
+    end
+    return p, ps
+end
 
-    ps = vlines!(ax, [0, 0.25]; color = (:white, 0.5), linestyle = :dash, linewidth = 3)
+function plotlayermap!(ax, m, ints; kwargs...)
+    p, ps = plotlayermap!(ax, m; kwargs...)
     pl = plotlayerints!(ax, ints)
     return p, ps, pl
 end
@@ -200,22 +214,24 @@ end
 const visual_cortex_file = datadir("visual_cortex.json")
 const _visdraworder = ["VISpm", "VISam", "VISrl", "VISal", "VISl", "VISp"]
 const _vishierarchyorder = ["VISp", "VISl", "VISrl", "VISal", "VISpm", "VISam"]
-function load_visual_cortex(file = visual_cortex_file)
+function load_visual_cortex(file = visual_cortex_file; scale = [1.8, 2], offset = [-32, 0])
     D = JSON.parsefile(file)
     outline = D["outline"]
     fill = D["fill"]
     fill = map(collect(fill)) do (k, v)
-        v = [Float32.(_v) for _v in v]
+        v = [Float32.((_v .+ offset) .* scale) for _v in v]
         v = Makie.Polygon(Point{2}.(v))
         k => v
     end |> Dict
     fill = Dict(_visdraworder .=> getindex.([fill], _visdraworder))
-    outline = Dict(k => Vec2f.(v) for (k, v) in collect(outline))
+    outline = map(collect(outline)) do (k, v)
+        k => map(v -> Vec2f.((v .+ offset) .* scale), v)
+    end |> Dict
     outline = Dict(_visdraworder .=> getindex.([outline], _visdraworder))
     return fill, outline
 end
 
-function plot_visual_cortex!(ax = Axis(Figure()[1, 1], aspect = 1, yreversed = true),
+function plot_visual_cortex!(ax = Axis(Figure()[1, 1], aspect = 1, yreversed = true);
                              showoutline = true,
                              strokewidth = 0,
                              draworder = _visdraworder,
@@ -223,17 +239,21 @@ function plot_visual_cortex!(ax = Axis(Figure()[1, 1], aspect = 1, yreversed = t
                              legendorder = colororder,
                              colormap = cgrad(:inferno, length(legendorder),
                                               categorical = true),
-                             alpha = 0.5,
+                             fillalpha = 0.5,
+                             strokealpha = 1,
+                             scale = [1.8, 2],
+                             offset = [32, 0],
                              kwargs...)
-    fill, outline = load_visual_cortex()
+    fill, outline = load_visual_cortex(; scale, offset)
+    _colormap = cgrad(colormap, length(legendorder); categorical = true, alpha = fillalpha)
+    colormap = brighten.(colormap, 1 - strokealpha)
     colormap = cgrad(colormap, length(legendorder), categorical = true)
-    _colormap = cgrad(colormap, length(legendorder); categorical = true, alpha)
     k = keys(fill) |> collect
     legendorder = indexin(legendorder, k)
 
     colors = indexin(k, colororder)
     colors = _colormap[colors] # To original ordering of structures
-    v = values(outline) |> collect
+    v = values(fill) |> collect
     p1 = map(legendorder) do i
         poly!(v[i]; label = k[i], strokewidth, color = colors[i], kwargs...)
     end
@@ -247,8 +267,8 @@ function plot_visual_cortex!(ax = Axis(Figure()[1, 1], aspect = 1, yreversed = t
     else
         p2 = []
     end
-    axislegend(ax)
-    return p1, p2
+    l = axislegend(ax, position = :lt)
+    return p1, p2, l
 end
 function plot_visual_cortex(; kwargs...)
     f = Figure()
@@ -256,4 +276,38 @@ function plot_visual_cortex(; kwargs...)
     p1, p2 = plot_visual_cortex!(ax; kwargs...)
     display(f)
     return f, ax, [p1, p2]
+end
+fooof = x -> AN.aperiodicfit(x, [3, 300]; aperiodic_mode = "fixed", max_n_peaks = 5,
+                             peak_threshold = 1, peak_width_limits = [1, 50])
+function plotspectrum!(ax, s::AbstractDimArray;
+                       textposition = (14, exp10(-2.9)), annotations = [:peaks, :fooof],
+                       color = cucumber, label = nothing)
+    μ = mean(s, dims = (:sessionid, :layer))
+    μ = dropdims(μ, dims = (:sessionid, :layer)) |> ustripall
+    σ = std(s, dims = (:sessionid, :layer)) ./ 2
+    σ = dropdims(σ, dims = (:sessionid, :layer)) |> ustripall
+    p = lines!(ax, freqs(μ), μ; color = (color, 0.8), label)
+    band!(ax, freqs(μ), collect.([max.(μ - σ, eps()), μ + σ])...; color = (color, 0.32))
+
+    # * Find peaks
+    if :peaks in annotations
+        pks, proms = findpeaks(μ, 2; N = 2)
+        scatter!(ax, freqs(pks), pks .* 1.25, color = :black,
+                 markersize = 10, marker = :dtriangle)
+        text!(ax, freqs(pks), pks;
+              text = string.(round.(freqs(pks), digits = 1)) .* [" Hz"],
+              align = (:center, :bottom), color = :black, rotation = 0,
+              fontsize = 16,
+              offset = (0, 15))
+    end
+
+    # * Fooof fit
+    ff, ps = fooof(μ)
+    lines!(ax, freqs(μ), ff.(freqs(μ)), color = (color, 0.5), linestyle = :dash,
+           linewidth = 5)
+    if :fooof in annotations
+        text!(ax, textposition...; text = L"𝛂 = $(round(ps[:χ], sigdigits=3))",
+              fontsize = 16, align = (:right, :center))
+    end
+    return p, ps[:χ]
 end
