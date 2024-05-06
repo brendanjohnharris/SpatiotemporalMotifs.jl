@@ -7,8 +7,9 @@ function send_powerspectra(sessionid; outpath = datadir("power_spectra"),
               epoch = :longest,
               pass = (1, 300))
 
-    stimuli = ["spontaneous", "flash_250ms"] #, r"Natural_Images"]
+    stimuli = ["spontaneous", "flash_250ms", r"Natural_Images"]
     structures = SM.structures
+    push!(structures, "LGd") # Add the thalamus
 
     ssession = []
 
@@ -26,7 +27,7 @@ function send_powerspectra(sessionid; outpath = datadir("power_spectra"),
                                     "structure" => structure), "jld2", outpath)
             @info outfile
 
-            if !rewrite && !isbad()
+            if !rewrite && !isbad(outfile)
                 @info "Already calculated: $(stimulus), $(structure), $(params[:sessionid])"
                 continue
             end
@@ -94,6 +95,9 @@ function send_powerspectra(sessionid; outpath = datadir("power_spectra"),
             tagsave(outfile, @strdict S)
             # catch e @warn e tagsave(outfile, Dict("error" => sprint(showerror, e))) end
             LFP = []
+            D = []
+            streamlinedepths = []
+            layerinfo = []
             S = []
             s = []
             f = []

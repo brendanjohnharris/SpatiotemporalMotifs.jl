@@ -135,7 +135,7 @@ function layernum2name(num)
     end
 end
 
-function isbad()
+function isbad(outfile)
     if !isfile(outfile)
         return true
     end
@@ -540,3 +540,5 @@ function Bins(x; bins = StatsBase.histrange(x, 10))
     idxs = map(bin -> findall(x .∈ [bin]), bints)
     return Bins(bints, idxs)
 end
+
+confidence(x, z = 1.96) = z * std(x) ./ sqrt(length(x)) # * 1.96 for 95% confidence interval

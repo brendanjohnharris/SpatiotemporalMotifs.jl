@@ -14,14 +14,14 @@ session_table = load(datadir("session_table.jld2"), "session_table")
 oursessions = session_table.ecephys_session_id
 
 if haskey(ENV, "JULIA_DISTRIBUTED")
-    project = "/headnode2/bhar9988/code/DDC/SpatiotemporalMotifs/"
-    procs = USydClusters.Physics.addprocs(length(oursessions); ncpus = 4, mem = 15,
-                                          walltime = 96, project)
+    proclist = USydClusters.Physics.addprocs(8; ncpus = 2, mem = 32,
+                                             walltime = 96, project = projectdir())
     @everywhere import SpatiotemporalMotifs as SM
     O = [remotecall(SM.send_powerspectra, p, s; rewrite = false)
-         for (p, s) in zip(procs, oursessions)]
+         for (p, s) in zip(proclist, oursessions)]
     wait.(O) # Wait for workers to finish
     display("All workers completed")
+    SM.send_powerspectra.(oursessions; rewrite = false) #  A final local check, in case a few workers failed.
     @sync USydClusters.Physics.selfdestruct()
 else
     SM.send_powerspectra.(oursessions; rewrite = false)

@@ -23,6 +23,7 @@ colors = [Foresight.cornflowerblue,
 const structurecolors = [colors..., Makie.RGB(0.5, 0.5, 0.5)]
 const structurecolormap = Dict(structures .=> structurecolors)
 const structurecgrad = cgrad(structurecolors; categorical = true)
+const defaultcolormap = binarysunset
 const lfpcolormap = darksunset
 const amplitudecolormap = :bone
 const phasecolormap = cyclic

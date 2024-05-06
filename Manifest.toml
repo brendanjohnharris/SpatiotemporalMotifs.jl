@@ -792,7 +792,7 @@ version = "2.13.93+0"
 
 [[deps.Foresight]]
 deps = ["Clustering", "Colors", "FileIO", "Format", "ImageClipboard", "Images", "LinearAlgebra", "Makie", "Preferences", "Random", "Requires"]
-git-tree-sha1 = "0daa642967c890b9ad86e81b67c99eff7234c506"
+git-tree-sha1 = "66c54e9757d1a1ab8ef240359210f99783070bd1"
 repo-rev = "main"
 repo-url = "https://github.com/brendanjohnharris/Foresight.jl.git"
 uuid = "c6e1034d-1844-4b96-abf2-c5824a5aa8c3"
