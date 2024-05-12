@@ -39,14 +39,14 @@ end
 
 function probe_has_lfp(probeid)
     has = probes[probes.ecephys_probe_id .== probeid, :].has_lfp_data |> only
-    has = pyconvert(String, has) == "True"
+    return has == "True"
 end
 
 probes_with_lfp(probeids) = sum(probe_has_lfp.(probeids))
 
 function minimum_target_units(y,
                               targets = ["VISp", "VISl", "VISal", "VISrl", "VISpm",
-                                         "VISam"])
+                                  "VISam"])
     idxs = [y .== t for t in targets]
     return minimum(sum.(idxs))
 end
@@ -77,7 +77,7 @@ session_metrics = DataFrames.combine(groupby(metrics, :ecephys_session_id),
                                      :isi_violations => median ∘ skipnan,
                                      :d_prime => median ∘ skipnan,
                                      :isolation_distance => median ∘ skipnan,
-                                     :silhouette_score => median ∘ skipnan,
+                                     :silhouette_scyore => median ∘ skipnan,
                                      :quality => (x -> mean(x .== ["good"])) => :mean_quality,
                                      :structure_acronym => minimum_target_units => :minimum_target_units,
                                      :snr => median ∘ skipnan)

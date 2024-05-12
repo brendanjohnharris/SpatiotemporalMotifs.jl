@@ -1,6 +1,6 @@
 
 function send_powerspectra(sessionid; outpath = datadir("power_spectra"),
-                           plotpath = plotdir("power_spectra", "full"),
+                           plotpath = datadir("power_spectra_plots"),
                            rewrite = false)
     params = (;
               sessionid,
@@ -9,7 +9,10 @@ function send_powerspectra(sessionid; outpath = datadir("power_spectra"),
 
     stimuli = ["spontaneous", "flash_250ms", r"Natural_Images"]
     structures = SM.structures
-    push!(structures, "LGd") # Add the thalamus
+    # Add thalamic regions
+    push!(structures, "LGd")
+    push!(structures, "LGd-sh")
+    push!(structures, "LGd-co")
 
     ssession = []
 
@@ -38,62 +41,66 @@ function send_powerspectra(sessionid; outpath = datadir("power_spectra"),
                 session = ssession[1]
             end
             @info "Calculating $(stimulus) LFP in $(structure) for session $(params[:sessionid])"
-            # try
-            LFP = AN.formatlfp(session; tol = 3, _params...)u"V"
-            # end
-            LFP = set(LFP, Ti => Ti((times(LFP))u"s"))
-            channels = lookup(LFP, :channel)
-            # N = fit(UnitPower, LFP, dims=1) normalize!(LFP, N)
-            S = powerspectrum(LFP, 0.1; padding = 10000)
+            try
+                LFP = AN.formatlfp(session; tol = 3, _params...)u"V"
 
-            S = S[Freq(params[:pass][1] * u"Hz" .. params[:pass][2] * u"Hz")]
-            depths = AN.getchanneldepths(session, LFP; method = :probe)
-            S = set(S, Dim{:channel} => Dim{:depth}(depths))
+                LFP = set(LFP, Ti => Ti((times(LFP))u"s"))
+                channels = lookup(LFP, :channel)
+                # N = fit(UnitPower, LFP, dims=1) normalize!(LFP, N)
+                S = powerspectrum(LFP, 0.1; padding = 10000)
 
-            # * Find peaks in the average power spectrum
-            s = mean(S, dims = Dim{:depth})[:, 1]
-            pks, vals = findmaxima(s, 10)
-            pks, proms = peakproms(pks, s)
-            promidxs = (proms ./ vals .> 0.25) |> collect
-            maxs = maximum(S, dims = Dim{:depth})[:, 1]
-            pks = pks[promidxs]
-            pks = TimeseriesTools.freqs(s)[pks]
-            vals = s[Freq(At(pks))]
+                S = S[Freq(params[:pass][1] * u"Hz" .. params[:pass][2] * u"Hz")]
+                depths = AN.getchanneldepths(session, LFP; method = :probe)
+                S = set(S, Dim{:channel} => Dim{:depth}(depths))
 
-            f = Figure()
-            colorrange = extrema(depths)
-            ax = Axis(f[1, 1]; xscale = log10, yscale = log10, xtickformat = "{:.1f}",
-                      limits = (params[:pass], (nothing, nothing)), xgridvisible = true,
-                      ygridvisible = true, topspinevisible = true,
-                      title = "$(_params[:structure]), $(_params[:stimulus])",
-                      xminorticksvisible = true, yminorticksvisible = true,
-                      xminorgridvisible = true, yminorgridvisible = true,
-                      xminorgridstyle = :dash)
-            p = traces!(ax, S[2:end, :]; colormap = cgrad(sunset, alpha = 0.4),
-                        linewidth = 3, colorrange)
-            scatter!(ax, ustrip.(pks), collect(ustrip.(vals)), color = :black,
-                     markersize = 10, marker = :dtriangle)
-            text!(ax, ustrip.(pks), collect(ustrip.(vals));
-                  text = string.(round.(eltype(pks), pks, digits = 1)),
-                  align = (:center, :bottom), color = :black, rotation = 0,
-                  fontsize = 12,
-                  offset = (0, 3))
+                # * Find peaks in the average power spectrum
+                s = mean(S, dims = Dim{:depth})[:, 1]
+                pks, vals = findmaxima(s, 10)
+                pks, proms = peakproms(pks, s)
+                promidxs = (proms ./ vals .> 0.25) |> collect
+                maxs = maximum(S, dims = Dim{:depth})[:, 1]
+                pks = pks[promidxs]
+                pks = TimeseriesTools.freqs(s)[pks]
+                vals = s[Freq(At(pks))]
 
-            c = Colorbar(f[1, 2]; label = "Channel depth (μm)", colorrange,
-                         colormap = sunset)
-            # rowsize!(f.layout, 1, Relative(0.8))
-            mkpath(joinpath(plotpath, "$(_params[:sessionid])"))
-            wsave(joinpath(plotpath, "$(_params[:sessionid])",
-                           "$(_params[:stimulus])_$(_params[:structure]).pdf"), f)
+                f = Figure()
+                colorrange = extrema(depths)
+                ax = Axis(f[1, 1]; xscale = log10, yscale = log10, xtickformat = "{:.1f}",
+                          limits = (params[:pass], (nothing, nothing)), xgridvisible = true,
+                          ygridvisible = true, topspinevisible = true,
+                          title = "$(_params[:structure]), $(_params[:stimulus])",
+                          xminorticksvisible = true, yminorticksvisible = true,
+                          xminorgridvisible = true, yminorgridvisible = true,
+                          xminorgridstyle = :dash)
+                p = traces!(ax, S[2:end, :]; colormap = cgrad(sunset, alpha = 0.4),
+                            linewidth = 3, colorrange)
+                scatter!(ax, ustrip.(pks), collect(ustrip.(vals)), color = :black,
+                         markersize = 10, marker = :dtriangle)
+                text!(ax, ustrip.(pks), collect(ustrip.(vals));
+                      text = string.(round.(eltype(pks), pks, digits = 1)),
+                      align = (:center, :bottom), color = :black, rotation = 0,
+                      fontsize = 12,
+                      offset = (0, 3))
 
-            # * Format data for saving
-            streamlinedepths = AN.getchanneldepths(session, LFP; method = :streamlines)
-            layerinfo = AN.Plots._layerplot(session, channels)
-            D = Dict(DimensionalData.metadata(LFP))
-            @pack! D = channels, streamlinedepths, layerinfo
-            S = rebuild(S; metadata = D)
-            tagsave(outfile, @strdict S)
-            # catch e @warn e tagsave(outfile, Dict("error" => sprint(showerror, e))) end
+                c = Colorbar(f[1, 2]; label = "Channel depth (μm)", colorrange,
+                             colormap = sunset)
+                # rowsize!(f.layout, 1, Relative(0.8))
+                mkpath(joinpath(plotpath, "$(_params[:sessionid])"))
+                plotfile = joinpath(plotpath, "$(_params[:sessionid])",
+                                    "$(_params[:stimulus])_$(_params[:structure]).pdf")
+                wsave(plotfile, f)
+                @info "Saved plot to $plotfile"
+
+                # * Format data for saving
+                streamlinedepths = AN.getchanneldepths(session, LFP; method = :streamlines)
+                layerinfo = AN.Plots._layerplot(session, channels)
+                D = Dict(DimensionalData.metadata(LFP))
+                @pack! D = channels, streamlinedepths, layerinfo
+                S = rebuild(S; metadata = D)
+                tagsave(outfile, @strdict S)
+            catch e
+                @warn e tagsave(outfile, Dict("error" => sprint(showerror, e)))
+            end
             LFP = []
             D = []
             streamlinedepths = []
@@ -433,11 +440,12 @@ end
 produce_out(Q; kwargs...) = config -> produce_out(Q, config; kwargs...)
 
 function produce_uni(config; path = datadir("calculations"))
+    @info "Producing unified data"
     data, outfile = produce_or_load(produce_out, config, datadir(); filename = savepath,
                                     path, prefix = "out")
     out = data["out"]
     uni = unify_calculations(out; vars = config["vars"])
-    @strdict uni outfile
+    return @strdict uni outfile
 end
 produce_uni(; kwargs...) = config -> produce_uni(config; kwargs...)
 
@@ -486,14 +494,14 @@ function produce_unitdepths(sessionids)
 end
 
 function load_unitdepths(oursessions; filepath = datadir("unitdepths.jld2"),
-                         rewrite = true)
+                         rewrite = false)
     if isfile(filepath) && !rewrite
         D = load(filepath, "unitdepths")
         sessionids = load(filepath, "sessionids")
     end
     if !isfile(filepath) || rewrite || (sort(oursessions) != sort(sessionids))
         D = produce_unitdepths(oursessions)
-        save(filepath, Dict("unitdepths" => D, "sessionids" => oursessions))
+        tagsave(filepath, Dict("unitdepths" => D, "sessionids" => oursessions))
     end
     return D
 end

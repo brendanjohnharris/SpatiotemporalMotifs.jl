@@ -22,7 +22,6 @@ function _preamble()
         using Unitful
         using FileIO
         import AllenNeuropixels as AN
-        using AperiodicSurrogates
         using ComplexityMeasures
         using Clustering
         using CairoMakie
@@ -53,6 +52,8 @@ end
 macro preamble()
     _preamble()
 end
+
+const structures = ["VISp", "VISl", "VISrl", "VISal", "VISpm", "VISam"]
 
 function calcquality(dirname; suffix = "jld2", connector = connector)
     files = readdir(dirname)
@@ -93,7 +94,8 @@ function calcquality(dirname; suffix = "jld2", connector = connector)
         ds = [Dim{Symbol(d)}(At(s)) for (s, d) in zip(v, dims)]
         Q[ds...] = true
     end
-    if any(isa.(DimensionalData.dims(Q), (Dim{:structure},)))
+    if any(isa.(DimensionalData.dims(Q), (Dim{:structure},))) &&
+       all(lookup(Q, :structure) .∈ [structures])
         Q = Q[structure = At(structures)] # * Sort to global structures order
     end
     return Q
@@ -265,6 +267,7 @@ function classifier(H; dim = :trial, regcoef = 0.1)
 end
 
 function classify_kfold(H, rng::AbstractRNG = Random.default_rng(); k = 5, dim = :trial,
+                        repeats = 10,
                         kwargs...)
     labels = lookup(H, dim)
     @assert eltype(labels) == Bool
@@ -272,22 +275,25 @@ function classify_kfold(H, rng::AbstractRNG = Random.default_rng(); k = 5, dim =
     negsize = size(H)[negdims]
     h = reshape(H, (prod(negsize), size(H, dim))) # Flattened data, _ × trial
 
-    trains, tests = crossvalidate(labels, k, rng)
+    bacs = map(1:repeats) do _
+        trains, tests = crossvalidate(labels, k, rng)
 
-    bac = map(trains, tests) do train, test
-        try
-            N, M = classifier(h[:, train], labels[train]; kwargs...)
-            y = labels[test] |> collect
-            ŷ = predict(M, normalize(h[:, test], N)) .> 0 # Predicted output classes
-            ŷ = ŷ |> vec |> collect
-            bac = balanced_accuracy(y, ŷ)
-            return bac
-        catch e
-            @warn e
-            return NaN
+        bac = map(trains, tests) do train, test
+            try
+                N, M = classifier(h[:, train], labels[train]; kwargs...)
+                y = labels[test] |> collect
+                ŷ = predict(M, normalize(h[:, test], N)) .> 0 # Predicted output classes
+                ŷ = ŷ |> vec |> collect
+                bac = balanced_accuracy(y, ŷ)
+                return bac
+            catch e
+                @warn e
+                return NaN
+            end
         end
+        return mean(bac)
     end
-    return mean(bac)
+    return mean(bacs)
 end
 
 mutable struct Regressor{T}

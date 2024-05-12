@@ -8,8 +8,7 @@ import TimeseriesTools: freqs
 plotdir(args...) = projectdir("plots", args...)
 export plotdir
 
-const structures = ["VISp", "VISl", "VISrl", "VISal", "VISpm", "VISam"]
-const connector = "-"
+const connector = "&"
 const layers = ["1", "2/3", "4", "5", "6"]
 # const layercolors = reverse(binarysunset[range(start = 0, stop = 1,
 const layercolors = (cgrad(:inferno)[range(start = 0, stop = 0.8,
@@ -27,6 +26,8 @@ const defaultcolormap = binarysunset
 const lfpcolormap = darksunset
 const amplitudecolormap = :bone
 const phasecolormap = cyclic
+DEFAULT_SESSION_ID = 1122903357
+DEFAULT_TRIAL_NUM = 100
 
 const visual_cortex_layout = Dict("VISp" => [350, 350],
                                   "VISl" => [170, 310],
@@ -93,11 +94,17 @@ function plotlayermap!(ax, m; arrows = false,
         x = ustripall(m)
     end
     p = heatmap!(ax, x; colormap, colorrange, rasterize, kwargs...)
-    if arrows
-        q = ustripall((m))[1:100:end, 1:3:end]
+    if arrows == true
+        arrows = (100, 3)
+    end
+    if length(arrows) == 1
+        arrows = (arrows, 3)
+    end
+    if first(arrows) != 0
+        q = ustripall((m))[1:arrows[1]:end, 1:arrows[2]:end]
         q ./= maximum(abs.(q))
         arrows!(ax, lookup(q, 1), lookup(q, 2), zeros(size(q)), parent(q);
-                lengthscale = 0.07,
+                lengthscale = 0.07, arrowsize = 0.2,
                 normalize = false, color = (:black, 0.4))
     end
     if !isempty(stimulus) && !isnothing(stimulus)

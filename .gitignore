@@ -16,3 +16,5 @@ data
 docs/build/
 docs/site/
 plots/
+cache/
+tempfig.png
