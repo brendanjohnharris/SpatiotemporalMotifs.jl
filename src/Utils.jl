@@ -4,6 +4,7 @@ using Lasso
 using HypothesisTests
 using RobustModels
 using Distributed
+import Bootstrap
 import MLJ
 import MLJScikitLearnInterface
 import MLJLinearModels
@@ -547,4 +548,42 @@ function Bins(x; bins = StatsBase.histrange(x, 10))
     return Bins(bints, idxs)
 end
 
-confidence(x, z = 1.96) = z * std(x) ./ sqrt(length(x)) # * 1.96 for 95% confidence interval
+_confidence(x, z = 1.96) = z * std(x) ./ sqrt(length(x)) # * 1.96 for 95% confidence interval
+confidence(x, args...; dims = 1:ndims(x)) = mapslices(x -> _confidence(x, args...), x; dims)
+function quartiles(X::AbstractArray; dims = 1)
+    q1 = mapslices(x -> quantile(x, 0.25), X; dims)
+    q2 = mapslices(x -> quantile(x, 0.5), X; dims)
+    q3 = mapslices(x -> quantile(x, 0.75), X; dims)
+end
+
+function bootstrapmedian(x::AbstractVector{T}; confint = 0.95,
+                         N = 1000)::Tuple{T, Tuple{T, T}} where {T}
+    # * Estimate a sampling distribution of the median
+    b = Bootstrap.bootstrap(median, x, Bootstrap.BalancedSampling(N))
+    μ, σ... = only(Bootstrap.confint(b, Bootstrap.BCaConfInt(confint)))
+    return μ, σ
+end
+
+function bootstrapmedian(X::AbstractArray; dims = 1, kwargs...)
+    ds = [i == dims ? 1 : Colon() for i in 1:ndims(X)]
+    μ = similar(X[ds...])
+    σl = similar(μ)
+    σh = similar(μ)
+    negdims = filter(!=(dims), 1:ndims(X)) |> Tuple
+    Threads.@threads for (i, x) in collect(enumerate(eachslice(X; dims = negdims)))
+        μ[i], (σl[i], σh[i]) = bootstrapmedian(x; kwargs...)
+    end
+    return μ, (σl, σh)
+end
+function bootstrapmedian(X::AbstractDimArray; dims = 1, kwargs...)
+    dims = dimnum(X, dims)
+    ds = [i == dims ? 1 : Colon() for i in 1:ndims(X)]
+    μ = similar(X[ds...])
+    σl = similar(μ)
+    σh = similar(μ)
+    negdims = filter(!=(dims), 1:ndims(X)) |> Tuple
+    Threads.@threads for (i, x) in collect(enumerate(eachslice(X; dims = negdims)))
+        μ[i], (σl[i], σh[i]) = bootstrapmedian(parent(x); kwargs...)
+    end
+    return μ, (σl, σh)
+end

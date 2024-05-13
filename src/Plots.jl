@@ -26,8 +26,8 @@ const defaultcolormap = binarysunset
 const lfpcolormap = darksunset
 const amplitudecolormap = :bone
 const phasecolormap = cyclic
-DEFAULT_SESSION_ID = 1122903357
-DEFAULT_TRIAL_NUM = 100
+DEFAULT_SESSION_ID = 1140102579
+DEFAULT_TRIAL_NUM = 26
 
 const visual_cortex_layout = Dict("VISp" => [350, 350],
                                   "VISl" => [170, 310],
@@ -43,22 +43,45 @@ function depthticks(x)
     end
     return string.(round.(Int, x))
 end
-function plotlayerints!(ax, ints; dx = 0.02, width = dx)
+function plotlayerints!(ax, ints; dx = 0.02, width = dx, axis = :y, newticks = true,
+                        flipside = false)
     acronyms = "L" .* layers
     ticks = mean.(ints)
-    freeze!(ax)
-    ax.yticks = (ticks, acronyms)
-    ax.yticksvisible = false
+    # freeze!(ax)
+    if axis === :y && newticks
+        ax.yticks = (ticks, acronyms)
+        ax.yticksvisible = false
+    elseif axis === :x && newticks
+        ax.xticks = (ticks, acronyms)
+        ax.xticksvisible = false
+    end
     xmins = [!Bool(mod(i, 2)) * dx for i in 1:length(acronyms)]
     xmaxs = xmins .+ width
-    hspan!(ax, extrema(vcat(collect.(extrema.(ints))...))...; xmin = 0, xmax = dx * 2,
-           color = :white)
-    ps = map(ints, layercolors, xmins, xmaxs) do i, color, xmin, xmax
-        hspan!(ax, extrema(i)...; xmin, xmax, color)
+    if flipside
+        xmins = 1 .- xmins
+        xmaxs = 1 .- xmaxs
     end
+    if axis === :y
+        hspan!(ax, extrema(vcat(collect.(extrema.(ints))...))...;
+               xmin = minimum([xmins xmaxs]),
+               xmax = maximum([xmins xmaxs]),
+               color = :white)
+        ps = map(ints, layercolors, xmins, xmaxs) do i, color, xmin, xmax
+            hspan!(ax, extrema(i)...; xmin, xmax, color)
+        end
+    elseif axis === :x
+        vspan!(ax, extrema(vcat(collect.(extrema.(ints))...))...;
+               ymin = minimum([xmins xmaxs]),
+               ymax = maximum([xmins xmaxs]),
+               color = :white)
+        ps = map(ints, layercolors, xmins, xmaxs) do i, color, xmin, xmax
+            vspan!(ax, extrema(i)...; ymin = xmin, ymax = xmax, color)
+        end
+    end
+
     return ps
 end
-function plotlayerints!(ax, ints::DimArray{<:String, 1}; width = 0.02)
+function plotlayerints!(ax, ints::DimArray{<:String, 1}; width = 0.02, kwargs...)
     ints = parselayernum.(ints)
     ds = diff(lookup(ints, :depth)) / 2
     append!(ds, first(ds))
@@ -66,7 +89,7 @@ function plotlayerints!(ax, ints::DimArray{<:String, 1}; width = 0.02)
         x = lookup(ints[ints .== i], :depth)
         return ustrip(minimum(x) - d) .. ustrip(maximum(x) + d)
     end
-    return plotlayerints!(ax, ints; width, dx = 0)
+    return plotlayerints!(ax, ints; width, dx = 0, kwargs...)
 end
 
 function wrap(x; domain)

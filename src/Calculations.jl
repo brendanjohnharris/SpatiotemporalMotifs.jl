@@ -499,7 +499,7 @@ function load_unitdepths(oursessions; filepath = datadir("unitdepths.jld2"),
         D = load(filepath, "unitdepths")
         sessionids = load(filepath, "sessionids")
     end
-    if !isfile(filepath) || rewrite || (sort(oursessions) != sort(sessionids))
+    if !isfile(filepath) || rewrite || !all(oursessions .∈ [sessionids])
         D = produce_unitdepths(oursessions)
         tagsave(filepath, Dict("unitdepths" => D, "sessionids" => oursessions))
     end
