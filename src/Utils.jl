@@ -1,6 +1,5 @@
 using Random
 using MultivariateStats
-using Lasso
 using HypothesisTests
 using RobustModels
 using Distributed
