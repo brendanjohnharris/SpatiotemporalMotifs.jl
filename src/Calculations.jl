@@ -362,6 +362,14 @@ function load_calculations(Q; path = datadir("calculations"), stimulus, vars = [
 end
 
 function unify_calculations(out; vars = [:x, :k])
+    # * Filter to posthoc sessions
+    session_table = load(datadir("posthoc_session_table.jld2"), "session_table")
+    oursessions = session_table.ecephys_session_id
+    out = map(out) do O
+        filter(o -> (o[:sessionid] in oursessions), O)
+    end
+    @assert all(length.(out) .== length(oursessions))
+
     stimuli = [[DimensionalData.metadata(o[first(vars)])[:stimulus] for o in out[i]]
                for i in eachindex(out)]
     stimulus = only(unique(vcat(stimuli...)))
@@ -428,7 +436,7 @@ function unify_calculations(out; vars = [:x, :k])
             push!(ovars, v => k)
         end
 
-        return (; unidepths, layerints, layernames, layernums, ovars...)
+        return (; oursessions, unidepths, layerints, layernames, layernums, ovars...)
     end
     return uni
 end

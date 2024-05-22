@@ -556,7 +556,7 @@ function quartiles(X::AbstractArray; dims = 1)
 end
 
 function bootstrapmedian(x::AbstractVector{T}; confint = 0.95,
-                         N = 1000)::Tuple{T, Tuple{T, T}} where {T}
+                         N = 10000)::Tuple{T, Tuple{T, T}} where {T}
     # * Estimate a sampling distribution of the median
     b = Bootstrap.bootstrap(median, x, Bootstrap.BalancedSampling(N))
     μ, σ... = only(Bootstrap.confint(b, Bootstrap.BCaConfInt(confint)))

@@ -12,9 +12,6 @@ using Unitful
 import DimensionalData: metadata
 using MultivariateStats
 using SpatiotemporalMotifs
-structurecolors, structures, commondepths, parselayernum,
-load_calculations, unify_calculations,
-plotlayerints!, plotlayermap!,
 @preamble
 set_theme!(foresight(:physics))
 Random.seed!(32)
@@ -22,12 +19,8 @@ Random.seed!(32)
 stimulus = r"Natural_Images"
 datafile = datadir("theta_waves_task.jld2")
 
-session_table = load(datadir("session_table.jld2"), "session_table")
+session_table = load(datadir("posthoc_session_table.jld2"), "session_table")
 oursessions = session_table.ecephys_session_id
-
-path = datadir("calculations")
-Q = calcquality(path)[structure = At(structures)]
-quality = mean(Q[stimulus = At(stimulus)])
 
 # * Theta wavenumber
 vars = [:k]

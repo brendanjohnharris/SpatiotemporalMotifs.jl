@@ -325,8 +325,8 @@ function plotspectrum!(ax, s::AbstractDimArray;
         pks, proms = findpeaks(μ, 2; N = 2)
         scatter!(ax, freqs(pks), pks .* 1.25, color = :black,
                  markersize = 10, marker = :dtriangle)
-        text!(ax, freqs(pks), pks;
-              text = string.(round.(freqs(pks), digits = 1)) .* [" Hz"],
+        text!(ax, collect(freqs(pks)), collect(pks);
+              text = string.(round.(collect(freqs(pks)), digits = 1)) .* [" Hz"],
               align = (:center, :bottom), color = :black, rotation = 0,
               fontsize = 16,
               offset = (0, 15))
