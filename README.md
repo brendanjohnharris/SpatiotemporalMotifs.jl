@@ -60,6 +60,10 @@ This script must be run on a high-performance computing cluster, and will need t
 
 ................
 
+### [Thalamus calculations](scripts/calculations/cluster/thalamus_calculations.jl)
+
+................
+
 #### [Post-hoc session filtering](scripts/calculations/posthoc_session_filter.jl)
 
 There are some session quality metrics---the layer assignment consistency, and subject performance---that we can only calculate after collecting and formatting the data. This script filters out sessions that do not meet our post-hoc quality criteria, and saves the results in `data/posthoc_session_table.jld2`.

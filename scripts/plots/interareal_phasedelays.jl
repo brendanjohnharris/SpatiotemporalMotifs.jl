@@ -34,18 +34,14 @@ data, file = produce_or_load(produce_uni, config, datadir(); filename = savepath
 uni = data["uni"]
 
 function cylindricalcor(alpha, x)
-
     # Compute correlation coefficients for sin and cos independently
     rxs = cor(x, sin.(alpha))
     rxc = cor(x, cos.(alpha))
     rcs = cor(sin.(alpha), cos.(alpha))
-
     # Compute circular-linear correlation
     rho = sqrt((rxc^2 + rxs^2 - 2 * rxc * rxs * rcs) / (1 - rcs^2))
-
     # Compute p-value
     # pval = 1 - cdf(Chisq(2), n * rho^2)
-
     return rho
 end
 
@@ -71,7 +67,7 @@ begin # * Massive
 
     Δ = [(a, b) for a in eachslice(uniphi, dims = 4), b in eachslice(uniphi, dims = 4)]
     Δ = Δ[filter(!=(0), triu(LinearIndices(Δ), 1))]
-    Δ = map(Δ) do (a, b)
+    Δ = map(Δ) do (a, b) # ! Check interpretation of phase difference to propagation direction
         mod.(b .- a .+ π, 2π) .- π
     end
     Δ = stack(Dim{:pair}(eachindex(Δ)), Δ, dims = 4)
@@ -96,7 +92,6 @@ begin # * Massive
 end
 
 begin # * Plots
-    # !!! Currently for HIT trials
     f = FourPanel()
     gs = subdivide(f, 2, 2)
 
@@ -115,9 +110,7 @@ begin # * Plots
         ax = Axis(gs[2][1, 1], yreversed = true,
                   title = "θ propagation (hierarchy)", xlabel = "Time (s)",
                   ylabel = "Cortical depth (%)")
-        ∂̄ = dropdims(mean(∂h[:, :, lookup(∂h, :trial) .== true],
-                           dims = Dim{:trial}),
-                      dims = :trial)
+        ∂̄ = dropdims(mean(∂h, dims = Dim{:trial}), dims = :trial)
         p, _ = plotlayermap!(ax, ∂̄[:, 3:end] |> ustripall, colormap = :viridis)
         Colorbar(gs[2][1, 2], p; label = "Mean hierarchical ∇ (a.u.)")
         f
@@ -152,3 +145,81 @@ begin # * Plots
     wsave(plotdir("interareal_phasedelays", "interareal_phasedelays.pdf"), f)
     f
 end
+
+begin # * Thalamic comparison
+    function load_thalamic_theta(sessionids = nothing;
+                                 path = datadir("thalamus_calculations"),
+                                 stimulus = r"Natural_Images")
+        Q = calcquality(path)
+        idxs = lookup(Q, :sessionid) .∈ [sessionids]
+        Q = Q[sessionid = idxs, stimulus = At(stimulus)]
+        structure = lookup(Q, :structure) |> only
+        out = map(lookup(Q, :sessionid)) do sessionid
+            D = @strdict structure sessionid stimulus
+            data = load(joinpath(path, savepath(D, "jld2")), "ϕ")
+            m = dropdims(circularmean(data, dims = 2), dims = 2)
+        end
+        sessionids = lookup(Q, :sessionid)
+        out = DimArray(out, (Dim{:sessionid}(sessionids),))
+        return out
+    end
+    thth = load_thalamic_theta(oursessions)
+end
+
+begin # * Check direction of phase difference
+    thout = map(out) do o
+        [_o[:ϕ] for _o in o if _o[:sessionid] in lookup(thth, :sessionid)]
+    end
+    thout = progressmap(thout; parallel = true) do o
+        progressmap(o; parallel = true) do x
+            y = thth[sessionid = At(metadata(x)[:sessionid])]
+            I = intersect(Interval(x), Interval(y))
+            x = x[Ti(I)]
+            y = y[Ti(I)]
+            @assert length(y) > 1500
+            y = set(y, Ti => times(x))
+            mapslices(x; dims = (1, 3)) do x
+                phasegrad(y, x)
+            end
+        end
+    end
+end
+
+begin # *
+    bins = 0.05:0.1:0.95
+    mth = map(thout) do x
+        map(x) do y
+            out = dropdims(mean(y[Ti(0.25u"s" .. 0.75u"s")], dims = (1, 3)); dims = (1, 3))
+            out = mean.(SpatiotemporalMotifs.Bins(lookup(out, :depth); bins)(out))
+        end
+    end
+    seshs = [metadata(x)[:sessionid] for x in thout[1]]
+    mth = stack.([Dim{:sessionid}(seshs)], mth; dims = 1)
+end
+
+begin
+    f = Figure()
+    ax = Axis(f[1, 1])
+    p = heatmap!(ax, thout[2][1][:, :, 120]; colormap = phasecolormap, colorrange = [-π, π])
+    Colorbar(f[1, 2], p)
+    f
+end
+
+begin # * depth wise differences
+    f = Figure()
+    ax = Axis(f[1, 1])
+    for i in 1:6
+        d = lookup(mth[i], :bin)
+        μ, (l, u) = bootstrapmedian(mth[i]; dims = 1)
+        if sum(μ .> 0) < 5
+            μ = -μ
+            l = -l
+            u = -u
+        end
+        band!(ax, d, collect(l), collect(u), color = (structurecolors[i], 0.3))
+        scatterlines!(ax, d, μ, label = structures[i], color = structurecolors[i])
+    end
+    axislegend(ax)
+    f
+end
+begin # * Time and depth-wise differences. Should we just repeat the wavenumber/order parameter analysis, but for relative phases?? Ask.

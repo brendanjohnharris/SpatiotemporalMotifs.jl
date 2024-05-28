@@ -159,24 +159,8 @@ function _calculations(LFP; pass_θ, pass_γ, ΔT, doupsample, starttimes)
     return V, x, y, a, ϕ, ϕᵧ, ω, k, v, r, ωᵧ, kᵧ
 end
 
-function send_calculations(D::Dict, session = AN.Session(D[:sessionid]);
-                           pass_θ = (4, 10) .* u"Hz",
-                           pass_γ = (40, 100) .* u"Hz",
-                           ΔT = -0.5u"s" .. 0.75u"s",
-                           doupsample = 0,
-                           rewrite = false,
-                           outpath)
-    @unpack sessionid, structure, stimulus = D
-    outfile = savepath(D, "jld2", outpath)
-
-    @info outfile
-    if !rewrite && isfile(outfile)
-        @info "Calculations already complete for $(sessionid), $(structure), $(stimulus)"
-        return GC.gc()
-    end
-
+function _calculations(session::AN.AbstractSession, structure, stimulus)
     probeid = AN.getprobe(session, structure)
-    performance_metrics = AN.getperformancemetrics(session)
 
     if stimulus == r"Natural_Images"
         LFP = AN.formatlfp(session; probeid, structure, stimulus, rectify = false,
@@ -210,8 +194,6 @@ function send_calculations(D::Dict, session = AN.Session(D[:sessionid]);
 
     channels = lookup(LFP, :channel)
     depths = AN.getchanneldepths(session, LFP; method = :probe)
-    streamlinedepths = AN.getchanneldepths(session, LFP; method = :streamlines)
-    layerinfo = AN.Plots._layerplot(session, channels)
     LFP = set(LFP, Dim{:channel} => Dim{:depth}(depths))
 
     LFP = set(LFP, Ti => times(LFP) .* u"s")
@@ -220,6 +202,31 @@ function send_calculations(D::Dict, session = AN.Session(D[:sessionid]);
     tmap = set(tmap .* u"s", Ti => times(tmap) .* u"s")
     LFP = rectify(LFP, dims = Dim{:depth})
 
+    return LFP, trials, starttimes, channels, depths, spiketimes, units
+end
+
+function send_calculations(D::Dict, session = AN.Session(D[:sessionid]);
+                           pass_θ = (4, 10) .* u"Hz",
+                           pass_γ = (40, 100) .* u"Hz",
+                           ΔT = -0.5u"s" .. 0.75u"s",
+                           doupsample = 0,
+                           rewrite = false,
+                           outpath)
+    @unpack sessionid, structure, stimulus = D
+    outfile = savepath(D, "jld2", outpath)
+
+    @info outfile
+    if !rewrite && isfile(outfile)
+        @info "Calculations already complete for $(sessionid), $(structure), $(stimulus)"
+        return GC.gc()
+    end
+
+    performance_metrics = AN.getperformancemetrics(session)
+    LFP, trials, starttimes, channels, depths, spiketimes, units = _calculations(session,
+                                                                                 structure,
+                                                                                 stimulus)
+    streamlinedepths = AN.getchanneldepths(session, LFP; method = :streamlines)
+    layerinfo = AN.Plots._layerplot(session, channels)
     V, x, y, a, ϕ, ϕᵧ, ω, k, v, r, ωᵧ, kᵧ = _calculations(LFP; pass_θ, pass_γ, ΔT,
                                                           doupsample, starttimes)
 
@@ -263,6 +270,85 @@ function send_calculations(sessionid;
             @info "Saving $(sessionid) $(structure) $(stimulus)"
             D = @dict sessionid structure stimulus
             send_calculations(D, session; kwargs...)
+        end
+    end
+    return true
+end
+
+function send_thalamus_calculations(D::Dict, session = AN.Session(D[:sessionid]);
+                                    pass_θ = (4, 10) .* u"Hz",
+                                    pass_γ = (40, 100) .* u"Hz",
+                                    ΔT = -0.5u"s" .. 0.75u"s",
+                                    doupsample = 0,
+                                    rewrite = false,
+                                    outpath)
+    @unpack sessionid, structure, stimulus = D
+    outfile = savepath(D, "jld2", outpath)
+
+    @info outfile
+    if !rewrite && isfile(outfile)
+        @info "Calculations already complete for $(sessionid), $(structure), $(stimulus)"
+        return GC.gc()
+    end
+
+    performance_metrics = AN.getperformancemetrics(session)
+    LFP, trials, starttimes, channels, depths, spiketimes, units = _calculations(session,
+                                                                                 structure,
+                                                                                 stimulus)
+
+    θ = bandpass(LFP, pass_θ)
+    doupsample > 0 && (θ = upsample(θ, doupsample, Dim{:depth}))
+
+    γ = bandpass(LFP, pass_γ)
+    doupsample > 0 && (γ = upsample(γ, doupsample, Dim{:depth}))
+
+    a = hilbert(θ)
+    aᵧ = hilbert(γ)
+
+    ϕ = angle.(a)
+    ϕᵧ = angle.(aᵧ)
+
+    function alignmatchcat(x)
+        x = align(x, starttimes, ΔT)[2:(end - 2)]
+        x = matchdim(x; dims = 1)
+        x = stack(Dim{:changetime}(times(x)), x)
+    end
+    V, x, y, a, ϕ, ϕᵧ, aᵧ = alignmatchcat.([LFP, θ, γ, a, ϕ, ϕᵧ, aᵧ])
+    r = abs.(aᵧ) .* unit(eltype(V))
+
+    out = Dict("channels" => channels,
+               "trials" => trials[2:(end - 2), :],
+               "pass_θ" => pass_θ,
+               "pass_γ" => pass_γ,
+               "V" => V,
+               "x" => x,
+               "y" => y,
+               "a" => a,
+               "ϕ" => ϕ,
+               "r" => r,
+               "units" => units,
+               "spiketimes" => spiketimes,
+               "performance_metrics" => performance_metrics)
+    @tagsave outfile out
+
+    out = V = x = y = a = ϕ = ϕᵧ = r = spiketimes = []
+    GC.gc()
+    return true
+end
+
+function send_thalamus_calculations(sessionid;
+                                    structures = ["LGd-co", "LGd-sh", "LGd"], kwargs...)
+    session = AN.Session(sessionid)
+    probestructures = AN.getprobestructures(session, structures)
+    for (probeid, structure) in probestructures
+        for stimulus in ["flash_250ms", r"Natural_Images"]
+            @info "Saving $(sessionid) $(structure) $(stimulus)"
+            D = @dict sessionid structure stimulus
+            try
+                send_thalamus_calculations(D, session; kwargs...)
+            catch e
+                @warn e
+            end
         end
     end
     return true
