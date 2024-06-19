@@ -16,6 +16,7 @@ using Distributed
 using DSP
 using Peaks
 using Term
+using TimeseriesSurrogates
 using TimeseriesTools
 using TimeseriesTools.Unitful
 using ModulationIndices
@@ -71,7 +72,7 @@ export classifier,
        hierarchy_scores,
        visual_cortex_layout,
        plot_visual_cortex!,
-       ppc, spc!, sac, sac!, Bins,
+       ppc, spc!, sac, sac!, Bins, pac,
        confidence, quartiles, bootstrapmedian,
        progressmap,
        plotspectrum!, fooof,

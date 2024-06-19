@@ -15,6 +15,6 @@ LocalPreferences.toml
 data
 docs/build/
 docs/site/
-plots/*
+plots/
 cache/
 tempfig.png

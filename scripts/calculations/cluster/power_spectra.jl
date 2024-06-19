@@ -1,6 +1,6 @@
 #! /bin/bash
 #=
-exec julia -t auto "${BASH_SOURCE[0]}" "$@"
+exec julia -t auto --heap-size-hint=`grep MemFree /proc/meminfo | awk '{print int($2 * 0.4) "k"}'` "${BASH_SOURCE[0]}" "$@"
 =#
 using DrWatson
 @quickactivate "SpatiotemporalMotifs"
@@ -14,15 +14,17 @@ session_table = load(datadir("session_table.jld2"), "session_table")
 oursessions = session_table.ecephys_session_id
 
 if haskey(ENV, "JULIA_DISTRIBUTED")
-    proclist = USydClusters.Physics.addprocs(4; ncpus = 2, mem = 125,
-                                             walltime = 96, project = projectdir())
-    @everywhere import SpatiotemporalMotifs as SM
-    O = [remotecall(SM.send_powerspectra, p, s; rewrite = false)
-         for (p, s) in zip(proclist, oursessions)]
-    wait.(O) # Wait for workers to finish
-    display("All workers completed")
-    SM.send_powerspectra.(oursessions; rewrite = false) #  A final local check, in case a few workers failed.
-# @sync USydClusters.Physics.selfdestruct()
+    exprs = map(oursessions) do o
+        expr = quote
+            import SpatiotemporalMotifs as SM
+            SM.send_powerspectra($o; rewrite = false, retry_errors = true)
+        end
+    end
+    USydClusters.Physics.runscript.(exprs; ncpus = 8, mem = 60, walltime = 12,
+                                    project = projectdir())
 else
-    SM.send_powerspectra.(oursessions; rewrite = false)
+    for o in reverse(oursessions)
+        SM.send_powerspectra(o; rewrite = false, retry_errors = true)
+        GC.gc()
+    end
 end

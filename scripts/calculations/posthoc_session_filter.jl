@@ -71,6 +71,7 @@ end
 
 begin # * Manual blacklist
     blacklist = [1128520325] # * This session has no channels in layer 3
+    push!(blacklist, 1093642839) # * This session has no theta
     goodsessions = [g for g in goodsessions if g ∉ blacklist]
 end
 

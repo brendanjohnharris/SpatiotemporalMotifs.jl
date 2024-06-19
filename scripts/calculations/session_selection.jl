@@ -2,6 +2,7 @@ using DrWatson
 @quickactivate "SpatiotemporalMotifs"
 
 using DataFrames, Statistics, JLD2, JSON
+import DataFrames.groupby
 using PythonCall
 import AllenNeuropixels as AN
 import SpatiotemporalMotifs as SM
@@ -77,7 +78,7 @@ session_metrics = DataFrames.combine(groupby(metrics, :ecephys_session_id),
                                      :isi_violations => median ∘ skipnan,
                                      :d_prime => median ∘ skipnan,
                                      :isolation_distance => median ∘ skipnan,
-                                     :silhouette_scyore => median ∘ skipnan,
+                                     :silhouette_score => median ∘ skipnan,
                                      :quality => (x -> mean(x .== ["good"])) => :mean_quality,
                                      :structure_acronym => minimum_target_units => :minimum_target_units,
                                      :snr => median ∘ skipnan)
