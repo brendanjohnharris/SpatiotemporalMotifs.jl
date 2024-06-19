@@ -161,7 +161,6 @@ function tortinset!(gl, ϕ, r; width = Relative(0.15),
     hidespines!(inset_ax)
     inset_ax.scene.backgroundcolor = Makie.RGBA(0, 0, 0, 0)
     # translate!(inset_ax.scene, Vec3f(0, 0, -100000))
-
     b = ModulationIndices.tortbin(ϕ; n)
     a = r
     h = [mean(a[b .== i]) for i in 1:n]
