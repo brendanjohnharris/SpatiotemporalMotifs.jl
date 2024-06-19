@@ -9,49 +9,69 @@ import TimeseriesTools: freqs
 using FileIO
 using Unitful
 using Normalization
-import SpatiotemporalMotifs: plotdir, calcquality, layernum2name, savepath,
-                             structurecolors, structures, commondepths, parselayernum,
-                             load_calculations, unify_calculations, plotlayerints!,
-                             plotlayermap!,
-                             @preamble
+using SpatiotemporalMotifs
 @preamble
 set_theme!(foresight(:physics))
 
 stimulus = r"Natural_Images"
-vars = [:ϕ, :aᵧ]
-nmin = 25
+vars = [:ϕ, :r]
 
-session_table = load(datadir("session_table.jld2"), "session_table")
+session_table = load(datadir("posthoc_session_table.jld2"), "session_table")
 oursessions = session_table.ecephys_session_id
 
 path = datadir("calculations")
 Q = calcquality(path)[structure = At(structures)]
+Q = Q[sessionid = At(oursessions)]
 quality = mean(Q[stimulus = At(stimulus)])
 
 config = @strdict stimulus vars
-data, file = produce_or_load(config, datadir(); filename = savepath) do config
-    out = load_calculations(Q; path, stimulus, vars)
-    uni = unify_calculations(out; vars)
-    @strdict uni
-end
+data, file = produce_or_load(produce_uni, config, datadir(); filename = savepath)
 uni = data["uni"]
+
 unidepths = getindex.(uni, :unidepths)
 layerints = getindex.(uni, :layerints)
 layernames = getindex.(uni, :layernames)
 layernums = getindex.(uni, :layernums)
 
 begin # * Normalize amplitudes and generate a burst mask
-    r = [abs.(uni[i][:aᵧ]) for i in eachindex(uni)]
-
+    r = [abs.(uni[i][:r]) for i in eachindex(uni)]
     r_h = [r[i][:, :, lookup(r[i], :trial) .== true] for i in eachindex(r)]
-    r̂_h = [HalfZScore(_r, dims = [1, 3])(_r) for _r in r_h] # * Ok to normalize over subjects?
-
     r_m = [r[i][:, :, lookup(r[i], :trial) .== false] for i in eachindex(r)]
-    r̂_m = [HalfZScore(_r, dims = [1, 3])(_r) for _r in r_m] # * Ok to normalize over subjects?
 
-    r = []
+    ϕ = [uni[i][:ϕ] for i in eachindex(uni)]
+    ϕ_h = [ϕ[i][:, :, lookup(ϕ[i], :trial) .== true] for i in eachindex(ϕ)]
+    ϕ_m = [ϕ[i][:, :, lookup(ϕ[i], :trial) .== false] for i in eachindex(ϕ)]
+
+    uni = []
     GC.gc()
 end
+
+begin # * Pac
+    PAC = progressmap(ϕ, r) do ϕ, r
+        pac(ϕ, r; dims = :trial)
+    end
+    PAC_h = progressmap(ϕ_h, r_h) do ϕ, r
+        pac(ϕ, r; dims = :trial)
+    end
+    PAC_m = progressmap(ϕ_m, r_m) do ϕ, r
+        pac(ϕ, r; dims = :trial)
+    end
+end
+
+begin # * Supplemental figure: spatiotemporal PAC over all regions
+    cmax = maximum(PAC[1])
+    f = SixPanel()
+    gs = subdivide(f, 3, 2)
+    for (g, l, P) in zip(gs, layerints, PAC)
+        s = metadata(P)[:structure]
+        ax = Axis(g[1, 1]; title = s, yreversed = true,
+                  limits = (nothing, (extrema(lookup(P, :depth)))))
+        p = plotlayermap!(ax, ustripall(P[Ti = SpatiotemporalMotifs.INTERVAL]), l) |> first
+        Colorbar(g[1, 2], p)
+    end
+    f
+end
+
 begin
     mask_h = [r̂_h[i] .> 2.0 for i in eachindex(r̂_h)]
     mask_m = [r̂_m[i] .> 2.0 for i in eachindex(r̂_m)]

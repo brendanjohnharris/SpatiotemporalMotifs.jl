@@ -52,7 +52,9 @@ end
 macro preamble()
     _preamble()
 end
-
+const THETA = (5, 10)
+const GAMMA = (30, 100)
+const INTERVAL = -0.25u"s" .. 0.75u"s"
 const structures = ["VISp", "VISl", "VISrl", "VISal", "VISpm", "VISam"]
 
 function calcquality(dirname; suffix = "jld2", connector = connector)
@@ -137,16 +139,21 @@ function layernum2name(num)
     end
 end
 
-function isbad(outfile)
+function isbad(outfile; retry_errors = true)
     if !isfile(outfile)
         return true
     end
-    f = jldopen(outfile)
-    ind = haskey(f, "error")
-    close(f)
-    if ind
-        return true
+    if retry_errors
+        f = jldopen(outfile)
+        ind = haskey(f, "error")
+        close(f)
+        if ind
+            return true
+        else
+            return false
+        end
     else
+        @info "File $outfile exists but contains an error. It will not be overwritten as $retry_errors is `false`."
         return false
     end
 end
@@ -547,6 +554,22 @@ function Bins(x; bins = StatsBase.histrange(x, 10))
     return Bins(bints, idxs)
 end
 
+function pac(ϕ::AbstractVector, r::AbstractVector; kwargs...)
+    ϕ = mod2pi.(ϕ .+ pi) .- pi
+    ModulationIndices.tort2010(ϕ, r; kwargs...)
+end
+function pac(ϕ::AbstractDimArray, r::AbstractDimArray; dims, kwargs...)
+    out = similar(first(eachslice(ϕ; dims = dims))) # Template
+    dims = dimnum.([ϕ], dims)
+    @assert length(dims) == 1
+    dims = setdiff(collect(1:ndims(ϕ)), dims)
+    dims = Tuple(dims)
+    progressmap(eachindex(out), eachslice(ϕ; dims), eachslice(r; dims);
+                parallel = true) do i, ϕ, r
+        out[i] = pac(collect(ϕ), collect(r); kwargs...)
+    end
+    return out
+end
 _confidence(x, z = 1.96) = z * std(x) ./ sqrt(length(x)) # * 1.96 for 95% confidence interval
 confidence(x, args...; dims = 1:ndims(x)) = mapslices(x -> _confidence(x, args...), x; dims)
 function quartiles(X::AbstractArray; dims = 1)
@@ -558,7 +581,7 @@ end
 function bootstrapmedian(x::AbstractVector{T}; confint = 0.95,
                          N = 10000)::Tuple{T, Tuple{T, T}} where {T}
     # * Estimate a sampling distribution of the median
-    b = Bootstrap.bootstrap(median, x, Bootstrap.BalancedSampling(N))
+    b = Bootstrap.bootstrap(nansafe(median), x, Bootstrap.BalancedSampling(N))
     μ, σ... = only(Bootstrap.confint(b, Bootstrap.BCaConfInt(confint)))
     return μ, σ
 end

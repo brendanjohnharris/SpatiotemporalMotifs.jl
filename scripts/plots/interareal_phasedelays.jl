@@ -29,8 +29,7 @@ config = @strdict stimulus vars
 data, file = produce_or_load(produce_out(Q), config, datadir(); filename = savepath,
                              prefix = "out")
 out = data["out"]
-data, file = produce_or_load(produce_uni, config, datadir(); filename = savepath,
-                             prefix = "uni")
+data, file = produce_or_load(produce_uni, config, datadir(); filename = savepath)
 uni = data["uni"]
 
 function cylindricalcor(alpha, x)
@@ -61,11 +60,11 @@ begin # * Massive
     xs = getindex.([visual_cortex_layout], lookup(uniphi, :structure)) .|> first .|> Float32
     ys = getindex.([visual_cortex_layout], lookup(uniphi, :structure)) .|> last .|> Float32
     hs = getindex.([hierarchy_scores], lookup(uniphi, :structure)) .|> Float32
-    xs = MinMax(xs)(xs)
+    xs = MinMax(xs)(xs) # ! Think about the best way to define these coordinates; we probably don't want to normalize...
     ys = MinMax(ys)(ys)
     hs = MinMax(hs)(hs)
 
-    Δ = [(a, b) for a in eachslice(uniphi, dims = 4), b in eachslice(uniphi, dims = 4)]
+    Δ = [(a, b) for a in eachslice(uniphi, dims = 4), b in eachslice(uniphi, dims = 4)] # The .........
     Δ = Δ[filter(!=(0), triu(LinearIndices(Δ), 1))]
     Δ = map(Δ) do (a, b) # ! Check interpretation of phase difference to propagation direction
         mod.(b .- a .+ π, 2π) .- π
@@ -222,4 +221,4 @@ begin # * depth wise differences
     axislegend(ax)
     f
 end
-begin # * Time and depth-wise differences. Should we just repeat the wavenumber/order parameter analysis, but for relative phases?? Ask.
+begin # * Time and depth-wise differences. Should we just repeat the wavenumber/order parameter analysis, but for relative phases??

@@ -1,7 +1,7 @@
 
 function send_powerspectra(sessionid; outpath = datadir("power_spectra"),
                            plotpath = datadir("power_spectra_plots"),
-                           rewrite = false)
+                           rewrite = false, retry_errors = true)
     params = (;
               sessionid,
               epoch = :longest,
@@ -17,7 +17,9 @@ function send_powerspectra(sessionid; outpath = datadir("power_spectra"),
     ssession = []
 
     for stimulus in stimuli
+        GC.safepoint()
         for structure in structures
+            GC.safepoint()
             @info "Loading $(stimulus) LFP in $(structure) for session $(params[:sessionid])"
             # if stimulus == "flashes" && partition @info "Partitioning $stimulus" _params =
             #     (; params..., stimulus, structure) LFP = AN.extracttheta(_params)u"V" else
@@ -30,7 +32,7 @@ function send_powerspectra(sessionid; outpath = datadir("power_spectra"),
                                     "structure" => structure), "jld2", outpath)
             @info outfile
 
-            if !rewrite && !isbad(outfile)
+            if !rewrite && !isbad(outfile; retry_errors)
                 @info "Already calculated: $(stimulus), $(structure), $(params[:sessionid])"
                 continue
             end
@@ -63,33 +65,66 @@ function send_powerspectra(sessionid; outpath = datadir("power_spectra"),
                 pks = TimeseriesTools.freqs(s)[pks]
                 vals = s[Freq(At(pks))]
 
-                f = Figure()
-                colorrange = extrema(depths)
-                ax = Axis(f[1, 1]; xscale = log10, yscale = log10, xtickformat = "{:.1f}",
-                          limits = (params[:pass], (nothing, nothing)), xgridvisible = true,
-                          ygridvisible = true, topspinevisible = true,
-                          title = "$(_params[:structure]), $(_params[:stimulus])",
-                          xminorticksvisible = true, yminorticksvisible = true,
-                          xminorgridvisible = true, yminorgridvisible = true,
-                          xminorgridstyle = :dash)
-                p = traces!(ax, S[2:end, :]; colormap = cgrad(sunset, alpha = 0.4),
-                            linewidth = 3, colorrange)
-                scatter!(ax, ustrip.(pks), collect(ustrip.(vals)), color = :black,
-                         markersize = 10, marker = :dtriangle)
-                text!(ax, ustrip.(pks), collect(ustrip.(vals));
-                      text = string.(round.(eltype(pks), pks, digits = 1)),
-                      align = (:center, :bottom), color = :black, rotation = 0,
-                      fontsize = 12,
-                      offset = (0, 3))
+                begin
+                    f = Figure()
+                    colorrange = extrema(depths)
+                    ax = Axis(f[1, 1]; xscale = log10, yscale = log10,
+                              xtickformat = "{:.1f}",
+                              limits = (params[:pass], (nothing, nothing)),
+                              xgridvisible = true,
+                              ygridvisible = true, topspinevisible = true,
+                              title = "$(_params[:structure]), $(_params[:stimulus])",
+                              xminorticksvisible = true, yminorticksvisible = true,
+                              xminorgridvisible = true, yminorgridvisible = true,
+                              xminorgridstyle = :dash)
+                    p = traces!(ax, S[2:end, :]; colormap = cgrad(sunset, alpha = 0.4),
+                                linewidth = 3, colorrange)
+                    scatter!(ax, ustrip.(pks), collect(ustrip.(vals)), color = :black,
+                             markersize = 10, marker = :dtriangle)
+                    text!(ax, ustrip.(pks), collect(ustrip.(vals));
+                          text = string.(round.(eltype(pks), pks, digits = 1)),
+                          align = (:center, :bottom), color = :black, rotation = 0,
+                          fontsize = 12,
+                          offset = (0, 3))
 
-                c = Colorbar(f[1, 2]; label = "Channel depth (μm)", colorrange,
-                             colormap = sunset)
-                # rowsize!(f.layout, 1, Relative(0.8))
-                mkpath(joinpath(plotpath, "$(_params[:sessionid])"))
-                plotfile = joinpath(plotpath, "$(_params[:sessionid])",
-                                    "$(_params[:stimulus])_$(_params[:structure]).pdf")
-                wsave(plotfile, f)
-                @info "Saved plot to $plotfile"
+                    c = Colorbar(f[1, 2]; label = "Channel depth (μm)", colorrange,
+                                 colormap = sunset)
+                    # rowsize!(f.layout, 1, Relative(0.8))
+                    mkpath(joinpath(plotpath, "$(_params[:sessionid])"))
+                    plotfile = joinpath(plotpath, "$(_params[:sessionid])",
+                                        "$(_params[:stimulus])_$(_params[:structure]).pdf")
+                    wsave(plotfile, f)
+                    @info "Saved plot to $plotfile"
+                end
+
+                # * Calculate a comodulogram for these time series
+                c = x -> comodulogram(ustripall(x); fs = ustripall(samplingrate(LFP)),
+                                      fₚ = 3:0.25:12,
+                                      fₐ = 25:1:125, dp = 2, da = 20)
+                N = min(360000, size(LFP, 1))
+                C = progressmap(c, eachslice(LFP[1:N, :], dims = 2); parallel = true)
+                C = stack(dims(LFP[1:N, :], :channel), C, dims = 3)
+                sLFP = mapslices(x -> surrogate(ustripall(parent(x)), IAAFT()), LFP[1:N, :],
+                                 dims = 1)
+                sC = progressmap(c, eachslice(sLFP, dims = 2); parallel = true)
+                sC = stack(dims(LFP[1:N, :], :channel), sC, dims = 3)
+
+                begin
+                    f = Figure()
+                    ax = Axis(f[1, 1]; xlabel = "Phase frequency (Hz)",
+                              ylabel = "Phase frequency (HZ)")
+                    mc = dropdims(mean(C, dims = 3); dims = 3) # Modulation strengh relative to surrogate
+                    colorrange = (0, maximum(mc))
+                    p = heatmap!(ax, lookup(C, 1), lookup(C, 2), collect(ustripall(mc));
+                                 colorrange,
+                                 colormap = seethrough(reverse(sunrise)), rasterize = 5)
+                    c = Colorbar(f[1, 2], p; label = "Mean modulation strength")
+                    mkpath(joinpath(plotpath, "$(_params[:sessionid])"))
+                    plotfile = joinpath(plotpath, "$(_params[:sessionid])",
+                                        "$(_params[:stimulus])_$(_params[:structure])_pac.pdf")
+                    wsave(plotfile, f)
+                    @info "Saved plot to $plotfile"
+                end
 
                 # * Format data for saving
                 streamlinedepths = AN.getchanneldepths(session, LFP; method = :streamlines)
@@ -97,8 +132,41 @@ function send_powerspectra(sessionid; outpath = datadir("power_spectra"),
                 D = Dict(DimensionalData.metadata(LFP))
                 @pack! D = channels, streamlinedepths, layerinfo
                 S = rebuild(S; metadata = D)
-                tagsave(outfile, @strdict S)
+                outD = @strdict S C sC
+                tagsave(outfile, outD)
+
+                LFP = []
+                D = []
+                streamlinedepths = []
+                layerinfo = []
+                S = []
+                sC = []
+                mc = []
+                sLFP = []
+                C = []
+                s = []
+                f = p = ax = c = []
+                depths = []
+                outD = []
+                GC.safepoint()
+                GC.gc()
             catch e
+                LFP = []
+                D = []
+                streamlinedepths = []
+                layerinfo = []
+                S = []
+                sLFP = []
+                mc = []
+                C = []
+                sC = []
+                s = []
+                outD = []
+                f = p = ax = c = []
+                depths = []
+                outD = []
+                GC.safepoint()
+                GC.gc()
                 @warn e tagsave(outfile, Dict("error" => sprint(showerror, e)))
             end
             LFP = []
@@ -106,9 +174,15 @@ function send_powerspectra(sessionid; outpath = datadir("power_spectra"),
             streamlinedepths = []
             layerinfo = []
             S = []
+            mc = []
+            sLFP = []
+            C = []
+            sC = []
             s = []
-            f = []
+            f = p = ax = c = []
+            outD = []
             depths = []
+            GC.safepoint()
             GC.gc()
         end
     end
@@ -206,8 +280,8 @@ function _calculations(session::AN.AbstractSession, structure, stimulus)
 end
 
 function send_calculations(D::Dict, session = AN.Session(D[:sessionid]);
-                           pass_θ = (4, 10) .* u"Hz",
-                           pass_γ = (40, 100) .* u"Hz",
+                           pass_θ = THETA .* u"Hz",
+                           pass_γ = GAMMA .* u"Hz",
                            ΔT = -0.5u"s" .. 0.75u"s",
                            doupsample = 0,
                            rewrite = false,
@@ -276,8 +350,8 @@ function send_calculations(sessionid;
 end
 
 function send_thalamus_calculations(D::Dict, session = AN.Session(D[:sessionid]);
-                                    pass_θ = (4, 10) .* u"Hz",
-                                    pass_γ = (40, 100) .* u"Hz",
+                                    pass_θ = THETA .* u"Hz",
+                                    pass_γ = GAMMA .* u"Hz",
                                     ΔT = -0.5u"s" .. 0.75u"s",
                                     doupsample = 0,
                                     rewrite = false,

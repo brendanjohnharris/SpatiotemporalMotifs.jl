@@ -109,7 +109,7 @@ begin # * Schematic diagram
     ax = Axis3(gs[1]; perspectiveness = 0.25, viewmode = :stretch, xlabel = "Time (ms)",
                ylabel = "Cortical depth (%)",
                ytickformat = depthticks,
-               title = "Gamma-amplitude burst detection")
+               title = "γ-burst detection")
     ax.zspinesvisible = false
     ax.zgridvisible = false
     hidezdecorations!(ax)
@@ -164,7 +164,7 @@ begin # * Schematic diagram
     f
 end
 
-begin # * Heatmap of number of bursts (VISp)
+begin # * Heatmap of burst likelihood
     function pf!(g, i; compact = false, kwargs...)
         vm = m[i] # * VISp
         structure = metadata(vm[1])[:structure]
@@ -199,6 +199,7 @@ begin # * Heatmap of number of bursts (VISp)
     sf = FourPanel()
     gsf = subdivide(sf, 3, 2)
     pf!.(gsf[:], eachindex(gsf); compact = true)
+    addlabels!(sf)
     wsave(plotdir("gamma_bursts_task", "supplemental_burst_likelihood.pdf"), sf)
 end
 
@@ -268,7 +269,7 @@ begin # * Plot widths
 end
 
 begin # * Final adjustments
-    addlabels!(f) # ! FIX
+    addlabels!(f)
     wsave(plotdir("gamma_bursts_task", "gamma_bursts_task.pdf"), f)
 end
 

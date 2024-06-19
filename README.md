@@ -38,17 +38,15 @@ The `src` directory contains the main modularized code for the project, whereas 
 Broadly, the `scripts` in `scripts/calculations` will produce data required for the scripts in `scripts/plots`, and _all_ scripts in `scripts/calculations` should be run before any scripts in `scripts/plots`.
 In this section we walk through the order in which `scripts/calculations/*` should be run, treating `scripts/plots` in [Section 2](#2.-plotting-results).
 Each script can be run as `julia -t auto <path to script>` or, on linux, `chmod u+x <path to script>` followed by executing `<path to script>`.
+
 #### [Selecting sessions](scripts/calculations/select_sessions.jl)
 
-First, ..............
-
+First, we use the session metadata to filter sessions that fulfill a list of quality criteria (e.g. probes in all target regions, with low noise).
 This script creates the `data/session_table.jld2` file, which contains a dataframe of the selected sessions and their metrics (also saved in json format at `data/session_table.json`).
 
 #### [Downloading data](scripts/calculations/download_data.jl)
 
 While the [AllenNeuropixels.jl](www.github.com/brendanjohnharris/AllenNeuropixels.jl) package can download data files on-demand, we recommend downloading the data files in advance to verify the data are complete and to avoid internet connection issues on computing nodes. Downloading the data can take many hours, and requires a strong internet connection. Please note this script will download the data files to a Julia scratchspace unless a custom directory is set (see [AllenNeuropixels.jl](www.github.com/brendanjohnharris/AllenNeuropixels.jl) for instructions).
-.............
-
 This script creates the `data/power_spectra` directory, containing `.jld2` files with power spectra for each session, structure, and stimulus, as well as the `data/power_spectra_plots` directory, containing plots of the same spectra.
 
 #### [Power spectra](scripts/calculations/cluster/power_spectra.jl)
