@@ -561,7 +561,18 @@ end
 function pac(ϕ::AbstractDimArray, r::AbstractDimArray; dims, kwargs...)
     out = similar(first(eachslice(ϕ; dims = dims))) # Template
     dims = dimnum.([ϕ], dims)
-    @assert length(dims) == 1
+    @assert (length(dims) == (ndims(ϕ) - 1)) || length(dims) == 1
+    if length(dims) > 1
+        negdim = setdiff(collect(1:ndims(ϕ)), dims) |> only
+        ns = size(ϕ, negdim)
+        ϕ = eachslice(parent(ϕ); dims = negdim)
+        ϕ = hcat([p[:] for p in ϕ]...)
+        r = eachslice(parent(r); dims = negdim)
+        r = hcat([a[:] for a in r]...)
+        @assert ndims(ϕ) == 2
+        @assert size(ϕ, 2) == ns
+        dims = 1
+    end
     dims = setdiff(collect(1:ndims(ϕ)), dims)
     dims = Tuple(dims)
     progressmap(eachindex(out), eachslice(ϕ; dims), eachslice(r; dims);
@@ -578,26 +589,26 @@ function quartiles(X::AbstractArray; dims = 1)
     q3 = mapslices(x -> quantile(x, 0.75), X; dims)
 end
 
-function bootstrapmedian(x::AbstractVector{T}; confint = 0.95,
-                         N = 10000)::Tuple{T, Tuple{T, T}} where {T}
-    # * Estimate a sampling distribution of the median
-    b = Bootstrap.bootstrap(nansafe(median), x, Bootstrap.BalancedSampling(N))
+function bootstrapaverage(average, x::AbstractVector{T}; confint = 0.95,
+                          N = 10000)::Tuple{T, Tuple{T, T}} where {T}
+    # * Estimate a sampling distribution of the average
+    b = Bootstrap.bootstrap(nansafe(average), x, Bootstrap.BalancedSampling(N))
     μ, σ... = only(Bootstrap.confint(b, Bootstrap.BCaConfInt(confint)))
     return μ, σ
 end
 
-function bootstrapmedian(X::AbstractArray; dims = 1, kwargs...)
+function bootstrapaverage(average, X::AbstractArray; dims = 1, kwargs...)
     ds = [i == dims ? 1 : Colon() for i in 1:ndims(X)]
     μ = similar(X[ds...])
     σl = similar(μ)
     σh = similar(μ)
     negdims = filter(!=(dims), 1:ndims(X)) |> Tuple
     Threads.@threads for (i, x) in collect(enumerate(eachslice(X; dims = negdims)))
-        μ[i], (σl[i], σh[i]) = bootstrapmedian(x; kwargs...)
+        μ[i], (σl[i], σh[i]) = bootstrapaverage(average, x; kwargs...)
     end
     return μ, (σl, σh)
 end
-function bootstrapmedian(X::AbstractDimArray; dims = 1, kwargs...)
+function bootstrapaverage(average, X::AbstractDimArray; dims = 1, kwargs...)
     dims = dimnum(X, dims)
     ds = [i == dims ? 1 : Colon() for i in 1:ndims(X)]
     μ = similar(X[ds...])
@@ -605,7 +616,8 @@ function bootstrapmedian(X::AbstractDimArray; dims = 1, kwargs...)
     σh = similar(μ)
     negdims = filter(!=(dims), 1:ndims(X)) |> Tuple
     Threads.@threads for (i, x) in collect(enumerate(eachslice(X; dims = negdims)))
-        μ[i], (σl[i], σh[i]) = bootstrapmedian(parent(x); kwargs...)
+        μ[i], (σl[i], σh[i]) = bootstrapaverage(average, parent(x); kwargs...)
     end
     return μ, (σl, σh)
 end
+bootstrapmedian(args...; kwargs...) = bootstrapaverage(median, args...; kwargs...)
