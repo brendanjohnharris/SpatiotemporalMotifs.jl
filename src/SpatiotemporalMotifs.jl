@@ -73,9 +73,10 @@ export classifier,
        visual_cortex_layout,
        plot_visual_cortex!,
        ppc, spc!, sac, sac!, Bins, pac,
-       confidence, quartiles, bootstrapmedian,
+       confidence, quartiles,
+       bootstrapmedian, bootstrapaverage,
        progressmap,
-       plotspectrum!, fooof,
+       plotspectrum!, fooof, tortinset!,
        @preamble
 
 end # module
