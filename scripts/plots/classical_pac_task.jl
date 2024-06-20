@@ -60,6 +60,7 @@ begin # * Set up figure
     f = TwoPanel()
     gs = subdivide(f, 1, 2)
 end
+
 begin
     ax = Axis(gs[1])
     for (i, p) in enumerate(pacc)
@@ -111,6 +112,50 @@ begin # * Polar plot of coupling angle peaks (find peaks? what if there is more 
         end
     end
     peaks = stack.([Dim{:sessionid}(sessionids)], peaks; dims = 2)
+end
+
+begin # * Phase annotations
+    μs = map(pacc) do p
+        μ, (σl, σh) = bootstrapmedian(p |> ustripall; dims = 2)
+    end .|> first
+    if true
+        idx = Dim{:depth}(Near(0.25))
+        alphamin = 0.2
+        struc = 1
+        tortinset!(gs[1], peaks[struc][idx],
+                   colormap = seethrough(structurecolors[struc], alphamin, 1),
+                   halign = 0.3, valign = 0.6, color = structurecolors[struc])
+        scatter!(ax, [idx.val.val], [μs[struc][idx]], color = structurecolors[struc],
+                 markersize = 15,
+                 strokecolor = :white, strokewidth = 2)
+
+        idx = Dim{:depth}(Near(0.3))
+        struc = 2
+        tortinset!(gs[1], peaks[struc][idx],
+                   colormap = seethrough(structurecolors[struc], alphamin, 1),
+                   halign = 0.01, valign = 0.4, color = structurecolors[struc])
+        scatter!(ax, [idx.val.val], [μs[struc][idx]], color = structurecolors[struc],
+                 markersize = 15,
+                 strokecolor = :white, strokewidth = 2)
+
+        idx = Dim{:depth}(Near(0.9))
+        struc = 6
+        tortinset!(gs[1], peaks[struc][idx],
+                   colormap = seethrough(structurecolors[struc], alphamin, 1),
+                   halign = 0.87, valign = 0.95, color = structurecolors[struc])
+        scatter!(ax, [idx.val.val], [μs[struc][idx]], color = structurecolors[struc],
+                 markersize = 15,
+                 strokecolor = :white, strokewidth = 2)
+
+        idx = Dim{:depth}(Near(0.9))
+        struc = 3
+        tortinset!(gs[1], peaks[struc][idx],
+                   colormap = seethrough(structurecolors[struc], alphamin, 1),
+                   halign = 0.9, valign = 0.48, color = structurecolors[struc])
+        scatter!(ax, [idx.val.val], [μs[struc][idx]], color = structurecolors[struc],
+                 markersize = 15,
+                 strokecolor = :white, strokewidth = 2)
+    end
 end
 
 begin

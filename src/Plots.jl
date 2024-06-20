@@ -183,6 +183,40 @@ function tortinset!(gl, ϕ, r; width = Relative(0.15),
     scatter!(inset_ax, [xs[i]], [ys[i]]; color, markersize = 15,
              strokecolor = :white, strokewidth = 2)
 end
+function tortinset!(gl, ϕ; width = Relative(0.15),
+                    height = Relative(0.2),
+                    halign = 0.05,
+                    valign = 0.6, n = 40, colormap = :binary, color = :gray, kwargs...)
+    inset_ax = Axis(gl;
+                    width,
+                    height,
+                    halign,
+                    valign,
+                    xticklabelsvisible = false,
+                    yticklabelsvisible = false,
+                    limits = ((nothing, nothing), (-1.75, 1.75)),
+                    kwargs...)
+    hidedecorations!(inset_ax)
+    hidespines!(inset_ax)
+    inset_ax.scene.backgroundcolor = Makie.RGBA(0, 0, 0, 0)
+    # translate!(inset_ax.scene, Vec3f(0, 0, -100000))
+    b = ModulationIndices.tortbin(ϕ; n)
+    h = [sum(b .== i) for i in 1:n]
+    angles = range(start = -π + π / n, stop = π - π / n, length = n)
+    _, i = findmax(h)
+    ex = 1.3
+    xs = ((-π * ex):0.01:(((π * ex)))) .+ π .+ angles[i]
+    cs = collect(xs)
+
+    for i in eachindex(cs)
+        cs[i] = h[findmin(abs.(phasegrad.(angles .+ π, xs[i])))[2]]
+    end
+    ys = -cos.(xs)
+    lines!(inset_ax, xs, ys; color = cs, colormap)
+    i = findmax(cs)[2]
+    scatter!(inset_ax, [xs[i]], [ys[i]]; color, markersize = 15,
+             strokecolor = :white, strokewidth = 2)
+end
 
 function plotstructurecenters!(ax,
                                ag = SimpleWeightedDiGraph(zeros(length(structures),
