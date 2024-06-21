@@ -71,3 +71,14 @@ There are some session quality metrics---the layer assignment consistency, and s
 At times it will be useful to have precomputed unified layer annotations for all sessions and structures; this script produces these annotations and saves them in `data/grand_unified_layers.jld2`.
 
 ### 2. Plotting results
+
+
+
+#### Gamma bursts and nested oscillations
+
+1. [Gamma bursts](scripts/plots/gamma_bursts_task.jl)
+2. [Nested oscillations](scripts/plots/pac_task.jl)
+3. [Gamma bursts and nested oscillations](scripts/plots/classical_pac_task.jl.jl)
+
+#### Spike-time coordination
+1. [Spike..](scripts/plots/spike_ppc.jl)
