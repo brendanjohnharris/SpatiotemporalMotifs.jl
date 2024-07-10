@@ -11,7 +11,7 @@ using Unitful
 using Images
 import CairoMakie.Axis
 using SpatiotemporalMotifs
-import SpatiotemporalMotifs: Bins
+import SpatiotemporalMotifs: HistBins
 using Peaks
 @preamble
 set_theme!(foresight(:physics))
@@ -207,7 +207,7 @@ begin # * Distribution of burst durations
     bins = range(0, 1, length = 11)
     tbins = map(Δt) do tt
         ts = map(tt) do t
-            B = Bins(lookup(t, :depth); bins)
+            B = HistBins(lookup(t, :depth); bins)
             b = B.(eachslice(t, dims = 3))
             b = map(x -> mean.(x), b)
             dropdims(mean(cat(b..., dims = 2), dims = 2), dims = 2)
@@ -239,7 +239,7 @@ begin # * Distribution of burst widths
     bins = range(-0.25u"s", 0.75u"s", length = 25)
     xbins = map(Δx) do xx
         xs = map(xx) do x
-            B = Bins(lookup(x, Ti); bins)
+            B = HistBins(lookup(x, Ti); bins)
             b = B.(eachslice(x, dims = 3))
             b = map(x -> mean.(x), b)
             dropdims(mean(cat(b..., dims = 2), dims = 2), dims = 2)
