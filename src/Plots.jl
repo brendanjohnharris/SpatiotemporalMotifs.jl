@@ -44,7 +44,7 @@ function depthticks(x)
     return string.(round.(Int, x))
 end
 function plotlayerints!(ax, ints; dx = 0.02, width = dx, axis = :y, newticks = true,
-                        flipside = false)
+                        flipside = false, bgcolor = :white)
     acronyms = "L" .* layers
     ticks = mean.(ints)
     # freeze!(ax)
@@ -65,7 +65,7 @@ function plotlayerints!(ax, ints; dx = 0.02, width = dx, axis = :y, newticks = t
         hspan!(ax, extrema(vcat(collect.(extrema.(ints))...))...;
                xmin = minimum([xmins xmaxs]),
                xmax = maximum([xmins xmaxs]),
-               color = :white)
+               color = bgcolor)
         ps = map(ints, layercolors, xmins, xmaxs) do i, color, xmin, xmax
             hspan!(ax, extrema(i)...; xmin, xmax, color)
         end
@@ -73,7 +73,7 @@ function plotlayerints!(ax, ints; dx = 0.02, width = dx, axis = :y, newticks = t
         vspan!(ax, extrema(vcat(collect.(extrema.(ints))...))...;
                ymin = minimum([xmins xmaxs]),
                ymax = maximum([xmins xmaxs]),
-               color = :white)
+               color = bgcolor)
         ps = map(ints, layercolors, xmins, xmaxs) do i, color, xmin, xmax
             vspan!(ax, extrema(i)...; ymin = xmin, ymax = xmax, color)
         end
@@ -104,7 +104,8 @@ end
 function plotlayermap!(ax, m; arrows = false,
                        colorrange = extrema(ustripall(m)),
                        colormap = binarysunset, doupsample = true, domain = nothing,
-                       rasterize = 10, stimulus = [0, 0.25], kwargs...)
+                       rasterize = 10, stimulus = [0, 0.25], lengthscale = 0.07,
+                       arrowsize = 5, kwargs...)
     if doupsample
         if isnothing(domain)
             x = upsample(ustripall(m), 5, 2)
@@ -127,7 +128,7 @@ function plotlayermap!(ax, m; arrows = false,
         q = ustripall((m))[1:arrows[1]:end, 1:arrows[2]:end]
         q ./= maximum(abs.(q))
         arrows!(ax, lookup(q, 1), lookup(q, 2), zeros(size(q)), parent(q);
-                lengthscale = 0.07, arrowsize = 0.2,
+                lengthscale, arrowsize,
                 normalize = false, color = (:black, 0.4))
     end
     if !isempty(stimulus) && !isnothing(stimulus)
@@ -235,12 +236,12 @@ function plotstructurecenters!(ax,
         x = x .+ u .* p .* d
     end
 
-    layout = Point2f[(350, 350), # VISp
-                     (170, 310), # VISl
-                     (300, 130), # VISrl
-                     (180, 195), # VISal
-                     (475, 240), # VISpm
-                     (450, 140)] # VISam
+    layout = Point2f[(-350, 350), # VISp
+                     (-170, 310), # VISl
+                     (-300, 130), # VISrl
+                     (-180, 195), # VISal
+                     (-475, 240), # VISpm
+                     (-450, 140)] # VISam
     fwaypoints = Dict(1 => [offset(layout[2], layout[3], 0.4)],
                       2 => [offset(layout[4], layout[3], 0.1)],
                       6 => [offset(layout[4], layout[6], 0.3)],
@@ -304,32 +305,52 @@ function plot_visual_cortex!(ax = Axis(Figure()[1, 1], aspect = 1, yreversed = t
                              colormap = cgrad(:inferno, length(legendorder),
                                               categorical = true),
                              fillalpha = 0.5,
-                             strokealpha = 1,
-                             scale = [1.8, 2],
+                             strokealpha = 1.0,
+                             scale = [-1.8, 2],
                              offset = [32, 0],
+                             colors = nothing,
                              kwargs...)
     fill, outline = load_visual_cortex(; scale, offset)
-    _colormap = cgrad(colormap, length(legendorder); categorical = true, alpha = fillalpha)
-    colormap = brighten.(colormap, 1 - strokealpha)
-    colormap = cgrad(colormap, length(legendorder), categorical = true)
+    v = values(fill) |> collect
     k = keys(fill) |> collect
     legendorder = indexin(legendorder, k)
-
-    colors = indexin(k, colororder)
-    colors = _colormap[colors] # To original ordering of structures
-    v = values(fill) |> collect
-    p1 = map(legendorder) do i
-        poly!(v[i]; label = k[i], strokewidth, color = colors[i], kwargs...)
-    end
-    if showoutline
-        draworder = indexin(draworder, k)
+    if isnothing(colors)
+        _colormap = cgrad(colormap, length(legendorder); categorical = true,
+                          alpha = fillalpha)
+        colormap = brighten.(colormap, 1 - strokealpha)
+        colormap = cgrad(colormap, length(legendorder), categorical = true)
         colors = indexin(k, colororder)
-        colors = colormap[colors]
-        p2 = map(draworder) do i
-            lines!(v[i]; linewidth = 5, color = colors[i])
+        colors = _colormap[colors] # To original ordering of structures
+        p1 = map(legendorder) do i
+            poly!(v[i]; label = k[i], strokewidth, color = colors[i], kwargs...)
+        end
+        if showoutline
+            draworder = indexin(draworder, k)
+            colors = indexin(k, colororder)
+            colors = colormap[colors]
+            p2 = map(draworder) do i
+                lines!(v[i]; linewidth = 5, color = colors[i])
+            end
+        else
+            p2 = []
         end
     else
-        p2 = []
+        colors = lift(c -> c[indexin(k, colororder)], colors)
+        p1 = map(legendorder) do i
+            poly!(v[i]; label = k[i], strokewidth,
+                  color = lift(colors -> colors[i], colors),
+                  alpha = fillalpha,
+                  colormap, kwargs...)
+        end
+        if showoutline
+            draworder = indexin(draworder, k)
+            p2 = map(draworder) do i
+                lines!(v[i]; linewidth = 5, color = lift(colors -> colors[i], colors),
+                       colormap, kwargs...)
+            end
+        else
+            p2 = []
+        end
     end
     l = axislegend(ax, position = :lt)
     return p1, p2, l

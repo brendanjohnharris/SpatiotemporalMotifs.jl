@@ -12,9 +12,9 @@ set_theme!(foresight(:physics))
 Random.seed!(42)
 
 stimulus = r"Natural_Images"
-vars = [:r, :ϕ]
+vars = [:ϕ, :r]
 
-session_table = load(datadir("session_table.jld2"), "session_table")
+session_table = load(datadir("posthoc_session_table.jld2"), "session_table")
 oursessions = session_table.ecephys_session_id
 
 path = datadir("calculations")
@@ -40,7 +40,7 @@ begin # * Format spikes to depth dataframe. These have already been rectified
     filter!(:streamlinedepth => ∈(0 .. 1), spikes) # Cortex only
 end
 
-begin # * Calculate spike--phase and spike--amplitude coupling across layers. # * Add preferred phase annotations
+begin # * Calculate spike--phase and spike--amplitude coupling across layers. Takes about 30 minutes over 64 cores, 125 GB
     if isfile(datadir("spike_lfp.jld2"))
         pspikes = load(datadir("spike_lfp.jld2"), "pspikes") # Delete this file to recalculate
     else
@@ -48,6 +48,7 @@ begin # * Calculate spike--phase and spike--amplitude coupling across layers. # 
     end
     requiredcols = [:pairwise_phase_consistency, :trial_pairwise_phase_consistency,
         :pairwise_phase_consistency_pvalue, :trial_pairwise_phase_consistency_pvalue,
+        :pairwise_phase_consistency_angle, :pairwise_phase_consistency_angle,
         :spike_amplitude_coupling, :trial_spike_amplitude_coupling]
     if !all(hasproperty.([pspikes], requiredcols))
         pbar = ProgressBar(; refresh_rate = 5)
@@ -72,7 +73,7 @@ end
 begin
     begin # * Set up figure
         f = TwoPanel()
-        gs = subdivide(f, 1, 2)
+        gs = subdivide(f, 1, 3)
     end
 
     if false # * Plot, for every structure
@@ -83,7 +84,7 @@ begin
         xs = pspikes.streamlinedepth[idxs] .|> Float32
         ys = ys[idxs] .|> Float32
         # hexbin(xs, ys)
-        B = Bins(xs; bins = 20)
+        B = HistBins(xs; bins = 20)
         ms = rectify(B(ys), dims = :bin) .|> mean
         lines!(ax, upsample(ms, 10))
     end
@@ -107,17 +108,25 @@ begin
                 xs = _pspikes.streamlinedepth[idxs] .|> Float32
                 ys = ys[idxs] .|> Float32
                 # hexbin(xs, ys)
-                B = Bins(xs; bins)
+                B = HistBins(xs; bins)
                 _ms = rectify(B(ys), dims = :bin) .|> mean
             end
-            _σs = map((args...) -> nansafe(confidence)(collect(args)) |> first, mss...)
-            _ms = map((args...) -> nansafe(mean)(collect(args)) |> first, mss...)
+
+            X = cat(mss...; dims = 2)
+            _ms, (_σl, _σh) = bootstrapmedian(X; dims = 2)
+            idxs = .!isnan.(_ms) .& .!isnan.(_σl) .& .!isnan.(_σh)
+            _ms = _ms[idxs]
+            _σl = _σl[idxs]
+            _σh = _σh[idxs]
+            # _σs = map((args...) -> nansafe(confidence)(collect(args)) |> first, mss...)
+            # _ms = map((args...) -> nansafe(mean)(collect(args)) |> first, mss...)
 
             _ls = lookup(_ms, 1)
             ms = upsample(_ms, 10)
-            σs = upsample(_σs, 10)
+            σl = upsample(_σl, 10)
+            σh = upsample(_σh, 10)
             ls = lookup(ms, 1)
-            band!(ax, ls, collect(ms .- σs), collect(ms .+ σs);
+            band!(ax, ls, collect(σl), collect(σh);
                   color = (structurecolormap[structure], 0.3), label = structure)
             lines!(ax, ls, ms, color = (structurecolormap[structure], 0.7),
                    label = structure)
@@ -145,18 +154,23 @@ begin
                 xs = _pspikes.streamlinedepth[idxs] .|> Float32
                 ys = ys[idxs] .|> Float32
                 # hexbin(xs, ys)
-                B = Bins(xs; bins)
+                B = HistBins(xs; bins)
                 _ms = rectify(B(ys), dims = :bin) .|> mean
             end
 
-            _σs = map((args...) -> nansafe(confidence)(collect(args)) |> first, mss...)
-            _ms = map((args...) -> nansafe(mean)(collect(args)) |> first, mss...)
+            X = cat(mss...; dims = 2)
+            _ms, (_σl, _σh) = bootstrapmedian(X; dims = 2)
+            idxs = .!isnan.(_ms) .& .!isnan.(_σl) .& .!isnan.(_σh)
+            _ms = _ms[idxs]
+            _σl = _σl[idxs]
+            _σh = _σh[idxs]
 
             _ls = lookup(_ms, 1)
             ms = upsample(_ms, 10)
-            σs = upsample(_σs, 10)
+            σl = upsample(_σl, 10)
+            σh = upsample(_σh, 10)
             ls = lookup(ms, 1)
-            band!(ax, ls, collect(ms .- σs), collect(ms .+ σs);
+            band!(ax, ls, collect(σl), collect(σh);
                   color = (structurecolormap[structure], 0.3), label = structure)
             lines!(ax, ls, ms, color = (structurecolormap[structure], 0.7),
                    label = structure)
@@ -164,6 +178,57 @@ begin
         end
         l = axislegend(ax, merge = true, nbanks = 2)
         reverselegend!(l)
+    end
+end
+
+begin # * Preferred phases
+    ax = PolarAxis(gs[3]; theta_as_x = false, thetalimits = (0, 1.2pi),
+                   rticks = 0:0.25:1, rtickformat = depthticks,
+                   title = "Layerwise PPC angle")
+
+    for structure in reverse(structures)
+        idxs = pspikes.structure_acronym .== structure
+        allsesh_pspikes = @views pspikes[idxs, :]
+        mss = map(unique(allsesh_pspikes.ecephys_session_id)) do sesh
+            _pspikes = @views allsesh_pspikes[allsesh_pspikes.ecephys_session_id .== sesh,
+                                              :]
+            _ys = _pspikes.pairwise_phase_consistency
+            ys = _pspikes.pairwise_phase_consistency_angle
+            @assert sum(isnan.(ys)) / length(ys) < 0.3
+            idxs = .!isnan.(_ys) .& .!ismissing.(_ys) .& (_ys .> 0) # Negative values come from low sample sizes
+            xs = _pspikes.streamlinedepth[idxs] .|> Float32
+            ys = ys[idxs] .|> Float32
+            # hexbin(xs, ys)
+            B = HistBins(xs; bins)
+            _ms = rectify(B(ys), dims = :bin) .|> circularmean
+            c = rectify(B(_ys), dims = :bin) .|> mean
+            return _ms, c
+        end
+        css = last.(mss)
+        mss = first.(mss)
+        X = cat(mss...; dims = 2)
+        C = cat(css...; dims = 2)
+
+        _ms, (_σl, _σh) = bootstrapaverage(circularmean, X; dims = 2)
+        idxs = .!isnan.(_ms) .& .!isnan.(_σl) .& .!isnan.(_σh)
+        _ms = _ms[idxs]
+
+        _cs, _ = bootstrapmedian(C; dims = 2)
+        _cs = _cs[idxs]
+
+        _ls = lookup(_ms, 1)
+
+        x = unwrap(_ms)
+        x = upsample(x, 5)
+        ms = SpatiotemporalMotifs.wrap.(x; domain = (-π, π))
+
+        cs = upsample(_cs, 10)
+        cs = MinMax(cs)(cs)
+
+        c = seethrough(structurecolormap[structure])
+        # band!(ax, lookup(mu, 1), l, h; color = muc |> collect, colormap = c, label = s)
+        lines!(ax, lookup(ms, 1), ms, color = cs |> collect, label = s, colormap = c,
+               linewidth = 7)
     end
     addlabels!(f)
     wsave(plotdir("spike_lfp", "spike_lfp.pdf"), f)

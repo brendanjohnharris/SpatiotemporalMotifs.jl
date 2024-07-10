@@ -13,13 +13,14 @@ using GraphMakie
 using GraphMakie.Graphs
 using SimpleWeightedGraphs
 using LinearAlgebra
+using Distributions
 set_theme!(foresight(:physics))
 Random.seed!(42)
 
 stimulus = r"Natural_Images"
 vars = [:ϕ]
 
-session_table = load(datadir("session_table.jld2"), "session_table")
+session_table = load(datadir("posthoc_session_table.jld2"), "session_table")
 oursessions = session_table.ecephys_session_id
 
 path = datadir("calculations")
@@ -29,8 +30,11 @@ config = @strdict stimulus vars
 data, file = produce_or_load(produce_out(Q), config, datadir(); filename = savepath,
                              prefix = "out")
 out = data["out"]
-data, file = produce_or_load(produce_uni, config, datadir(); filename = savepath)
-uni = data["uni"]
+out = map(out) do O
+    filter(o -> (o[:sessionid] in oursessions), O)
+end
+# data, file = produce_or_load(produce_uni, config, datadir(); filename = savepath)
+# uni = data["uni"]
 
 function cylindricalcor(alpha, x)
     # Compute correlation coefficients for sin and cos independently
@@ -44,98 +48,246 @@ function cylindricalcor(alpha, x)
     return rho
 end
 
-begin # * Uniphi
-    uniphi = getindex.(uni, :ϕ)
-    @assert [dims(uniphi[1], 1) == dims(uniphi[i], 1) for i in eachindex(uniphi)] |> all
-    @assert [dims(uniphi[1], 3) == dims(uniphi[i], 3) for i in eachindex(uniphi)] |> all
-    unidepths = range(0.05, 0.95, length = 10)
-    uniphi = map(uniphi) do phi
-        set(phi[Dim{:depth}(Near(unidepths))], Dim{:depth} => Dim{:depth}(unidepths))
+begin # * Approximate 2D channel coordinates
+    channels = AN.VisualBehavior.getchannels()
+    idxs = .!ismissing.(channels.structure_acronym) .&
+           (channels.structure_acronym .∈ [structures]) # All the probes are in one hemisphere
+    channels = channels[idxs, :]
+    idxs = .!isnan.(channels.left_right_ccf_coordinate) .&
+           .!isnan.(channels.anterior_posterior_ccf_coordinate) .&
+           .!isnan.(channels.dorsal_ventral_ccf_coordinate)
+    channels = channels[idxs, :]
+    # @assert all(channels.left_right_ccf_coordinate .> 5000)# All channels are in right hemisphere
+
+    channels = DataFrames.groupby(channels, :ecephys_session_id)
+    channels = [c for c in channels if length(unique(c.structure_acronym)) == 6]
+    channels = [c for c in channels if only(unique(c.ecephys_session_id)) ∈ oursessions]
+
+    for c in channels
+        if mean(c.left_right_ccf_coordinate) .< 5000 # Left hemisphere, so reflect
+            c.left_right_ccf_coordinate = .-c.left_right_ccf_coordinate
+        end
+        xs = hcat(c.left_right_ccf_coordinate,
+                  c.anterior_posterior_ccf_coordinate,
+                  c.dorsal_ventral_ccf_coordinate)
+        xs = xs .- mean(xs, dims = 1)
+        U, S, V = svd(xs)
+        S[end] = 0.0
+        ys = U * Diagonal(S) * V'
+
+        begin # * Check the projection
+            as = hcat(ys[:, 1], ys[:, 2], ones(size(ys, 1)))
+            bs = ys[:, 3]
+            pl = inv(as' * as) * as' * bs
+            @assert all(pl[1] .* ys[:, 1] .+ pl[2] .* ys[:, 2] .+ pl[3] .≈ ys[:, 3])
+        end
+
+        P = V[:, 1:2]
+        zs = xs * P
+        lr_cor = cor(zs[:, 1], c.left_right_ccf_coordinate)
+        @assert lr_cor > 0.7
+
+        ap_cor = cor(zs[:, 2], c.anterior_posterior_ccf_coordinate)
+        @assert ap_cor < -0.7
+        @assert eigvals(cov(zs)) ≈ eigvals(cov(xs))[2:end]
+        c.x = zs[:, 1]
+        c.y = zs[:, 2]
     end
-    uniphi = stack(Dim{:structure}(structures), uniphi)
-    uniphi = uniphi[1:5:end, :, :, :] # Downsample
+
+    # cpositions = map(eachrow(channels)) do c
+    #     c.id => [
+    #         c.left_right_ccf_coordinate,
+    #         c.anterior_posterior_ccf_coordinate,
+    #         c.dorsal_ventral_ccf_coordinate
+    #     ]
+    # end |> Dict
+    channels = vcat(channels...)
 end
 
-begin # * Massive
-    xs = getindex.([visual_cortex_layout], lookup(uniphi, :structure)) .|> first .|> Float32
-    ys = getindex.([visual_cortex_layout], lookup(uniphi, :structure)) .|> last .|> Float32
-    hs = getindex.([hierarchy_scores], lookup(uniphi, :structure)) .|> Float32
-    xs = MinMax(xs)(xs) # ! Think about the best way to define these coordinates; we probably don't want to normalize...
-    ys = MinMax(ys)(ys)
-    hs = MinMax(hs)(hs)
-
-    Δ = [(a, b) for a in eachslice(uniphi, dims = 4), b in eachslice(uniphi, dims = 4)] # The .........
-    Δ = Δ[filter(!=(0), triu(LinearIndices(Δ), 1))]
-    Δ = map(Δ) do (a, b) # ! Check interpretation of phase difference to propagation direction
-        mod.(b .- a .+ π, 2π) .- π
+begin # * Subject-by-subject phasedelays
+    unidepths = range(0.05, 0.95, length = 19)
+    pxy = map(out...) do o...
+        ϕs = map(o) do _o
+            ϕ = _o[:ϕ]
+            odepths = lookup(ϕ, :depth)
+            ϕ = ϕ[Dim{:depth}(Near(unidepths))]
+            idxs = indexin(lookup(ϕ, :depth), odepths)
+            cs = DimensionalData.metadata(ϕ)[:depths]
+            sortidxs = sortperm(collect(values(cs))) # Assume perfect monotonic correlation to streamline depths. The depths in 'cs' are depths along the probe, smaller = more superficial
+            cs = collect(keys(cs))[sortidxs][idxs]
+            idxs = [channels.ecephys_channel_id .== c for c in cs]
+            idxs = findfirst.(idxs)
+            xs = channels[idxs, :x] .|> Float32
+            ys = channels[idxs, :y] .|> Float32
+            (ϕ, xs, ys)
+        end
+        (getindex.(ϕs, 1), getindex.(ϕs, 2), getindex.(ϕs, 3))
     end
-    Δ = stack(Dim{:pair}(eachindex(Δ)), Δ, dims = 4)
-    Δ = permutedims(Δ, (4, 1, 2, 3))
+    xs = getindex.(pxy, 2) # ! Maybe set this to a single mean value??
+    xs = map(xs) do x
+        map(x) do _x
+            _x .= mean(_x)
+        end
+    end
+    ys = getindex.(pxy, 3)
+    ys = map(ys) do y
+        map(y) do _y
+            _y .= mean(_y)
+        end
+    end
+    ϕs = getindex.(pxy, 1)
+end
 
-    Δx = [b - a for a in xs, b in xs]
-    Δx = Δx[filter(!=(0), triu(LinearIndices(Δx), 1))]
-    Δy = [b - a for a in ys, b in ys]
-    Δy = Δy[filter(!=(0), triu(LinearIndices(Δy), 1))]
-    Δh = [b - a for a in hs, b in hs]
-    Δh = Δh[filter(!=(0), triu(LinearIndices(Δh), 1))]
+begin # * Analyze phase delays
+    Δs = progressmap(ϕs; parallel = true) do ϕ # Takes about 5 mins over 32 cores, 180 Gb
+        changetimes = lookup.(ϕ, :changetime)
+        latency = [maximum(abs.(a .- b))
+                   for (a, b) in zip(changetimes[2:end], changetimes[1:(end - 1)])]
+        @assert all(latency .< 0.05u"s")
+        changetimes = first(changetimes)
+        ts = times.(ϕ)
+        @assert abs(minimum(first.(ts)) - maximum(first.(ts))) < 0.016u"s"
+        ϕ = map(ϕ) do x
+            x[1:1562, :, :] # Some trials are a tiny bit shorter
+        end
+        ϕ = set.(ϕ, [Ti => times(ϕ[1])])
+        ϕ = set.(ϕ, [Dim{:depth} => Dim{:depth}(unidepths)])
+        ϕ = set.(ϕ, [Dim{:changetime} => Dim{:changetime}(changetimes)])
+        uniphi = stack(Dim{:structure}(structures), ϕ)
+        Δ = [(a, b) for a in eachslice(uniphi, dims = 4), b in eachslice(uniphi, dims = 4)]
+        Δ = Δ[filter(!=(0), triu(LinearIndices(Δ), 1))]
+        Δ = map(Δ) do (a, b) # ! Check interpretation of phase difference to propagation direction
+            mod.(b .- a .+ π, eltype(b)(2π)) .- π
+        end
+        Δ = stack(Dim{:pair}(eachindex(Δ)), Δ, dims = 4)
+        Δ = permutedims(Δ, (4, 1, 2, 3))
+    end
+    Δxs = map(xs) do X
+        X = map(X...) do x...
+            Δx = [b - a for a in x, b in x]
+            Δx = Δx[filter(!=(0), triu(LinearIndices(Δx), 1))]
+            Δx = DimArray(Δx, (Dim{:pair}(1:length(Δx)),))
+        end
+        stack(Dim{:depth}(unidepths), X)
+    end
+    Δys = map(ys) do Y
+        Y = map(Y...) do y...
+            Δy = [b - a for a in y, b in y]
+            Δy = Δy[filter(!=(0), triu(LinearIndices(Δy), 1))]
+            Δy = DimArray(Δy, (Dim{:pair}(1:length(Δy)),))
+        end
+        stack(Dim{:depth}(unidepths), Y)
+    end
+    @assert structures == [DimensionalData.metadata(phi)[:structure] for phi in ϕs[1]]
+    hs = getindex.([hierarchy_scores], structures) .|> Float32
+    Δhs = [b - a for a in hs, b in hs]
+    Δhs = Δhs[filter(!=(0), triu(LinearIndices(Δhs), 1))]
+    Δhs = map(Δxs) do Δx
+        h = deepcopy(Δx)
+        for _h in eachslice(h, dims = :depth)
+            _h .= Δhs
+        end
+        return h
+    end
 
-    ∂x = Δ ./ Δx
-    ∂y = Δ ./ Δy
-    ∂h = Δ ./ Δh
+    ∂x = progressmap(Δs, Δxs; parallel = true) do Δ, Δx
+        mapslices(Δ; dims = (:pair, :depth)) do Δ
+            .-Δ ./ Δx # Minus because phase increases over time
+        end
+    end
+    ∂y = progressmap(Δs, Δys; parallel = true) do Δ, Δy
+        mapslices(Δ; dims = (:pair, :depth)) do Δ
+            .-Δ ./ Δy # Minus because phase increases over time
+        end
+    end
+    ∂h = progressmap(Δs, Δhs; parallel = true) do Δ, Δh
+        mapslices(Δ; dims = (:pair, :depth)) do Δ
+            .-Δ ./ Δh # Minus because phase increases over time
+        end
+    end
 
-    ∂x = dropdims(mean(∂x, dims = 1), dims = 1) # x component of mean vector
-    ∂y = dropdims(mean(∂y, dims = 1), dims = 1) # y component of mean vector
-    ∂ = sqrt.(∂x .^ 2 .+ ∂y .^ 2) # Norm of mean vector
-    ψ = atan.(∂y ./ ∂x) # Angle of mean vector
-    ∂h = dropdims(mean(∂h, dims = 1), dims = 1)
+    ∂x = map(∂x) do ∂x
+        dropdims(mean(∂x, dims = :pair), dims = :pair) # x component of mean vector
+    end
+    ∂y = map(∂y) do ∂y
+        dropdims(mean(∂y, dims = :pair), dims = :pair) # y component of mean vector
+    end
+    ∂ = map(∂x, ∂y) do ∂x, ∂y
+        sqrt.(∂x .^ 2 .+ ∂y .^ 2) # Norm of mean vector
+    end
+    ψ = map(∂x, ∂y) do ∂x, ∂y
+        atan.(∂y ./ ∂x) # Angle of mean vector
+    end
+    ∂h = map(∂h) do ∂h
+        dropdims(mean(∂h, dims = :pair), dims = :pair)
+    end
+end
+
+begin # * Average quantities
+    ∂x̄ = mean(dropdims.(mean.(∂x; dims = :changetime); dims = :changetime))
+    ∂ȳ = mean(dropdims.(mean.(∂y; dims = :changetime); dims = :changetime))
+    ∂̄ = mean(dropdims.(mean.(∂; dims = :changetime); dims = :changetime))
+    ψ̄ = mean(dropdims.(circularmean.(ψ; dims = :changetime); dims = :changetime))
+    ∂h̄ = mean(dropdims.(mean.(∂h; dims = :changetime); dims = :changetime))
 end
 
 begin # * Plots
     f = FourPanel()
     gs = subdivide(f, 2, 2)
-
+    layerints = load(datadir("grand_unified_layers.jld2"), "layerints")
     begin # * Schematic of calculation
-        ax = Axis(gs[1], yreversed = true, aspect = 1)
+        ax = Axis(gs[1], yreversed = true)#, aspect = DataAspect())
         hidedecorations!(ax)
         hidespines!(ax)
-        outline, fill, l = plot_visual_cortex!(ax; colormap = structurecolors,
-                                               fillalpha = 0.2,
-                                               strokealpha = 0.8)
+        outline, infill, l = plot_visual_cortex!(ax; colormap = structurecolors,
+                                                 fillalpha = 0.2,
+                                                 strokealpha = 0.8)
         delete!(l)
         plotstructurecenters!(ax)
-        arrows!(ax, [100, 100], [550, 550], [65, 0], [0, -80])
+        arrows!(ax, [-500, -500], [550, 550], [65, 0], [0, -80])
     end
     begin # * Correlation to hierarchy score
         ax = Axis(gs[2][1, 1], yreversed = true,
                   title = "θ propagation (hierarchy)", xlabel = "Time (s)",
                   ylabel = "Cortical depth (%)")
-        ∂̄ = dropdims(mean(∂h, dims = Dim{:trial}), dims = :trial)
-        p, _ = plotlayermap!(ax, ∂̄[:, 3:end] |> ustripall, colormap = :viridis)
+        # ∂̄ = dropdims(mean(∂h, dims = Dim{:trial}), dims = :trial)
+        p, _ = plotlayermap!(ax, ∂h̄[Ti(SpatiotemporalMotifs.INTERVAL)] |> ustripall,
+                             colormap = darksunset,
+                             colorrange = symextrema(∂h̄))
         Colorbar(gs[2][1, 2], p; label = "Mean hierarchical ∇ (a.u.)")
+        plotlayerints!(ax, layerints; flipside = true, newticks = false,
+                       bgcolor = Makie.RGBA(0, 0, 0, 0))
+        ax.limits = (nothing, (0.05, 0.95))
         f
     end
     begin # * Correlation to position
         ax = Axis(gs[3][1, 1], yreversed = true, ytickformat = depthticks,
                   title = "θ propagation (position)", xlabel = "Time (s)",
                   ylabel = "Cortical depth (%)")
-        ∂̄ = dropdims(mean(∂[:, :, lookup(∂, :trial) .== true],
-                           dims = Dim{:trial}),
-                      dims = :trial)
-        p, _ = plotlayermap!(ax, ∂̄[:, 3:end] |> ustripall, colormap = :viridis)
+        # ∂̄ = dropdims(mean(∂[:, :, lookup(∂, :trial) .== true],
+        #                    dims = Dim{:trial}),
+        #               dims = :trial)
+        p, _ = plotlayermap!(ax, ∂̄[Ti(SpatiotemporalMotifs.INTERVAL)] |> ustripall,
+                             colormap = :inferno)
         Colorbar(gs[3][1, 2], p; label = "Mean positional ∇ (a.u.)")
+        plotlayerints!(ax, layerints; flipside = true, newticks = false,
+                       bgcolor = Makie.RGBA(0, 0, 0, 0))
+        ax.limits = (nothing, (0.05, 0.95))
         f
     end
     begin # * Angle over time
         ax = Axis(gs[4][1, 1], yreversed = true, ytickformat = depthticks,
                   title = "θ propagation direction", xlabel = "Time (s)",
                   ylabel = "Cortical depth (%)")
-        ∂̄ = dropdims(circularmean(ψ[:, :, lookup(ψ, :trial) .== true],
-                                   dims = Dim{:trial}),
-                      dims = :trial)
-        p, _ = plotlayermap!(ax, ∂̄[:, 3:end] |> ustripall,
-                             colormap = reverse(cgrad(:viridis)),
-                             colorrange = [0, maximum(∂̄[:, 3:end])])
+        # ∂̄ = dropdims(circularmean(ψ[:, :, lookup(ψ, :trial) .== true],
+        #                            dims = Dim{:trial}),
+        #               dims = :trial)
+        p, _ = plotlayermap!(ax, ψ̄[Ti(SpatiotemporalMotifs.INTERVAL)] |> ustripall,
+                             colormap = binarysunset, colorrange = symextrema(ψ̄))
         Colorbar(gs[4][1, 2], p; label = "Mean ψ (radians)")
+        plotlayerints!(ax, layerints; flipside = true, newticks = false,
+                       bgcolor = Makie.RGBA(0, 0, 0, 0))
+        ax.limits = (nothing, (0.05, 0.95))
         f
     end
     rowsize!(f.layout, 1, Relative(0.5))
@@ -145,80 +297,68 @@ begin # * Plots
     f
 end
 
-begin # * Thalamic comparison
-    function load_thalamic_theta(sessionids = nothing;
-                                 path = datadir("thalamus_calculations"),
-                                 stimulus = r"Natural_Images")
-        Q = calcquality(path)
-        idxs = lookup(Q, :sessionid) .∈ [sessionids]
-        Q = Q[sessionid = idxs, stimulus = At(stimulus)]
-        structure = lookup(Q, :structure) |> only
-        out = map(lookup(Q, :sessionid)) do sessionid
-            D = @strdict structure sessionid stimulus
-            data = load(joinpath(path, savepath(D, "jld2")), "ϕ")
-            m = dropdims(circularmean(data, dims = 2), dims = 2)
+begin # * Animate the phase at any given moment, interpolating the background,
+    mphi = progressmap(ϕs; parallel = true) do ϕ
+        ϕ = map(ϕ) do p
+            set(set(dropdims(circularmean(p[1:1562, :, :]; dims = :changetime);
+                             dims = :changetime), Ti => times(ϕs[1][1])[1:1562]),
+                Dim{:depth} => Dim{:depth}(unidepths))
         end
-        sessionids = lookup(Q, :sessionid)
-        out = DimArray(out, (Dim{:sessionid}(sessionids),))
-        return out
+        stack(Dim{:structure}(structures), ϕ |> collect)
     end
-    thth = load_thalamic_theta(oursessions)
+    mphi = cat(mphi...; dims = Dim{:sessionid}(oursessions))
+    mphi = dropdims(circularmean(mphi; dims = :sessionid); dims = :sessionid)
 end
-
-begin # * Check direction of phase difference
-    thout = map(out) do o
-        [_o[:ϕ] for _o in o if _o[:sessionid] in lookup(thth, :sessionid)]
-    end
-    thout = progressmap(thout; parallel = true) do o
-        progressmap(o; parallel = true) do x
-            y = thth[sessionid = At(metadata(x)[:sessionid])]
-            I = intersect(Interval(x), Interval(y))
-            x = x[Ti(I)]
-            y = y[Ti(I)]
-            @assert length(y) > 1500
-            y = set(y, Ti => times(x))
-            mapslices(x; dims = (1, 3)) do x
-                phasegrad(y, x)
-            end
-        end
-    end
-end
-
-begin # *
-    bins = 0.05:0.1:0.95
-    mth = map(thout) do x
-        map(x) do y
-            out = dropdims(mean(y[Ti(0.25u"s" .. 0.75u"s")], dims = (1, 3)); dims = (1, 3))
-            out = mean.(SpatiotemporalMotifs.Bins(lookup(out, :depth); bins)(out))
-        end
-    end
-    seshs = [metadata(x)[:sessionid] for x in thout[1]]
-    mth = stack.([Dim{:sessionid}(seshs)], mth; dims = 1)
-end
-
 begin
-    f = Figure()
-    ax = Axis(f[1, 1])
-    p = heatmap!(ax, thout[2][1][:, :, 120]; colormap = phasecolormap, colorrange = [-π, π])
-    Colorbar(f[1, 2], p)
-    f
-end
+    set_theme!(foresight(:dark))
+    d = 19
+    # subphi = mphi[:, d, :]
+    # subpar = ∂̄[:, d]
+    # subh = ∂h̄[:, d]
+    # subpsi = ψ̄[:, d]
 
-begin # * depth wise differences
-    f = Figure()
-    ax = Axis(f[1, 1])
-    for i in 1:6
-        d = lookup(mth[i], :bin)
-        μ, (l, u) = bootstrapmedian(mth[i]; dims = 1)
-        if sum(μ .> 0) < 5
-            μ = -μ
-            l = -l
-            u = -u
-        end
-        band!(ax, d, collect(l), collect(u), color = (structurecolors[i], 0.3))
-        scatterlines!(ax, d, μ, label = structures[i], color = structurecolors[i])
+    n = SpatiotemporalMotifs.DEFAULT_TRIAL_NUM
+    subphi = map(ϕs[end]) do p
+        set(set(p[1:1562, :, n], Ti => times(ϕs[1][1])[1:1562]),
+            Dim{:depth} => Dim{:depth}(unidepths))
     end
-    axislegend(ax)
+    subphi = cat(subphi...; dims = Dim{:structure}(structures))
+    subphi = subphi[:, d, :]
+    subpar = ∂[end][:, d, n]
+    subh = ∂h[end][:, d, n]
+    subpsi = ψ[end][:, d, n]
+
+    t = Observable(first(times(mphi)))
+    c = lift(t -> subphi[Ti(At(t))] |> collect, t)
+    psi = lift(t -> subpsi[Ti(At(t))] |> collect, t)
+    layout = Point2f[(-350, 350), # VISp
+                     (-170, 310), # VISl
+                     (-300, 130), # VISrl
+                     (-180, 195), # VISal
+                     (-475, 240), # VISpm
+                     (-450, 140)] # VISam
+    o = mean(layout)
+    psi1 = lift(psi -> [100.0 .* sin.(psi)], psi)
+    psi2 = lift(psi -> [100.0 .* cos.(psi)], psi)
+    f = Figure(; size = (600, 600))
+    ax = Axis(f[1, 1]; yreversed = true)
+    hidedecorations!(ax)
+    hidespines!(ax)
+
+    p1, p2, l = plot_visual_cortex!(ax, colors = c, colorrange = (-pi, pi),
+                                    colormap = phasecolormap)
+    delete!(l)
+
+    scatter!(ax, layout; color = c, colormap = phasecolormap,
+             markersize = 80,
+             colorrange = (-pi, pi))
+    text!(ax, layout; text = structures, align = (:center, :center),
+          fontsize = 16, color = :black)
     f
 end
-begin # * Time and depth-wise differences. Should we just repeat the wavenumber/order parameter analysis, but for relative phases??
+begin # * Animate
+    record(f, plotdir("interareal_phasedelays", "interareal_phasedelays.mp4"),
+           times(mphi)[1:2:end]) do _t
+        t[] = _t
+    end
+end

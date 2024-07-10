@@ -379,17 +379,18 @@ function ppc(x::AbstractVector{T})::T where {T} # Eq. 14 of Vinck 2010
     end
     return (2 / (N * (N - 1))) * sum(Δ)
 end
-function ppc(ϕ::UnivariateTimeSeries{T}, spikes::AbstractVector)::NTuple{2, T} where {T}
+function ppc(ϕ::UnivariateTimeSeries{T}, spikes::AbstractVector)::NTuple{3, T} where {T}
     spikes = spikes[spikes .∈ [Interval(ϕ)]]
-    isempty(spikes) && return (NaN, NaN)
+    isempty(spikes) && return (NaN, NaN, NaN)
     phis = ϕ[Ti(Near(spikes))] |> parent
     γ = ppc(phis)
     𝑝 = isempty(phis) ? 1.0 : HypothesisTests.pvalue(RayleighTest(phis))
-    return (γ, 𝑝)
+    p = phis |> resultant |> angle
+    return (γ, p, 𝑝)
 end
 function ppc(ϕ::AbstractVector{<:UnivariateTimeSeries}, spikes::AbstractVector)
     γs = ppc.(ϕ, [spikes])
-    return first.(γs), last.(γs)
+    return first.(γs), getindex.(γs, 2), last.(γs)
 end
 
 function initialize_spc_dataframe!(spikes, T)
@@ -404,6 +405,12 @@ function initialize_spc_dataframe!(spikes, T)
                                                                for _ in 1:size(spikes,
                                                                                1)]
     end
+    if !("trial_pairwise_phase_consistency_angle" ∈ names(spikes))
+        @debug "Initializing missing columns"
+        spikes[!, :trial_pairwise_phase_consistency_angle] = [Vector{T}()
+                                                              for _ in 1:size(spikes,
+                                                                              1)]
+    end
     if !("pairwise_phase_consistency" ∈ names(spikes))
         @debug "Initializing missing columns"
         spikes[!, :pairwise_phase_consistency] .= NaN
@@ -411,6 +418,10 @@ function initialize_spc_dataframe!(spikes, T)
     if !("pairwise_phase_consistency_pvalue" ∈ names(spikes))
         @debug "Initializing missing columns"
         spikes[!, :pairwise_phase_consistency_pvalue] .= NaN
+    end
+    if !("pairwise_phase_consistency_angle" ∈ names(spikes))
+        @debug "Initializing missing columns"
+        spikes[!, :pairwise_phase_consistency_angle] .= NaN
     end
 end
 
@@ -431,16 +442,18 @@ function spc!(spikes::AbstractDataFrame, ϕ::AbstractTimeSeries; pbar = nothing)
             _ϕ = map(eachslice(_ϕ, dims = 2)) do x # Individual trial
                 x = set(x, Ti => lookup(x, Ti) .+ refdims(x, :changetime))
             end
-            γ_trial, 𝑝_trial = ppc(_ϕ, spiketimes)
+            γ_trial, p_trial, 𝑝_trial = ppc(_ϕ, spiketimes)
             spikes.trial_pairwise_phase_consistency[spikes.ecephys_unit_id .== unitid] .= [γ_trial]
             spikes.trial_pairwise_phase_consistency_pvalue[spikes.ecephys_unit_id .== unitid] .= [𝑝_trial]
+            spikes.trial_pairwise_phase_consistency_angle[spikes.ecephys_unit_id .== unitid] .= [p_trial]
 
             idxs = [any(s .∈ Interval.(_ϕ)) for s in spiketimes]
             spiketimes = spiketimes[idxs]
             _ϕ = cat(_ϕ..., dims = Ti(vcat(lookup.(_ϕ, Ti)...)))
-            γ, 𝑝 = ppc(_ϕ, spiketimes)
+            γ, p, 𝑝 = ppc(_ϕ, spiketimes)
             spikes.pairwise_phase_consistency[spikes.ecephys_unit_id .== unitid] .= γ
             spikes.pairwise_phase_consistency_pvalue[spikes.ecephys_unit_id .== unitid] .= 𝑝
+            spikes.pairwise_phase_consistency_angle[spikes.ecephys_unit_id .== unitid] .= p
         end
         !isnothing(pbar) && update!(job)
     end
@@ -531,14 +544,14 @@ function sac!(spikes::AbstractDataFrame, r::AbstractVector{<:AbstractTimeSeries}
     isnothing(job) || stop!(job)
 end
 
-struct Bins
+struct HistBins
     bints::AbstractVector{<:AbstractInterval}
     idxs::AbstractVector{AbstractVector{<:Integer}}
 end
-bincenters(B::Bins) = mean.(B.bints)
-(B::Bins)(x) = DimArray(getindex.([x], B.idxs), (Dim{:bin}(bincenters(B)),))
+bincenters(B::HistBins) = mean.(B.bints)
+(B::HistBins)(x) = DimArray(getindex.([x], B.idxs), (Dim{:bin}(bincenters(B)),))
 
-function Bins(x; bins = StatsBase.histrange(x, 10))
+function HistBins(x; bins = StatsBase.histrange(x, 10))
     if bins isa Integer
         bins = StatsBase.histrange(x, bins)
     end
@@ -551,7 +564,7 @@ function Bins(x; bins = StatsBase.histrange(x, 10))
         end
     end
     idxs = map(bin -> findall(x .∈ [bin]), bints)
-    return Bins(bints, idxs)
+    return HistBins(bints, idxs)
 end
 
 function pac(ϕ::AbstractVector, r::AbstractVector; kwargs...)
@@ -591,7 +604,10 @@ end
 
 function bootstrapaverage(average, x::AbstractVector{T}; confint = 0.95,
                           N = 10000)::Tuple{T, Tuple{T, T}} where {T}
+    sum(!isnan, x) < 5 && return (NaN, (NaN, NaN))
+
     # * Estimate a sampling distribution of the average
+    x = filter(!isnan, x)
     b = Bootstrap.bootstrap(nansafe(average), x, Bootstrap.BalancedSampling(N))
     μ, σ... = only(Bootstrap.confint(b, Bootstrap.BCaConfInt(confint)))
     return μ, σ
