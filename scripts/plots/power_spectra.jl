@@ -108,7 +108,7 @@ for stimulus in stimuli
 
     begin # * Mean power spectrum in VISp and VISam. Bands show 1 S.D.
         ax = Axis(f[1, 1]; xscale = log10, yscale = log10,
-                  limits = ((3, 300), (1e-5, 1)),
+                  limits = ((3, 500), (1e-5, 1)),
                   xlabel = "Frequency (Hz)",
                   xgridvisible = true,
                   ygridvisible = true,
@@ -129,7 +129,7 @@ for stimulus in stimuli
                 linewidth = 4)
 
         psa = map(enumerate(structures)) do (i, s)
-            s = S̄[structure = At(s)][Freq = 3u"Hz" .. 300u"Hz"]
+            s = S̄[structure = At(s)][Freq = 3u"Hz" .. 500u"Hz"]
             s = s ./ 10^((i - 1.5) / 2.5)
             yc = only(mean(s[Freq = Near(3u"Hz")]))
             if i == 1
@@ -157,6 +157,7 @@ for stimulus in stimuli
 
     begin # * Calculate the channel-wise fits. Can take a good 30 minutes
         file = datadir("fooof", "fooof$filebase.jld2")
+
         if isfile(file)
             χ, L = load(file, "χ", "L")
         else
@@ -170,6 +171,16 @@ for stimulus in stimuli
         L = getindex.(L, [Dim{:sessionid}(At(oursessions))])
         L = L[structure = At(structures)]
         @assert size(L[1])[end] == size(S[1])[end]
+    end
+
+    begin # * Plot the exponent for each subject in VISl (as a check)
+        chi = χ[2] # VISl
+        chi = chi[:, sortperm(eachcol(chi))][3:end, 1:5:end]
+        chi = chi ./ maximum(chi, dims = 1)
+        ff = Figure()
+        ax = Axis(ff[1, 1])
+        scatter!.([ax], eachcol(chi))
+        ff
     end
 
     begin # * Plot the exponent
@@ -199,7 +210,7 @@ for stimulus in stimuli
             x = mapslices(x, dims = (1, 2)) do s
                 s ./ maximum(s, dims = 2)
             end |> ustripall
-            x = dropdims(median(x[Freq = 1 .. 300], dims = :sessionid), dims = :sessionid)[:,
+            x = dropdims(median(x[Freq = 1 .. 500], dims = :sessionid), dims = :sessionid)[:,
                                                                                            2:end]
 
             ax = Axis(gs[i][1, 1], xlabel = "Frequency (Hz)", ylabel = "Cortical depth (%)",
@@ -241,7 +252,7 @@ for stimulus in stimuli
 
         for (i, structure) in enumerate(["VISp", "VISl"])
             ax2 = Axis(f[2, i]; xscale = log10,
-                       limits = ((3, 300), (-0.1, 3.5)), xtickformat,
+                       limits = ((3, 500), (-0.1, 3.5)), xtickformat,
                        xlabel = "Frequency (Hz)",
                        ylabel = "Residual spectral density (dB)",
                        title = "Residual spectral density in " * structure,
@@ -252,7 +263,7 @@ for stimulus in stimuli
                     linewidth = 4)
 
             for (i, (c, l)) in (reverse ∘ collect ∘ enumerate ∘ zip)(layercolors, layers)
-                s = Sr_log[structure = At(structure)][Freq(3 .. 300)]
+                s = Sr_log[structure = At(structure)][Freq(3 .. 500)]
                 s = s[layer = (lookup(s, :layer) .== [l])]
                 s = dropdims(mean(s, dims = :layer), dims = :layer)
                 d = (length(layers) - i + 1) / 2
@@ -281,7 +292,7 @@ for stimulus in stimuli
 
         for (i, structure) in enumerate(structures)
             ax2 = Axis(gs[i]; xscale = log10,
-                       limits = ((3, 300), (-0.1, 3.5)), xtickformat,
+                       limits = ((3, 500), (-0.1, 3.5)), xtickformat,
                        xlabel = "Frequency (Hz)",
                        ylabel = "Residual power (dB)", title = structure,
                        xticks = [3, 10, 30, 100]) # xticksvisible = false, yaxisposition = :right,
@@ -291,7 +302,7 @@ for stimulus in stimuli
                     linewidth = 4)
 
             for (i, (c, l)) in (reverse ∘ collect ∘ enumerate ∘ zip)(layercolors, layers)
-                s = Sr_log[structure = At(structure)][Freq(3 .. 300)]
+                s = Sr_log[structure = At(structure)][Freq(3 .. 500)]
                 s = s[layer = (lookup(s, :layer) .== [l])]
                 s = dropdims(mean(s, dims = :layer), dims = :layer)
                 d = (length(layers) - i + 1) / 2

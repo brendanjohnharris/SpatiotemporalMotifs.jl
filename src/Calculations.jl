@@ -1,3 +1,4 @@
+using DataFrames
 
 function send_powerspectra(sessionid; outpath = datadir("power_spectra"),
                            plotpath = datadir("power_spectra_plots"),
@@ -241,6 +242,16 @@ function _calculations(session::AN.AbstractSession, structure, stimulus)
                            epoch = (:longest, :active))
         trials = AN.getchangetrials(session)
         starttimes = trials.change_time_with_display_delay
+    elseif stimulus == "Natural_Images_passive"
+        _stimulus = r"Natural_Images"
+        LFP = AN.formatlfp(session; probeid, structure, stimulus = _stimulus,
+                           rectify = false,
+                           epoch = (:longest, :active => ByRow(==(false))))
+        stimuli = AN.getstimuli(session)
+        stimuli = stimuli[stimuli.start_time .∈ [Interval(LFP)], :]
+        stimuli = stimuli[.!ismissing.(stimuli.is_change), :]
+        stimuli = stimuli[stimuli.is_change .== 1, :]
+        starttimes = stimuli.start_time
     else
         LFP = AN.formatlfp(session; probeid, structure, stimulus, rectify = false,
                            epoch = :first)
@@ -601,15 +612,21 @@ function unify_calculations(out; vars = [:x, :k])
     return uni
 end
 
-function produce_out(Q, config; path = datadir("calculations"))
+function produce_out(Q::AbstractDimArray, config; path = datadir("calculations"))
     out = load_calculations(Q; path, stimulus = config["stimulus"], vars = config["vars"])
     @strdict out
 end
-produce_out(Q; kwargs...) = config -> produce_out(Q, config; kwargs...)
-
-function produce_uni(config; path = datadir("calculations"))
+produce_out(Q::AbstractDimArray; kwargs...) = config -> produce_out(Q, config; kwargs...)
+produce_out(; kwargs...) = config -> produce_out(config; kwargs...)
+function produce_out(config; path = datadir("calculations"),
+                     structures = SpatiotemporalMotifs.structures)
+    Q = calcquality(path)[structure = At(structures)]
+    return produce_out(Q, config; path)
+end
+function produce_uni(config; path = datadir("calculations"), kwargs...)
     @info "Producing unified data"
-    data, outfile = produce_or_load(produce_out, config, datadir(); filename = savepath,
+    data, outfile = produce_or_load(produce_out(; path, kwargs...), config, datadir();
+                                    filename = savepath,
                                     path, prefix = "out")
     out = data["out"]
     uni = unify_calculations(out; vars = config["vars"])

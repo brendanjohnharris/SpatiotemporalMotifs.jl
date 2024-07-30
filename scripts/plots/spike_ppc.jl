@@ -72,8 +72,9 @@ end
 
 begin
     begin # * Set up figure
-        f = TwoPanel()
-        gs = subdivide(f, 1, 3)
+        f = FourPanel()
+        gs = subdivide(f, 2, 2)
+        layerints = load(datadir("grand_unified_layers.jld2"), "layerints")
     end
 
     if false # * Plot, for every structure
@@ -133,6 +134,8 @@ begin
             scatter!(ax, _ls, _ms; color = structurecolormap[structure], label = structure)
         end
         l = axislegend(ax, merge = true, nbanks = 2)
+        plotlayerints!(ax, layerints; axis = :x, flipside = false, newticks = false,
+                       bgcolor = Makie.RGBA(0, 0, 0, 0))
         reverselegend!(l)
     end
     begin # * Plot, for each structure
@@ -140,7 +143,7 @@ begin
 
         ax = Axis(gs[2], xlabel = "Cortical depth (%)", ylabel = "SAC",
                   title = "Spike-amplitude coupling (γ)",
-                  limits = ((0.05, 0.95), (1.1, 1.5)),
+                  limits = ((0.05, 0.95), (1.05, 1.45)),
                   xtickformat = depthticks)
         for structure in reverse(structures)
             idxs = pspikes.structure_acronym .== structure
@@ -178,6 +181,8 @@ begin
         end
         l = axislegend(ax, merge = true, nbanks = 2)
         reverselegend!(l)
+        plotlayerints!(ax, layerints; axis = :x, flipside = false, newticks = false,
+                       bgcolor = Makie.RGBA(0, 0, 0, 0))
     end
 end
 
@@ -230,7 +235,124 @@ begin # * Preferred phases
         lines!(ax, lookup(ms, 1), ms, color = cs |> collect, label = s, colormap = c,
                linewidth = 7)
     end
+end
+
+begin
+    bins = range(0, 1, length = 11)
+    ax = Axis(gs[4], xlabel = "Cortical depth (%)", ylabel = "Mean firing rate",
+              title = "Firing rate",
+              limits = ((0.05, 0.95), (0, nothing)),
+              xtickformat = depthticks)
+    for structure in reverse(structures)
+        idxs = pspikes.structure_acronym .== structure
+        allsesh_pspikes = @views pspikes[idxs, :]
+        mss = map(unique(allsesh_pspikes.ecephys_session_id)) do sesh
+            _pspikes = @views allsesh_pspikes[allsesh_pspikes.ecephys_session_id .== sesh,
+                                              :]
+            # ys = _pspikes.firing_rate .|> Float32
+            ys = map(_pspikes.spiketimes) do s
+                N = length(s) / (maximum(s) - minimum(s)) # Mean firing rate
+            end .|> Float32
+            xs = _pspikes.streamlinedepth .|> Float32
+            # hexbin(xs, ys)
+            B = HistBins(xs; bins)
+            _ms = rectify(B(ys), dims = :bin) .|> mean
+        end
+        X = cat(mss...; dims = 2)
+        _ms, (_σl, _σh) = bootstrapmedian(X; dims = 2)
+        idxs = .!isnan.(_ms) .& .!isnan.(_σl) .& .!isnan.(_σh)
+        _ms = _ms[idxs]
+        _σl = _σl[idxs]
+        _σh = _σh[idxs]
+
+        _ls = lookup(_ms, 1)
+        ms = upsample(_ms, 10)
+        σl = upsample(_σl, 10)
+        σh = upsample(_σh, 10)
+        ls = lookup(ms, 1)
+        band!(ax, ls, collect(σl), collect(σh);
+              color = (structurecolormap[structure], 0.3), label = structure)
+        lines!(ax, ls, ms, color = (structurecolormap[structure], 0.7),
+               label = structure)
+        scatter!(ax, _ls, _ms; color = structurecolormap[structure], label = structure)
+    end
+    l = axislegend(ax, merge = true, nbanks = 2, position = :lt)
+    reverselegend!(l)
+
+    plotlayerints!(ax, layerints; axis = :x, flipside = false, newticks = false,
+                   bgcolor = Makie.RGBA(0, 0, 0, 0))
+
     addlabels!(f)
     wsave(plotdir("spike_lfp", "spike_lfp.pdf"), f)
     f
 end
+
+# begin # * Spike MUA spectrum. Currently for stimulustask
+#     dfs = DataFrames.groupby(spikes, :ecephys_session_id)
+
+#     df = dfs[1]
+#     df = df[df.structure_acronym .== "VISp", :]
+#     S = AN.Session(df.ecephys_session_id |> unique |> only)
+#     spontimes = AN.getspiketimes(S, df.id)
+#     df.spontimes = getindex.([spontimes], df.id)
+#     sort!(df, :streamlinedepth)
+#     # df = df[df.streamlinedepth .> 0.8, :]
+#     spiketrains = spiketrain.(df.spontimes)
+#     epochs = AN.getepochs(S)
+#     spontdur = epochs.interval[findlast(epochs.stimulus_name .== "spontaneous")]
+#     df.spontimes = map(df.spontimes) do t
+#         t = t[t .∈ [spontdur]]
+#     end
+#     if false
+#         # * Calculate correlations
+#         O = progressmap(x -> stoic(x...),
+#                         Iterators.product(spiketrains, spiketrains);
+#                         parallel = true)
+#         O = reshape(O, length(spiketrains), length(spiketrains))
+#         F = eigen(O)
+#         w = F.vectors[:, end]
+#         is = partialsortperm(w, 1:20; rev = true) # * Top 25 neurons
+#     end
+# end
+# begin
+#     dt = 0.001
+#     ts = range(minimum(minimum.(spikes.spiketimes)), maximum(maximum.(spikes.spiketimes)),
+#                step = dt)
+#     ts = [a .. b for (a, b) in zip(ts[1:(end - 1)], ts[2:end])]
+
+#     ss = progressmap(spiketrains; parallel = true) do s
+#         length.(DimensionalData.groupby(s, Ti => Bins(ts)))
+#     end
+
+#     is = partialsortperm(sum.(ss), 1:10; rev = true)
+#     a = ss[is[1]]
+#     b = ss[is[2]]
+#     y = crosscor(a, b, 1:Int(1 ÷ dt))
+#     lines(range(dt, step = dt, length = length(y)), y)
+
+#     # s = sum(ss)
+#     # s = set(s, Ti => mean.(times(s)))
+#     # s = rectify(s, dims = Ti)
+#     # S = spectrum(s, 0.05; padding = 100)
+#     # lines((TimeseriesTools.freqs(S)[2:end]), (parent(S)[2:end]);
+#     #       axis = (; xscale = log10, yscale = log10, limits = ((1, nothing), nothing)))
+#     # * Now convert to mua
+#     # spiketrains = map(spiketrains) do s
+#     #     a = DimensionalData.groupby(s, Ti => Bins(ts))
+#     # end
+#     # bs = progressmap(collect(values(spikes))[1:100]; parallel = true) do x
+#     #     x = x[minimum(ts) .< x .< maximum(ts)]
+#     #     b = B(x)(x)
+#     #     b = length.(b)
+#     # end
+#     # b = set(bs[1], sum(bs))
+#     # b = set(b, Dim{:bin} => Ti(ts[1:(end - 1)]))
+
+#     # s = log10.(spectrum(b, 0.5)[Freq = 1 .. 50])
+#     # lines(freqs(s), s)
+#     # ax = current_axis()
+#     # ax.xlabel = "Hz"
+#     # ax.ylabel = "power"
+#     # ax.title = "MUA spectrum"
+#     # current_figure()
+# end
