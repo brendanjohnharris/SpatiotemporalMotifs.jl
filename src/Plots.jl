@@ -11,8 +11,9 @@ export plotdir
 const connector = "&"
 const layers = ["1", "2/3", "4", "5", "6"]
 # const layercolors = reverse(binarysunset[range(start = 0, stop = 1,
-const layercolors = (cgrad(:inferno)[range(start = 0, stop = 0.8,
-                                           length = length(layers))])
+const layercolormap = reverse(cgrad(:roma)) #Foresight.pelagic
+const layercolors = (layercolormap[range(start = 0.0, stop = 1,
+                                         length = length(layers))])
 
 colors = [Foresight.cornflowerblue,
     Foresight.crimson,
@@ -37,13 +38,14 @@ const visual_cortex_layout = Dict("VISp" => [350, 350],
                                   "VISam" => [450, 140])
 const hierarchy_scores = Dict("VISp" => -0.357, "VISl" => -0.093, "VISrl" => -0.059,
                               "VISal" => 0.152, "VISpm" => 0.327, "VISam" => 0.441) # * Anatomical hierarchy scores from Siegle 2021
+
 function depthticks(x)
     if all(x .< 50) # Assume percentages
         x = x .* 100
     end
     return string.(round.(Int, x))
 end
-function plotlayerints!(ax, ints; dx = 0.02, width = dx, axis = :y, newticks = true,
+function plotlayerints!(ax, ints; dx = 0.03, width = dx, axis = :y, newticks = true,
                         flipside = false, bgcolor = :white)
     acronyms = "L" .* layers
     ticks = mean.(ints)
@@ -57,22 +59,24 @@ function plotlayerints!(ax, ints; dx = 0.02, width = dx, axis = :y, newticks = t
     end
     xmins = [!Bool(mod(i, 2)) * dx for i in 1:length(acronyms)]
     xmaxs = xmins .+ width
+    bmin = minimum([xmins xmaxs])
+    bmax = maximum([xmins xmaxs])
     if flipside
         xmins = 1 .- xmins
         xmaxs = 1 .- xmaxs
     end
     if axis === :y
         hspan!(ax, extrema(vcat(collect.(extrema.(ints))...))...;
-               xmin = minimum([xmins xmaxs]),
-               xmax = maximum([xmins xmaxs]),
+               xmin = bmin,
+               xmax = bmax,
                color = bgcolor)
         ps = map(ints, layercolors, xmins, xmaxs) do i, color, xmin, xmax
             hspan!(ax, extrema(i)...; xmin, xmax, color)
         end
     elseif axis === :x
         vspan!(ax, extrema(vcat(collect.(extrema.(ints))...))...;
-               ymin = minimum([xmins xmaxs]),
-               ymax = maximum([xmins xmaxs]),
+               ymin = bmin,
+               ymax = bmax,
                color = bgcolor)
         ps = map(ints, layercolors, xmins, xmaxs) do i, color, xmin, xmax
             vspan!(ax, extrema(i)...; ymin = xmin, ymax = xmax, color)
@@ -81,7 +85,7 @@ function plotlayerints!(ax, ints; dx = 0.02, width = dx, axis = :y, newticks = t
 
     return ps
 end
-function plotlayerints!(ax, ints::DimArray{<:String, 1}; width = 0.02, kwargs...)
+function plotlayerints!(ax, ints::DimArray{<:String, 1}; width = 0.04, kwargs...)
     ints = parselayernum.(ints)
     ds = diff(lookup(ints, :depth)) / 2
     append!(ds, first(ds))
@@ -105,7 +109,7 @@ function plotlayermap!(ax, m; arrows = false,
                        colorrange = extrema(ustripall(m)),
                        colormap = binarysunset, doupsample = true, domain = nothing,
                        rasterize = 10, stimulus = [0, 0.25], lengthscale = 0.07,
-                       arrowsize = 5, kwargs...)
+                       arrowsize = 5, arrowcolor = (:black, 0.4), kwargs...)
     if doupsample
         if isnothing(domain)
             x = upsample(ustripall(m), 5, 2)
@@ -129,7 +133,7 @@ function plotlayermap!(ax, m; arrows = false,
         q ./= maximum(abs.(q))
         arrows!(ax, lookup(q, 1), lookup(q, 2), zeros(size(q)), parent(q);
                 lengthscale, arrowsize,
-                normalize = false, color = (:black, 0.4))
+                normalize = false, color = arrowcolor)
     end
     if !isempty(stimulus) && !isnothing(stimulus)
         ps = vlines!(ax, stimulus; color = (:white, 0.5), linestyle = :dash, linewidth = 3)
@@ -371,13 +375,13 @@ function plotspectrum!(ax, s::AbstractDimArray;
     μ = dropdims(μ, dims = (:sessionid, :layer)) |> ustripall
     σ = std(s, dims = (:sessionid, :layer)) ./ 2
     σ = dropdims(σ, dims = (:sessionid, :layer)) |> ustripall
-    p = lines!(ax, freqs(μ), μ; color = (color, 0.8), label)
+    p = lines!(ax, freqs(μ), collect(μ); color = (color, 0.8), label)
     band!(ax, freqs(μ), collect.([max.(μ - σ, eps()), μ + σ])...; color = (color, 0.32))
 
     # * Find peaks
     if :peaks in annotations
         pks, proms = findpeaks(μ, 2; N = 2)
-        scatter!(ax, freqs(pks), pks .* 1.25, color = :black,
+        scatter!(ax, collect(freqs(pks)), collect(pks .* 1.25), color = :black,
                  markersize = 10, marker = :dtriangle)
         text!(ax, collect(freqs(pks)), collect(pks);
               text = string.(round.(collect(freqs(pks)), digits = 1)) .* [" Hz"],

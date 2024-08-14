@@ -30,7 +30,7 @@ for stimulus in stimuli
     Q = calcquality(path)[stimulus = At(stimulus), structure = At(structures)]
     Q = Q[Dim{:sessionid}(At(oursessions))]
     filebase = stimulus == "spontaneous" ? "" : "_$stimulus"
-    f = Figure(size = (900, 1080))
+    f = FourPanel()
 
     begin # * Load data
         S = map(lookup(Q, :structure)) do structure
@@ -108,7 +108,7 @@ for stimulus in stimuli
 
     begin # * Mean power spectrum in VISp and VISam. Bands show 1 S.D.
         ax = Axis(f[1, 1]; xscale = log10, yscale = log10,
-                  limits = ((3, 500), (1e-5, 1)),
+                  limits = ((3, 300), (10^(-5.5), 1.5)),
                   xlabel = "Frequency (Hz)",
                   xgridvisible = true,
                   ygridvisible = true,
@@ -129,7 +129,7 @@ for stimulus in stimuli
                 linewidth = 4)
 
         psa = map(enumerate(structures)) do (i, s)
-            s = S̄[structure = At(s)][Freq = 3u"Hz" .. 500u"Hz"]
+            s = S̄[structure = At(s)][Freq = 3u"Hz" .. 300u"Hz"]
             s = s ./ 10^((i - 1.5) / 2.5)
             yc = only(mean(s[Freq = Near(3u"Hz")]))
             if i == 1
@@ -146,10 +146,17 @@ for stimulus in stimuli
                    framevisible = true, padding = (5, 5, 5, 5))
         leg = ["$s (α = $α)" for (s, α) in zip(structures, α)]
         map(enumerate(leg)) do (i, s)
-            text!(ax, 290, exp10(-1.1 - (i / 3 - 1 - 0.1)); text = s,
-                  color = structurecolors[i],
-                  fontsize = 14,
-                  align = (:right, :bottom))
+            if i > 3
+                text!(ax, 290, exp10(-1.1 - ((i - 3) / 3 - 1 - 0.1)); text = s,
+                      color = structurecolors[i],
+                      fontsize = 14,
+                      align = (:right, :bottom))
+            else
+                text!(ax, 50, exp10(-1.1 - (i / 3 - 1 - 0.1)); text = s,
+                      color = structurecolors[i],
+                      fontsize = 14,
+                      align = (:right, :bottom))
+            end
         end
         # axislegend(ax, ps, leg, padding = 5, framevisible = true, labelsize = 12)
         f
@@ -170,7 +177,7 @@ for stimulus in stimuli
         end
         L = getindex.(L, [Dim{:sessionid}(At(oursessions))])
         L = L[structure = At(structures)]
-        @assert size(L[1])[end] == size(S[1])[end]
+        @assert all(last.(size.(L)) .≥ last.(size.(S))) # Check we have residuals for all sessions we have spectra for
     end
 
     begin # * Plot the exponent for each subject in VISl (as a check)
@@ -184,8 +191,8 @@ for stimulus in stimuli
     end
 
     begin # * Plot the exponent
-        # f = Figure()
-        ax = Axis(f[1, 2]; xlabel = "Cortical depth (%)", ylabel = "1/f exponent",
+        fff = Figure()
+        ax = Axis(fff[1, 1]; xlabel = "Cortical depth (%)", ylabel = "1/f exponent",
                   limits = ((0, 1), (0.9, 2.1)), xtickformat = depthticks,
                   title = "1/f exponent")
         for (i, chi) in χ |> enumerate |> collect |> reverse
@@ -200,7 +207,8 @@ for stimulus in stimuli
         l = axislegend(ax, position = :rb, nbanks = 2, labelsize = 12, merge = true)
         reverselegend!(l)
         plotlayerints!(ax, layerints; axis = :x, newticks = false, flipside = true)
-        display(f)
+        wsave(plotdir("power_spectra", "exponent_supplement$(filebase).pdf"), fff)
+        display(fff)
     end
 
     begin # * Relative power (supplement)
@@ -210,7 +218,7 @@ for stimulus in stimuli
             x = mapslices(x, dims = (1, 2)) do s
                 s ./ maximum(s, dims = 2)
             end |> ustripall
-            x = dropdims(median(x[Freq = 1 .. 500], dims = :sessionid), dims = :sessionid)[:,
+            x = dropdims(median(x[Freq = 1 .. 300], dims = :sessionid), dims = :sessionid)[:,
                                                                                            2:end]
 
             ax = Axis(gs[i][1, 1], xlabel = "Frequency (Hz)", ylabel = "Cortical depth (%)",
@@ -239,6 +247,9 @@ for stimulus in stimuli
         # f = Figure()
         Sr_log = map(ustripall.(S), L, meanlayers) do s, l, m
             s = deepcopy(s)
+            l = deepcopy(l)
+            idxs = indexin(lookup(s, :sessionid), lookup(l, :sessionid))
+            l = l[:, idxs] # Match sessions just in case
             map(eachslice(s, dims = (:depth, :sessionid)), l) do s, l
                 _s = log10.(ustripall(s))
                 s .= _s .- (_s |> freqs .|> l .|> log10)
@@ -250,9 +261,9 @@ for stimulus in stimuli
         Sr_log = DimArray(Sr_log |> collect,
                           (Dim{:structure}(lookup(Q, :structure)),))
 
-        for (i, structure) in enumerate(["VISp", "VISl"])
-            ax2 = Axis(f[2, i]; xscale = log10,
-                       limits = ((3, 500), (-0.1, 3.5)), xtickformat,
+        for (i, structure) in enumerate(["VISl"])
+            ax2 = Axis(f[1, i + 1]; xscale = log10,
+                       limits = ((3, 300), (-0.1, 3.5)), xtickformat,
                        xlabel = "Frequency (Hz)",
                        ylabel = "Residual spectral density (dB)",
                        title = "Residual spectral density in " * structure,
@@ -263,7 +274,7 @@ for stimulus in stimuli
                     linewidth = 4)
 
             for (i, (c, l)) in (reverse ∘ collect ∘ enumerate ∘ zip)(layercolors, layers)
-                s = Sr_log[structure = At(structure)][Freq(3 .. 500)]
+                s = Sr_log[structure = At(structure)][Freq(3 .. 300)]
                 s = s[layer = (lookup(s, :layer) .== [l])]
                 s = dropdims(mean(s, dims = :layer), dims = :layer)
                 d = (length(layers) - i + 1) / 2
@@ -273,13 +284,13 @@ for stimulus in stimuli
                 σ = dropdims(std(s, dims = :sessionid), dims = :sessionid)
                 band!(ax2, TimeseriesTools.freqs(μ), collect(μ .- σ), collect(μ .+ σ);
                       color = (c, bandalpha))
-                lines!(ax2, TimeseriesTools.freqs(μ), μ; color = (c, alpha))
+                lines!(ax2, TimeseriesTools.freqs(μ), collect(μ); color = (c, alpha))
             end
-            C = Colorbar(f[2, i][1, 2],
+            C = Colorbar(f[1, i + 1][1, 2],
                          colormap = reverse(cgrad(layercolors, categorical = true)),
                          ticks = (range(0, 1, length = (2 * length(layercolors) + 1))[2:2:end],
-                                  [structure] .* reverse(layers)),
-                         ticklabelrotation = π / 2,
+                                  ["L"] .* reverse(layers)),
+                         ticklabelrotation = 0,# π / 2,
                          ticklabelsize = 13)
             # linkxaxes!(ax, ax2)
         end
@@ -292,7 +303,7 @@ for stimulus in stimuli
 
         for (i, structure) in enumerate(structures)
             ax2 = Axis(gs[i]; xscale = log10,
-                       limits = ((3, 500), (-0.1, 3.5)), xtickformat,
+                       limits = ((3, 300), (-0.1, 3.5)), xtickformat,
                        xlabel = "Frequency (Hz)",
                        ylabel = "Residual power (dB)", title = structure,
                        xticks = [3, 10, 30, 100]) # xticksvisible = false, yaxisposition = :right,
@@ -302,7 +313,7 @@ for stimulus in stimuli
                     linewidth = 4)
 
             for (i, (c, l)) in (reverse ∘ collect ∘ enumerate ∘ zip)(layercolors, layers)
-                s = Sr_log[structure = At(structure)][Freq(3 .. 500)]
+                s = Sr_log[structure = At(structure)][Freq(3 .. 300)]
                 s = s[layer = (lookup(s, :layer) .== [l])]
                 s = dropdims(mean(s, dims = :layer), dims = :layer)
                 d = (length(layers) - i + 1) / 2
@@ -312,7 +323,7 @@ for stimulus in stimuli
                 σ = dropdims(std(s, dims = :sessionid), dims = :sessionid)
                 band!(ax2, TimeseriesTools.freqs(μ), collect(μ .- σ), collect(μ .+ σ);
                       color = (c, bandalpha))
-                lines!(ax2, TimeseriesTools.freqs(μ), μ; color = (c, alpha))
+                lines!(ax2, TimeseriesTools.freqs(μ), collect(μ); color = (c, alpha))
             end
             C = Colorbar(gs[i][1, 2],
                          colormap = reverse(cgrad(layercolors, categorical = true)),
@@ -326,18 +337,19 @@ for stimulus in stimuli
         sf
     end
 
-    begin # * Calculate the residual power in each band
+    begin # * Recalculate the residual power in each band. Still in decibels, but labelled by depth
         Sr = deepcopy(ustripall.(S))
-        map(Sr, L) do s, l
+        map(Sr, L) do s, l # Map over structures
+            idxs = indexin(lookup(s, :sessionid), lookup(l, :sessionid))
+            l = l[:, idxs] # Match sessions just in case
             for i in CartesianIndices(l)
-                s[:, i] .= (s[:, i]) .- (l[i].(freqs(s[:, i])))
+                s[:, i] .= (s[:, i]) .- (l[i].(freqs(s[:, i]))) # Units of power spectral density
             end
         end
     end
 
     begin # * Plot the total residual theta power across channels
-        # f = Figure()
-        ax = Axis(f[3, 1]; xlabel = "Cortical depth (%)", yticks = WilkinsonTicks(4),
+        ax = Axis(f[2, 1]; xlabel = "Cortical depth (%)", yticks = WilkinsonTicks(4),
                   xtickformat = depthticks,
                   ytickformat = depthticks,
                   ylabel = "Residual 𝜽 power (%)",
@@ -347,9 +359,10 @@ for stimulus in stimuli
         for (i, s) in reverse(collect(enumerate(structures)))
             ss = Sr[structure = At(s)][Freq(theta)]
             # ss = upsample(ss, 5, 2)
-            no = mean(sum(ustripall(S[structure = At(s)]), dims = Freq);
-                      dims = :depth)
-            x = sum(ss, dims = Freq) ./ no# step(lookup(ss, 1))
+            # no = mean(sum(ustripall(S[structure = At(s)]), dims = Freq);
+            #           dims = :depth)
+            no = sum(ustripall(S[structure = At(s)]), dims = Freq) # Total power of each channel
+            x = sum(ss, dims = Freq) ./ no # The fraction of power above the 1/f component in a given frequency band
             x = dropdims(x, dims = Freq)
             μ = dropdims(mean(x, dims = :sessionid), dims = :sessionid)
             # σl = dropdims(quantile(x, 0.25, dims = :sessionid), dims = :sessionid)
@@ -365,16 +378,16 @@ for stimulus in stimuli
             lines!(ax, lookup(μ, 1), collect(μ);
                    color = (structurecolors[i], alpha), label = structures[i])
         end
-        leg = axislegend(ax, position = :lt, nbanks = 2, labelsize = 12, merge = true)
+        leg = axislegend(ax, position = :lt, nbanks = 3, labelsize = 12, merge = true)
         reverselegend!(leg)
         plotlayerints!(ax, layerints; axis = :x, newticks = false, flipside = false)
-        ax.limits = ((0, 1), (nothing, nothing))
+        ax.limits = ((0, 1), (-0.075, 0.65))
         display(f)
     end
 
     begin # * Residual gamma power across channels
         # f = Figure()
-        ax = Axis(f[3, 2]; xlabel = "Cortical depth (%)", yticks = WilkinsonTicks(4),
+        ax = Axis(f[2, 2]; xlabel = "Cortical depth (%)", yticks = WilkinsonTicks(4),
                   xtickformat = depthticks,
                   ytickformat = depthticks,
                   ylabel = "Residual 𝜸 power (%)",
@@ -383,8 +396,9 @@ for stimulus in stimuli
 
         for (i, s) in structures |> enumerate |> collect |> reverse
             ss = Sr[structure = At(s)][Freq(gamma)]
-            no = mean(sum(ustripall(S[structure = At(s)]), dims = Freq);
-                      dims = :depth)
+            # no = mean(sum(ustripall(S[structure = At(s)]), dims = Freq);
+            #           dims = :depth)
+            no = sum(ustripall(S[structure = At(s)]), dims = Freq) # Total power of each channel
             ss = sum(ss, dims = Freq) ./ no # step(lookup(ss, Freq))
             ss = dropdims(ss, dims = Freq)
             μ, (σl, σh) = bootstrapmedian(ss, dims = :sessionid)

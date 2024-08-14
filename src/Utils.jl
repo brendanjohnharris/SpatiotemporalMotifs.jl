@@ -256,8 +256,9 @@ function classifier(h, labels; regcoef = 0.1)
 
     M = fit(MulticlassLDA, collect(h), collect(labels);
             regcoef = convert(eltype(h), regcoef))
-
     ŷ = (predict(M, h) .> 0) |> vec |> collect # Predicted output classes
+
+
     if cor(labels, ŷ) < 0
         M.proj = .-M.proj
     end
