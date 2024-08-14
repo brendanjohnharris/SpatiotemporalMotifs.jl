@@ -21,6 +21,7 @@ Random.seed!(32)
 
 stimulus = r"Natural_Images"
 datafile = datadir("theta_waves_task.jld2")
+INT = Ti(SpatiotemporalMotifs.INTERVAL)
 
 session_table = load(datadir("session_table.jld2"), "session_table")
 oursessions = session_table.ecephys_session_id
@@ -28,6 +29,51 @@ oursessions = session_table.ecephys_session_id
 path = datadir("calculations")
 Q = calcquality(path)[structure = At(structures)]
 quality = mean(Q[stimulus = At(stimulus)])
+
+# * Negative frequencies
+vars = [:ω]
+config = @strdict stimulus vars
+data, file = produce_or_load(produce_uni, config, datadir(); filename = savepath)
+uni = data["uni"]
+
+begin # * Supplemental material: likelihood of negative frequencies
+    F1 = FourPanel()
+    F2 = FourPanel()
+    g1 = subdivide(F1, 3, 1)
+    g2 = subdivide(F2, 3, 1)
+
+    for i in eachindex(uni)
+        f = i > 3 ? g2[i - 3] : g1[i]
+        k = ustripall(uni[i][:ω][INT]) .< 0
+        # k = uconvert.(u"mm^-1", k)
+
+        # * Hit
+        ax = Axis(f[1, 1], yreversed = true, limits = (nothing, (0.05, 0.95)))
+        structure = metadata(k)[:structure]
+        ax.title = structure * ": hit"
+        m = mean(k[:, :, lookup(k, :trial) .== true], dims = :trial)
+        m = dropdims(m, dims = :trial)
+        colorrange = maximum(abs.(ustripall(m))) * [0, 1]
+        ints = uni[i][:layerints]
+        p = plotlayermap!(ax, m, ints; arrows = (200, 3), colorrange) |> first
+        if i > 5
+            ax.xlabel = "Time (s)"
+        end
+
+        # * Miss
+        ax = Axis(f[1, 2], yreversed = true)
+        ax.title = structure * ": miss"
+        m = mean(k[:, :, lookup(k, :trial) .== false], dims = :trial)
+        m = dropdims(m, dims = :trial)
+        ints = uni[i][:layerints]
+        p = plotlayermap!(ax, m, ints; colorrange) |> first
+        c = Colorbar(f[1, 3], p)
+        c.label = "P(ω < 0)"
+    end
+    display(F1)
+    wsave(plotdir("theta_waves_task", "supplemental_negative_frequencies_a.pdf"), F1)
+    wsave(plotdir("theta_waves_task", "supplemental_negative_frequencies_b.pdf"), F2)
+end
 
 # * Theta wavenumber
 vars = [:k]
@@ -43,7 +89,7 @@ begin # * Supplemental material: average phase velocity maps in each region
 
     for i in eachindex(uni)
         f = i > 3 ? g2[i - 3] : g1[i]
-        k = uni[i][:k][:, 2:end, :]
+        k = uni[i][:k][:, 2:end, :][INT]
         k = uconvert.(u"mm^-1", k)
 
         # * Hit
@@ -88,7 +134,7 @@ begin # * Supplemental material: average phase velocity maps in each region
 
     for i in eachindex(uni)
         f = i > 3 ? g2[i - 3] : g1[i]
-        k = uni[i][:x][:, 2:end, :]
+        k = uni[i][:x][:, 2:end, :][INT]
         k = k .* 1000 # V to mv
 
         # * Hit
@@ -133,7 +179,7 @@ begin # * Supplemental material: average phase velocity maps in each region
 
     for i in eachindex(uni)
         f = i > 3 ? g2[i - 3] : g1[i]
-        k = uni[i][:r][:, 3:end, :]
+        k = uni[i][:r][:, 3:end, :][INT]
         k = k .* 1000 # V to mv
 
         # * Hit

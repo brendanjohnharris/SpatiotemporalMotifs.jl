@@ -6,7 +6,7 @@ function send_powerspectra(sessionid; outpath = datadir("power_spectra"),
     params = (;
               sessionid,
               epoch = :longest,
-              pass = (1, 300))
+              pass = (1, 300)) # To match typical range, e.g., https://www.biorxiv.org/content/10.1101/2021.07.28.454235v2.full
 
     stimuli = ["spontaneous", "flash_250ms", r"Natural_Images"]
     structures = SM.structures
@@ -130,59 +130,39 @@ function send_powerspectra(sessionid; outpath = datadir("power_spectra"),
                 # * Format data for saving
                 streamlinedepths = AN.getchanneldepths(session, LFP; method = :streamlines)
                 layerinfo = AN.Plots._layerplot(session, channels)
+
+                begin # * Spontaneous order parameter
+                    LFP = set(LFP, Dim{:channel} => Dim{:depth}(depths))
+                    LFP = rectify(LFP; dims = :depth)
+
+                    θ = bandpass(LFP, SpatiotemporalMotifs.THETA)
+                    ϕ = analyticphase(θ)
+                    k = -centralderiv(ϕ, dims = Dim{:depth}, grad = phasegrad)
+                    R = dropdims(mean(sign.(k), dims = :depth); dims = :depth)
+
+                    # * Surrogates
+                    idxs = randperm(size(ϕ, :depth))
+                    ϕ = set(ϕ, ϕ[:, idxs]) # Spatially shuffle channels
+                    k = -centralderiv(ϕ, dims = Dim{:depth}, grad = phasegrad)
+                    Rs = dropdims(mean(sign.(k), dims = :depth); dims = :depth)
+                end
+
                 D = Dict(DimensionalData.metadata(LFP))
                 @pack! D = channels, streamlinedepths, layerinfo
                 S = rebuild(S; metadata = D)
-                outD = @strdict S C sC
+                outD = @strdict S C sC R sR
                 tagsave(outfile, outD)
 
-                LFP = []
-                D = []
-                streamlinedepths = []
-                layerinfo = []
-                S = []
-                sC = []
-                mc = []
-                sLFP = []
-                C = []
-                s = []
-                f = p = ax = c = []
-                depths = []
-                outD = []
+                LFP = D = streamlinedepths = layerinfo = S = sC = mc = sLFP = C = s = f = p = ax = c = depths = outD = θ = ϕ = k = R = sR = []
                 GC.safepoint()
                 GC.gc()
             catch e
-                LFP = []
-                D = []
-                streamlinedepths = []
-                layerinfo = []
-                S = []
-                sLFP = []
-                mc = []
-                C = []
-                sC = []
-                s = []
-                outD = []
-                f = p = ax = c = []
-                depths = []
-                outD = []
+                LFP = D = streamlinedepths = layerinfo = S = sC = mc = sLFP = C = s = f = p = ax = c = depths = outD = θ = ϕ = k = R = sR = []
                 GC.safepoint()
                 GC.gc()
                 @warn e tagsave(outfile, Dict("error" => sprint(showerror, e)))
             end
-            LFP = []
-            D = []
-            streamlinedepths = []
-            layerinfo = []
-            S = []
-            mc = []
-            sLFP = []
-            C = []
-            sC = []
-            s = []
-            f = p = ax = c = []
-            outD = []
-            depths = []
+            LFP = D = streamlinedepths = layerinfo = S = sC = mc = sLFP = C = s = f = p = ax = c = depths = outD = θ = ϕ = k = R = sR = []
             GC.safepoint()
             GC.gc()
         end
@@ -208,7 +188,7 @@ function _calculations(LFP; pass_θ, pass_γ, ΔT, doupsample, starttimes)
 
     k = -centralderiv(ϕ, dims = Dim{:depth}, grad = phasegrad) # Wavenumber
     # We have a minus sign because the hilbert transform uses the convention of ϕ = ωt (for
-    # univariate; phase increases with time), which implies ϕ = ωt - kx (for multivariate).
+    # univariate; phase increases with time for positive frequencies), which implies ϕ = ωt - kx (for multivariate).
     v = ω ./ k # Phase velocity of theta
 
     ωᵧ = centralderiv(ϕᵧ, dims = Ti, grad = phasegrad) # Frequency

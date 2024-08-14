@@ -42,13 +42,12 @@ begin # Set up plot
                                          probestyle = :meshscatter,
                                          markersize = 100.0,
                                          fontsize = 0.0,
-                                         matcap = false,
-                                         shading = Makie.MultiLightShading)
+                                         matcap = false)
     ax.azimuth = 2.6
     ax.elevation = 0.24
     ss = AN.getprobestructures(session, structures)
     ss = getindex.([ss], probeids)
-    is = indexin(ss, s)
+    is = indexin(ss, structures)
 
     [c[i][] = fill(structurecolors[is[i]], length(c[i][])) for i in eachindex(is)]
     f
