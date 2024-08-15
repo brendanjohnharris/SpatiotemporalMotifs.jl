@@ -4,9 +4,7 @@ using HypothesisTests
 using RobustModels
 using Distributed
 import Bootstrap
-import MLJ
-import MLJScikitLearnInterface
-import MLJLinearModels
+# import LIBSVM
 
 if !haskey(ENV, "DRWATSON_STOREPATCH")
     ENV["DRWATSON_STOREPATCH"] = "true"
@@ -250,18 +248,25 @@ end
 balanced_accuracy(args...) = classification_metrics(args...).bacc |> only
 accuracy(args...) = classification_metrics(args...).acc |> only
 
-function classifier(h, labels; regcoef = 0.1)
-    N = fit(Normalization.MixedZScore, h; dims = 2)
+function classifier(h, labels; regcoef = 0.5)
+    N = fit(Normalization.ZScore, h; dims = 2)
     h = normalize(h, N)
 
+    # * LDA
     M = fit(MulticlassLDA, collect(h), collect(labels);
             regcoef = convert(eltype(h), regcoef))
     ŷ = (predict(M, h) .> 0) |> vec |> collect # Predicted output classes
 
+    # # * SVM
+    # M = LIBSVM.svmtrain(h, labels, cost = Float64(regcoef))
+    # ŷ = LIBSVM.svmpredict(M, h) |> first
 
     if cor(labels, ŷ) < 0
         M.proj = .-M.proj
     end
+    # if cor(labels, ŷ) < 0
+    #     @warn "Correlation is negative: $(cor(labels, ŷ))"
+    # end
     return N, M
 end
 
@@ -291,6 +296,7 @@ function classify_kfold(H, rng::AbstractRNG = Random.default_rng(); k = 5, dim =
                 N, M = classifier(h[:, train], labels[train]; kwargs...)
                 y = labels[test] |> collect
                 ŷ = predict(M, normalize(h[:, test], N)) .> 0 # Predicted output classes
+                # ŷ = LIBSVM.svmpredict(M, normalize(h[:, test], N)) |> first # Predicted output classes
                 ŷ = ŷ |> vec |> collect
                 bac = balanced_accuracy(y, ŷ)
                 return bac
@@ -304,71 +310,71 @@ function classify_kfold(H, rng::AbstractRNG = Random.default_rng(); k = 5, dim =
     return mean(bacs)
 end
 
-mutable struct Regressor{T}
-    a::Vector{T}
-    b::T
-end
-function (M::Regressor{T})(x::AbstractMatrix{<:T})::Vector{T} where {T}
-    return M.a' * x .+ M.b |> vec |> collect
-end
+# mutable struct Regressor{T}
+#     a::Vector{T}
+#     b::T
+# end
+# function (M::Regressor{T})(x::AbstractMatrix{<:T})::Vector{T} where {T}
+#     return M.a' * x .+ M.b |> vec |> collect
+# end
 
-function regressor(h::AbstractMatrix, targets; regcoef = 0.1)
-    N = fit(Normalization.MixedZScore, h; dims = 2)
-    h = normalize(h, N)
-    # a..., b = ridge(h', convert.(eltype(h), targets), regcoef)
-    idxs = 0.2 .< targets .< 1 # Remove outliers
-    # idxs = trues(length(targets))
+# function regressor(h::AbstractMatrix, targets; regcoef = 0.1)
+#     N = fit(Normalization.MixedZScore, h; dims = 2)
+#     h = normalize(h, N)
+#     # a..., b = ridge(h', convert.(eltype(h), targets), regcoef)
+#     idxs = 0.2 .< targets .< 1 # Remove outliers
+#     # idxs = trues(length(targets))
 
-    # # m = fit(LassoPath, Float64.(h[:, idxs]'), Float64.(targets[idxs]))
-    # m = fit(RobustLinearModel, Float64.(h[:, idxs]'), Float64.(targets[idxs]),
-    #         MEstimator{HuberLoss}(); σ0 = 2)
+#     # # m = fit(LassoPath, Float64.(h[:, idxs]'), Float64.(targets[idxs]))
+#     # m = fit(RobustLinearModel, Float64.(h[:, idxs]'), Float64.(targets[idxs]),
+#     #         MEstimator{HuberLoss}(); σ0 = 2)
 
-    HuberRegressor = MLJ.@load HuberRegressor verbosity=0 pkg=MLJScikitLearnInterface
-    h = DataFrame(h[:, idxs]', Symbol.(1:size(h, 1)))
-    mach = MLJ.machine(HuberRegressor(; max_iter = 10000, alpha = regcoef), h,
-                       targets[idxs])
-    MLJ.fit!(mach; verbosity = 0)
+#     HuberRegressor = MLJ.@load HuberRegressor verbosity=0 pkg=MLJScikitLearnInterface
+#     h = DataFrame(h[:, idxs]', Symbol.(1:size(h, 1)))
+#     mach = MLJ.machine(HuberRegressor(; max_iter = 10000, alpha = regcoef), h,
+#                        targets[idxs])
+#     MLJ.fit!(mach; verbosity = 0)
 
-    # M = Regressor(a, b)
-    M = x -> MLJ.predict(mach, DataFrame(x', Symbol.(1:size(x, 1))))
-    return N, M
-end
+#     # M = Regressor(a, b)
+#     M = x -> MLJ.predict(mach, DataFrame(x', Symbol.(1:size(x, 1))))
+#     return N, M
+# end
 
-function regressor(H::AbstractArray{T, 3}, targets; dim = :trial, regcoef = 0.1) where {T}
-    negdims = setdiff(1:ndims(H), [dimnum(H, dim)])
-    negsize = size(H)[negdims]
-    h = reshape(H, (prod(negsize), size(H, dim))) # Flattened data, _ × trial
-    regressor(h, targets; regcoef)
-end
+# function regressor(H::AbstractArray{T, 3}, targets; dim = :trial, regcoef = 0.1) where {T}
+#     negdims = setdiff(1:ndims(H), [dimnum(H, dim)])
+#     negsize = size(H)[negdims]
+#     h = reshape(H, (prod(negsize), size(H, dim))) # Flattened data, _ × trial
+#     regressor(h, targets; regcoef)
+# end
 
-function regress_kfold(H, reaction_times, rng::AbstractRNG = Random.default_rng(); k = 5,
-                       dim = :trial,
-                       kwargs...)
-    labels = lookup(H, dim)
-    @assert eltype(labels) == Bool
-    negdims = setdiff(1:ndims(H), [dimnum(H, dim)])
-    negsize = size(H)[negdims]
-    h = reshape(H, (prod(negsize), size(H, dim))) # Flattened data, _ × trial
+# function regress_kfold(H, reaction_times, rng::AbstractRNG = Random.default_rng(); k = 5,
+#                        dim = :trial,
+#                        kwargs...)
+#     labels = lookup(H, dim)
+#     @assert eltype(labels) == Bool
+#     negdims = setdiff(1:ndims(H), [dimnum(H, dim)])
+#     negsize = size(H)[negdims]
+#     h = reshape(H, (prod(negsize), size(H, dim))) # Flattened data, _ × trial
 
-    h = h[:, .!isnan.(reaction_times)]
-    reaction_times = reaction_times[.!isnan.(reaction_times)]
+#     h = h[:, .!isnan.(reaction_times)]
+#     reaction_times = reaction_times[.!isnan.(reaction_times)]
 
-    trains, tests = crossvalidate(length(reaction_times), k, rng)
+#     trains, tests = crossvalidate(length(reaction_times), k, rng)
 
-    ρ = map(trains, tests) do train, test
-        try
-            N, M = regressor(h[:, train], reaction_times[train]; kwargs...)
-            y = reaction_times[test] |> collect
-            ŷ = M(normalize(h[:, test], N))[:]
-            ρ = corspearman(y, ŷ)
-            return ρ
-        catch e
-            @warn e
-            return NaN
-        end
-    end
-    return mean(ρ) # Use fisher z transform
-end
+#     ρ = map(trains, tests) do train, test
+#         try
+#             N, M = regressor(h[:, train], reaction_times[train]; kwargs...)
+#             y = reaction_times[test] |> collect
+#             ŷ = M(normalize(h[:, test], N))[:]
+#             ρ = corspearman(y, ŷ)
+#             return ρ
+#         catch e
+#             @warn e
+#             return NaN
+#         end
+#     end
+#     return mean(ρ) # Use fisher z transform
+# end
 
 function ppc(x::AbstractVector{T})::T where {T} # Eq. 14 of Vinck 2010
     isempty(x) && return NaN
