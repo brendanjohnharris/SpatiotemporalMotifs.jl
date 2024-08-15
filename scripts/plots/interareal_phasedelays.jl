@@ -18,7 +18,7 @@ set_theme!(foresight(:physics))
 Random.seed!(42)
 
 stimulus = r"Natural_Images"
-vars = [:ϕ]
+vars = [:ϕ, :ω]
 
 session_table = load(datadir("posthoc_session_table.jld2"), "session_table")
 oursessions = session_table.ecephys_session_id
@@ -35,6 +35,20 @@ out = map(out) do O
 end
 # data, file = produce_or_load(produce_uni, config, datadir(); filename = savepath)
 # uni = data["uni"]
+
+begin # * Functional hierarchy scores
+    # ? See https://github.com/AllenInstitute/neuropixels_platform_paper/blob/master/Figure2/comparison_anatomical_functional_connectivity_final.ipynb
+    dir = tempdir()
+    baseurl = "https://github.com/AllenInstitute/neuropixels_platform_paper/raw/master/data/processed_data"
+    f = "FFscore_grating_10.npy"
+    Downloads.download(joinpath(baseurl, f), joinpath(dir, f))
+    @assert SpatiotemporalMotifs.structures ==
+            ["VISp", "VISl", "VISrl", "VISal", "VISpm", "VISam"] # The order of this FC matrix
+    FF_score, FF_score_b, FF_score_std = eachslice(load(joinpath(dir, f)), dims = 1)
+    FF_score = DimArray(FF_score', # Original matrix has higher-order structures on rows
+                        (Dim{:structure_1}(SpatiotemporalMotifs.structures),
+                         Dim{:structure_2}(SpatiotemporalMotifs.structures)))
+end
 
 function cylindricalcor(alpha, x)
     # Compute correlation coefficients for sin and cos independently
@@ -109,8 +123,10 @@ begin # * Subject-by-subject phasedelays
     pxy = map(out...) do o...
         ϕs = map(o) do _o
             ϕ = _o[:ϕ]
+            ω = _o[:ω]
             odepths = lookup(ϕ, :depth)
             ϕ = ϕ[Dim{:depth}(Near(unidepths))]
+            ω = ω[Dim{:depth}(Near(unidepths))]
             idxs = indexin(lookup(ϕ, :depth), odepths)
             cs = DimensionalData.metadata(ϕ)[:depths]
             sortidxs = sortperm(collect(values(cs))) # Assume perfect monotonic correlation to streamline depths. The depths in 'cs' are depths along the probe, smaller = more superficial
@@ -119,9 +135,9 @@ begin # * Subject-by-subject phasedelays
             idxs = findfirst.(idxs)
             xs = channels[idxs, :x] .|> Float32
             ys = channels[idxs, :y] .|> Float32
-            (ϕ, xs, ys)
+            (ϕ, xs, ys, ω)
         end
-        (getindex.(ϕs, 1), getindex.(ϕs, 2), getindex.(ϕs, 3))
+        [getindex.(ϕs, i) for i in 1:4]
     end
     xs = getindex.(pxy, 2) # ! Maybe set this to a single mean value??
     xs = map(xs) do x
@@ -136,10 +152,11 @@ begin # * Subject-by-subject phasedelays
         end
     end
     ϕs = getindex.(pxy, 1)
+    ϕs = getindex.(pxy, 4)
 end
 
 begin # * Analyze phase delays
-    Δs = progressmap(ϕs; parallel = true) do ϕ # Takes about 5 mins over 32 cores, 180 Gb
+    Δs = progressmap(ϕs, ωs; parallel = true) do ϕ, ω # Takes about 5 mins over 32 cores, 180 Gb
         changetimes = lookup.(ϕ, :changetime)
         latency = [maximum(abs.(a .- b))
                    for (a, b) in zip(changetimes[2:end], changetimes[1:(end - 1)])]
@@ -147,7 +164,8 @@ begin # * Analyze phase delays
         changetimes = first(changetimes)
         ts = times.(ϕ)
         @assert abs(minimum(first.(ts)) - maximum(first.(ts))) < 0.016u"s"
-        ϕ = map(ϕ) do x
+        ϕ = map(ϕ, ω) do x, w
+            x[ω .< 0] .= NaN # ! Mask negative frequency periods
             x[1:1562, :, :] # Some trials are a tiny bit shorter
         end
         ϕ = set.(ϕ, [Ti => times(ϕ[1])])
@@ -170,6 +188,7 @@ begin # * Analyze phase delays
         end
         stack(Dim{:depth}(unidepths), X)
     end
+    # Δxs = Δxs ./ maximum(Δxs) # Normalize so all these measures are comparable
     Δys = map(ys) do Y
         Y = map(Y...) do y...
             Δy = [b - a for a in y, b in y]
@@ -178,9 +197,10 @@ begin # * Analyze phase delays
         end
         stack(Dim{:depth}(unidepths), Y)
     end
+    # Δys = Δys ./ maximum(Δys) # Normalize so all these measures are comparable
     @assert structures == [DimensionalData.metadata(phi)[:structure] for phi in ϕs[1]]
     hs = getindex.([hierarchy_scores], structures) .|> Float32
-    Δhs = [b - a for a in hs, b in hs]
+    Δhs = [b - a for a in hs, b in hs] # Make a distance matrix
     Δhs = Δhs[filter(!=(0), triu(LinearIndices(Δhs), 1))]
     Δhs = map(Δxs) do Δx
         h = deepcopy(Δx)
@@ -189,6 +209,10 @@ begin # * Analyze phase delays
         end
         return h
     end
+    Δhs = Δhs ./ maximum(Δhs) # Normalize so all these measures are comparable
+
+    Δfs = FF_score[filter(!=(0), triu(LinearIndices(FF_score), 1))] # ? Δhs and Δfs match data used for siegle2021 figure 2f, without same-region FC. FF_score is already a 'distance' matrix.
+    Δfs = Δfs ./ maximum(abs.(Δfs))
 
     ∂x = progressmap(Δs, Δxs; parallel = true) do Δ, Δx
         mapslices(Δ; dims = (:pair, :depth)) do Δ
@@ -203,6 +227,12 @@ begin # * Analyze phase delays
     ∂h = progressmap(Δs, Δhs; parallel = true) do Δ, Δh
         mapslices(Δ; dims = (:pair, :depth)) do Δ
             .-Δ ./ Δh # Minus because phase increases over time
+        end
+    end
+    ∂f = progressmap(Δs, Δfs; parallel = true) do Δ, Δf
+        mapslices(Δ; dims = (:pair, :depth)) do Δ
+            Main.@infiltrate # !!!!
+            .-Δ ./ Δf # Minus because phase increases over time
         end
     end
 
@@ -221,6 +251,9 @@ begin # * Analyze phase delays
     ∂h = map(∂h) do ∂h
         dropdims(mean(∂h, dims = :pair), dims = :pair)
     end
+    ∂f = map(∂f) do ∂f
+        dropdims(mean(∂f, dims = :pair), dims = :pair)
+    end
 end
 
 begin # * Average quantities
@@ -229,6 +262,7 @@ begin # * Average quantities
     ∂̄ = mean(dropdims.(mean.(∂; dims = :changetime); dims = :changetime))
     ψ̄ = mean(dropdims.(circularmean.(ψ; dims = :changetime); dims = :changetime))
     ∂h̄ = mean(dropdims.(mean.(∂h; dims = :changetime); dims = :changetime))
+    ∂f̄ = mean(dropdims.(mean.(∂f; dims = :changetime); dims = :changetime))
 end
 
 begin # * Plots
