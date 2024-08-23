@@ -1,33 +1,63 @@
-# SpatiotemporalMotifs
+# SpatiotemporalMotifs.jl
 
-[![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://brendanjohnharris.github.io/SpatiotemporalMotifs.jl/stable/)
-[![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://brendanjohnharris.github.io/SpatiotemporalMotifs.jl/dev/)
-[![Build Status](https://github.com/brendanjohnharris/SpatiotemporalMotifs.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/brendanjohnharris/SpatiotemporalMotifs.jl/actions/workflows/CI.yml?query=branch%3Amain)
-[![Coverage](https://codecov.io/gh/brendanjohnharris/SpatiotemporalMotifs.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/brendanjohnharris/SpatiotemporalMotifs.jl)
+<!-- [![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://brendanjohnharris.github.io/SpatiotemporalMotifs.jl/stable/)
+[![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://brendanjohnharris.github.io/SpatiotemporalMotifs.jl/dev/) -->
+<!-- [![Build Status](https://github.com/brendanjohnharris/SpatiotemporalMotifs.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/brendanjohnharris/SpatiotemporalMotifs.jl/actions/workflows/CI.yml?query=branch%3Amain)
+[![Coverage](https://codecov.io/gh/brendanjohnharris/SpatiotemporalMotifs.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/brendanjohnharris/SpatiotemporalMotifs.jl) -->
 
 ## Guide
 
-This project contains code for reproducing the analyses and figures in the paper "...........".
+This project contains code for reproducing the analyses and figures in the paper "........................".
 Since many analyses are computationally intensive, we recommend either:
 
 1. Running the code on a high-performance computing cluster, which will require adapting the scripts to use the cluster manager of your local supercomputer. This option is described in [Section 1](#1.-performing-calculations) below.
-2. Downloading the precomputed results from ......
+2. Downloading the precomputed results from .....................................
 
 If the results are downloaded from Figshare, skip directly to [Section 2](#2.-plotting-results). Please note that while plotting the downloaded results will not require a high-performance computing cluster, it will still require a computer with a modest amount of RAM (>16 GB) and some analyses will still take upwards of 30 minutes to complete.
 
 ### 0. Setup
 
-..........installation, dr watson.........
+Installation should be straightforward:
+```julia
+run(`git clone https://github.com/brendanjohnharris/SpatiotemporalMotifs.jl`)
+cd("SpatiotemporalMotifs.jl")
+using Pkg
+Pkg.activate(".")
+Pkg.instantiate()
+```
+The steps above will reproduce the exact versions of all dependencies used to generate the final results of the paper; running `Pkg.update()` afterwards (not recommended) will update all dependencies to their newest allowed versions.
+
+> [!WARNING]
+>The Python dependencies should install automatically, but if you encounter issues, please see the documentation for [CondaPkg.jl](https://github.com/JuliaPy/CondaPkg.jl). As a last resort, you can always create a conda environment yourself, manually install the Python dependencies (listed in the `CondaPkg.toml` files of [AllenSDK.jl](https://github.com/brendanjohnharris/AllenSDK.jl) and [FOOOF.jl](https://github.com/beacon-biosignals/PyFOOOF.jl)), set `JULIA_CONDAPKG_ENV` to point to this environment, and disable automatic Conda updates with `JULIA_CONDAPKG_OFFLINE=false`.
+
+You should then set the `AllenNeuropixels` data directory to someplace convenient, with:
+```julia
+import AllenNeuropixels as AN
+AN.setdatadir("/path/to/my/data/")
+```
+All Neuropixels data files will be downloaded to this directory; by default it is a Julia scratchspace.
+Note that all other working and intermediate data files for this project will be saved to `SpatiotemporalMotifs.jl/data`.
 
 #### Key dependencies
 
+This project depends significantly on some key dependencies, highlighted below. These packages---beyond the full list of dependencies contained in `Project.toml`
+
 ##### Dr Watson
+
+...............................
 
 ##### AllenNeuropixels
 
+...............
+
 ##### TimeseriesTools
 
+..................
+
 ##### Foresight
+
+..................
+
 
 ### 1. Performing calculations
 
@@ -42,7 +72,7 @@ Each script can be run as `julia -t auto <path to script>` or, on linux, `chmod 
 #### [Selecting sessions](scripts/calculations/select_sessions.jl)
 
 First, we use the session metadata to filter sessions that fulfill a list of quality criteria (e.g. probes in all target regions, with low noise).
-This script creates the `data/session_table.jld2` file, which contains a dataframe of the selected sessions and their metrics (also saved in json format at `data/session_table.json`).
+This script creates the `data/session_table.jld2` file, which contains a `Dataframe` of the selected sessions and their metrics (also saved in JSON format at `data/session_table.json`).
 
 #### [Downloading data](scripts/calculations/download_data.jl)
 
