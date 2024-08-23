@@ -255,7 +255,7 @@ function classifier(h, labels; regcoef = 0.5)
     # * LDA
     M = fit(MulticlassLDA, collect(h), collect(labels);
             regcoef = convert(eltype(h), regcoef))
-    ŷ = (predict(M, h) .> 0) |> vec |> collect # Predicted output classes
+    ŷ = (ptiredict(M, h) .> 0) |> vec |> collect # Predicted output classes
 
     # # * SVM
     # M = LIBSVM.svmtrain(h, labels, cost = Float64(regcoef))

@@ -188,7 +188,6 @@ begin # * Analyze phase delays
         end
         stack(Dim{:depth}(unidepths), X)
     end
-    # Δxs = Δxs ./ maximum(Δxs) # Normalize so all these measures are comparable
     Δys = map(ys) do Y
         Y = map(Y...) do y...
             Δy = [b - a for a in y, b in y]
@@ -197,22 +196,32 @@ begin # * Analyze phase delays
         end
         stack(Dim{:depth}(unidepths), Y)
     end
-    # Δys = Δys ./ maximum(Δys) # Normalize so all these measures are comparable
+    maxs = maximum(sqrt.(Δys .^ 2 .+ Δxs .^ 2); dims = :depth) # Normalize so all these measures are comparable
+    Δys = Δys ./ maxs
+    Δxs = Δxs ./ maxs
+
     @assert structures == [DimensionalData.metadata(phi)[:structure] for phi in ϕs[1]]
     hs = getindex.([hierarchy_scores], structures) .|> Float32
     Δhs = [b - a for a in hs, b in hs] # Make a distance matrix
     Δhs = Δhs[filter(!=(0), triu(LinearIndices(Δhs), 1))]
-    Δhs = map(Δxs) do Δx
+    Δhs = Δhs ./ maximum(abs.(Δhs))
+    Δhs = map(Δxs) do Δx # Copy onto shape of Δxs
         h = deepcopy(Δx)
         for _h in eachslice(h, dims = :depth)
             _h .= Δhs
         end
         return h
     end
-    Δhs = Δhs ./ maximum(Δhs) # Normalize so all these measures are comparable
 
     Δfs = FF_score[filter(!=(0), triu(LinearIndices(FF_score), 1))] # ? Δhs and Δfs match data used for siegle2021 figure 2f, without same-region FC. FF_score is already a 'distance' matrix.
     Δfs = Δfs ./ maximum(abs.(Δfs))
+    Δfs = map(Δxs) do Δx
+        f = deepcopy(Δx)
+        for _f in eachslice(f, dims = :depth)
+            _f .= Δfs
+        end
+        return f
+    end
 
     ∂x = progressmap(Δs, Δxs; parallel = true) do Δ, Δx
         mapslices(Δ; dims = (:pair, :depth)) do Δ
@@ -236,18 +245,20 @@ begin # * Analyze phase delays
         end
     end
 
+    ∂ = map(∂x, ∂y) do ∂x, ∂y
+        m = set(∂x, collect(zip(∂x, ∂y))) # All vectors
+        m = mean(m; dims = :pair) # Mean propagation vector (each scaled by separation remember)
+        norm.(m)
+    end
     ∂x = map(∂x) do ∂x
         dropdims(mean(∂x, dims = :pair), dims = :pair) # x component of mean vector
     end
     ∂y = map(∂y) do ∂y
         dropdims(mean(∂y, dims = :pair), dims = :pair) # y component of mean vector
     end
-    ∂ = map(∂x, ∂y) do ∂x, ∂y
-        sqrt.(∂x .^ 2 .+ ∂y .^ 2) # Norm of mean vector
-    end
-    ψ = map(∂x, ∂y) do ∂x, ∂y
-        atan.(∂y ./ ∂x) # Angle of mean vector
-    end
+    # ψ = map(∂x, ∂y) do ∂x, ∂y
+    #     atan.(∂y ./ ∂x) # Angle of mean vector. Not so meaningful when the spatial coordinates are normalized
+    # end
     ∂h = map(∂h) do ∂h
         dropdims(mean(∂h, dims = :pair), dims = :pair)
     end
@@ -260,7 +271,7 @@ begin # * Average quantities
     ∂x̄ = mean(dropdims.(mean.(∂x; dims = :changetime); dims = :changetime))
     ∂ȳ = mean(dropdims.(mean.(∂y; dims = :changetime); dims = :changetime))
     ∂̄ = mean(dropdims.(mean.(∂; dims = :changetime); dims = :changetime))
-    ψ̄ = mean(dropdims.(circularmean.(ψ; dims = :changetime); dims = :changetime))
+    # ψ̄ = mean(dropdims.(circularmean.(ψ; dims = :changetime); dims = :changetime))
     ∂h̄ = mean(dropdims.(mean.(∂h; dims = :changetime); dims = :changetime))
     ∂f̄ = mean(dropdims.(mean.(∂f; dims = :changetime); dims = :changetime))
 end
@@ -309,21 +320,21 @@ begin # * Plots
         ax.limits = (nothing, (0.05, 0.95))
         f
     end
-    begin # * Angle over time
-        ax = Axis(gs[4][1, 1], yreversed = true, ytickformat = depthticks,
-                  title = "θ propagation direction", xlabel = "Time (s)",
-                  ylabel = "Cortical depth (%)")
-        # ∂̄ = dropdims(circularmean(ψ[:, :, lookup(ψ, :trial) .== true],
-        #                            dims = Dim{:trial}),
-        #               dims = :trial)
-        p, _ = plotlayermap!(ax, ψ̄[Ti(SpatiotemporalMotifs.INTERVAL)] |> ustripall,
-                             colormap = binarysunset, colorrange = symextrema(ψ̄))
-        Colorbar(gs[4][1, 2], p; label = "Mean ψ (radians)")
-        plotlayerints!(ax, layerints; flipside = true, newticks = false,
-                       bgcolor = Makie.RGBA(0, 0, 0, 0))
-        ax.limits = (nothing, (0.05, 0.95))
-        f
-    end
+    # begin # * Angle over time
+    #     ax = Axis(gs[4][1, 1], yreversed = true, ytickformat = depthticks,
+    #               title = "θ propagation direction", xlabel = "Time (s)",
+    #               ylabel = "Cortical depth (%)")
+    #     # ∂̄ = dropdims(circularmean(ψ[:, :, lookup(ψ, :trial) .== true],
+    #     #                            dims = Dim{:trial}),
+    #     #               dims = :trial)
+    #     p, _ = plotlayermap!(ax, ψ̄[Ti(SpatiotemporalMotifs.INTERVAL)] |> ustripall,
+    #                          colormap = binarysunset, colorrange = symextrema(ψ̄))
+    #     Colorbar(gs[4][1, 2], p; label = "Mean ψ (radians)")
+    #     plotlayerints!(ax, layerints; flipside = true, newticks = false,
+    #                    bgcolor = Makie.RGBA(0, 0, 0, 0))
+    #     ax.limits = (nothing, (0.05, 0.95))
+    #     f
+    # end
     rowsize!(f.layout, 1, Relative(0.5))
     rowsize!(f.layout, 2, Relative(0.5))
     addlabels!(f)
