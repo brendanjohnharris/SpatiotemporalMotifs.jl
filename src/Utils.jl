@@ -88,7 +88,7 @@ function calcquality(dirname; suffix = "jld2", connector = connector)
     ddims = Tuple([Dim{Symbol(d)}(s) for (s, d) in zip(uvs, dims)])
 
     Q = Array{Bool}(undef, length.(uvs)...)
-    Q = DimArray(Q, ddims)
+    Q = ToolsArray(Q, ddims)
     Q .= false
     for v in eachcol(vs)
         ds = [Dim{Symbol(d)}(At(s)) for (s, d) in zip(v, dims)]
@@ -389,7 +389,7 @@ end
 function ppc(ϕ::UnivariateTimeSeries{T}, spikes::AbstractVector)::NTuple{3, T} where {T}
     spikes = spikes[spikes .∈ [Interval(ϕ)]]
     isempty(spikes) && return (NaN, NaN, NaN)
-    phis = ϕ[Ti(Near(spikes))] |> parent
+    phis = ϕ[𝑡(Near(spikes))] |> parent
     γ = ppc(phis)
     𝑝 = isempty(phis) ? 1.0 : HypothesisTests.pvalue(RayleighTest(phis))
     p = phis |> resultant |> angle
@@ -433,7 +433,7 @@ function initialize_spc_dataframe!(spikes, T)
 end
 
 function spc!(spikes::AbstractDataFrame, ϕ::AbstractTimeSeries; pbar = nothing) # Mutate the dataframe
-    T = eltype(lookup(ϕ, Ti) |> ustripall)
+    T = eltype(lookup(ϕ, 𝑡) |> ustripall)
     initialize_spc_dataframe!(spikes, T)
 
     probeid = metadata(ϕ)[:probeid]
@@ -443,11 +443,11 @@ function spc!(spikes::AbstractDataFrame, ϕ::AbstractTimeSeries; pbar = nothing)
     for unit in eachrow(spikes)
         if unit.probe_id == probeid
             unitid = unit.ecephys_unit_id
-            _ϕ = ϕ[Dim{:depth}(Near(unit.streamlinedepth))]
+            _ϕ = ϕ[Depth(Near(unit.streamlinedepth))]
             spiketimes = unit.spiketimes
 
             _ϕ = map(eachslice(_ϕ, dims = 2)) do x # Individual trial
-                x = set(x, Ti => lookup(x, Ti) .+ refdims(x, :changetime))
+                x = set(x, Ti => lookup(x, 𝑡) .+ refdims(x, :changetime))
             end
             γ_trial, p_trial, 𝑝_trial = ppc(_ϕ, spiketimes)
             spikes.trial_pairwise_phase_consistency[spikes.ecephys_unit_id .== unitid] .= [γ_trial]
@@ -456,7 +456,7 @@ function spc!(spikes::AbstractDataFrame, ϕ::AbstractTimeSeries; pbar = nothing)
 
             idxs = [any(s .∈ Interval.(_ϕ)) for s in spiketimes]
             spiketimes = spiketimes[idxs]
-            _ϕ = cat(_ϕ..., dims = Ti(vcat(lookup.(_ϕ, Ti)...)))
+            _ϕ = cat(_ϕ..., dims = 𝑡(vcat(lookup.(_ϕ, 𝑡)...)))
             γ, p, 𝑝 = ppc(_ϕ, spiketimes)
             spikes.pairwise_phase_consistency[spikes.ecephys_unit_id .== unitid] .= γ
             spikes.pairwise_phase_consistency_pvalue[spikes.ecephys_unit_id .== unitid] .= 𝑝
@@ -469,7 +469,7 @@ end
 # * Assumes each LFP comes from one session, from one structure, and has has the correct metadata
 function spc!(spikes::AbstractDataFrame, ϕ::AbstractVector{<:AbstractTimeSeries};
               job = nothing)
-    T = eltype(lookup(first(ϕ), Ti) |> ustripall)
+    T = eltype(lookup(first(ϕ), 𝑡) |> ustripall)
     initialize_spc_dataframe!(spikes, T)
 
     Threads.@threads for _ϕ in ϕ
@@ -484,7 +484,7 @@ end
 function sac(r::UnivariateTimeSeries{T}, spikes::AbstractVector)::T where {T}
     spikes = spikes[spikes .∈ [Interval(r)]]
     isempty(spikes) && return NaN
-    return r[Ti(Near(spikes))] |> parent |> mean
+    return r[𝑡(Near(spikes))] |> parent |> mean
 end
 sac(r::AbstractVector{<:UnivariateTimeSeries}, spikes::AbstractVector) = sac.(r, [spikes])
 
@@ -502,7 +502,7 @@ end
 
 function sac!(spikes::AbstractDataFrame, r::AbstractTimeSeries; pbar = nothing,
               normfunc = HalfZScore) # At the level of each probe. We normalize here
-    T = eltype(lookup(r, Ti) |> ustripall)
+    T = eltype(lookup(r, 𝑡) |> ustripall)
     initialize_sac_dataframe!(spikes, T)
 
     probeid = metadata(r)[:probeid]
@@ -512,7 +512,7 @@ function sac!(spikes::AbstractDataFrame, r::AbstractTimeSeries; pbar = nothing,
     for unit in eachrow(spikes)
         if unit.probe_id == probeid
             unitid = unit.ecephys_unit_id
-            _r = r[Dim{:depth}(Near(unit.streamlinedepth))]
+            _r = r[Depth(Near(unit.streamlinedepth))]
             if !isnothing(normfunc) # * Normalize over trials AND time
                 N = fit(normfunc, _r) # * Crucial; normalization makes this correlation-like
                 _r = normalize(_r, N)
@@ -520,14 +520,14 @@ function sac!(spikes::AbstractDataFrame, r::AbstractTimeSeries; pbar = nothing,
             spiketimes = unit.spiketimes
 
             _r = map(eachslice(_r, dims = 2)) do x # Individual trial
-                x = set(x, Ti => lookup(x, Ti) .+ refdims(x, :changetime))
+                x = set(x, Ti => lookup(x, 𝑡) .+ refdims(x, :changetime))
             end
             γ_trial = sac(_r, spiketimes)
             spikes.trial_spike_amplitude_coupling[spikes.ecephys_unit_id .== unitid] .= [γ_trial]
 
             idxs = [any(s .∈ Interval.(_r)) for s in spiketimes]
             spiketimes = spiketimes[idxs]
-            _r = cat(_r..., dims = Ti(vcat(lookup.(_r, Ti)...)))
+            _r = cat(_r..., dims = 𝑡(vcat(lookup.(_r, 𝑡)...)))
             γ = sac(_r, spiketimes)
             spikes.spike_amplitude_coupling[spikes.ecephys_unit_id .== unitid] .= γ
         end
@@ -540,7 +540,7 @@ end
 #   metadata. Each element is one subject.
 function sac!(spikes::AbstractDataFrame, r::AbstractVector{<:AbstractTimeSeries};
               job = nothing) # At the level of structures
-    T = eltype(lookup(first(r), Ti) |> ustripall)
+    T = eltype(lookup(first(r), 𝑡) |> ustripall)
     initialize_sac_dataframe!(spikes, T)
     Threads.@threads for _r in r
         idxs = spikes.probe_id .== metadata(_r)[:probeid]
@@ -556,7 +556,7 @@ struct HistBins
     idxs::AbstractVector{AbstractVector{<:Integer}}
 end
 bincenters(B::HistBins) = mean.(B.bints)
-(B::HistBins)(x) = DimArray(getindex.([x], B.idxs), (Dim{:bin}(bincenters(B)),))
+(B::HistBins)(x) = ToolsArray(getindex.([x], B.idxs), (Dim{:bin}(bincenters(B)),))
 
 function HistBins(x; bins = StatsBase.histrange(x, 10))
     if bins isa Integer
@@ -578,7 +578,7 @@ function pac(ϕ::AbstractVector, r::AbstractVector; kwargs...)
     ϕ = mod2pi.(ϕ .+ pi) .- pi
     ModulationIndices.tort2010(ϕ, r; kwargs...)
 end
-function pac(ϕ::AbstractDimArray, r::AbstractDimArray; dims, kwargs...)
+function pac(ϕ::AbstractToolsArray, r::AbstractToolsArray; dims, kwargs...)
     out = similar(first(eachslice(ϕ; dims = dims))) # Template
     dims = dimnum.([ϕ], dims)
     @assert (length(dims) == (ndims(ϕ) - 1)) || length(dims) == 1
@@ -631,7 +631,7 @@ function bootstrapaverage(average, X::AbstractArray; dims = 1, kwargs...)
     end
     return μ, (σl, σh)
 end
-function bootstrapaverage(average, X::AbstractDimArray; dims = 1, kwargs...)
+function bootstrapaverage(average, X::AbstractToolsArray; dims = 1, kwargs...)
     dims = dimnum(X, dims)
     ds = [i == dims ? 1 : Colon() for i in 1:ndims(X)]
     μ = similar(X[ds...])

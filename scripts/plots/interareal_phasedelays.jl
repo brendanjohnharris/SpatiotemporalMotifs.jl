@@ -45,9 +45,9 @@ begin # * Functional hierarchy scores
     @assert SpatiotemporalMotifs.structures ==
             ["VISp", "VISl", "VISrl", "VISal", "VISpm", "VISam"] # The order of this FC matrix
     FF_score, FF_score_b, FF_score_std = eachslice(load(joinpath(dir, f)), dims = 1)
-    FF_score = DimArray(FF_score', # Original matrix has higher-order structures on rows
-                        (Dim{:structure_1}(SpatiotemporalMotifs.structures),
-                         Dim{:structure_2}(SpatiotemporalMotifs.structures)))
+    FF_score = ToolsArray(FF_score', # Original matrix has higher-order structures on rows
+                          (Dim{:structure_1}(SpatiotemporalMotifs.structures),
+                           Dim{:structure_2}(SpatiotemporalMotifs.structures)))
 end
 
 function cylindricalcor(alpha, x)
@@ -125,8 +125,8 @@ begin # * Subject-by-subject phasedelays
             ϕ = _o[:ϕ]
             ω = _o[:ω]
             odepths = lookup(ϕ, :depth)
-            ϕ = ϕ[Dim{:depth}(Near(unidepths))]
-            ω = ω[Dim{:depth}(Near(unidepths))]
+            ϕ = ϕ[Depth(Near(unidepths))]
+            ω = ω[Depth(Near(unidepths))]
             idxs = indexin(lookup(ϕ, :depth), odepths)
             cs = DimensionalData.metadata(ϕ)[:depths]
             sortidxs = sortperm(collect(values(cs))) # Assume perfect monotonic correlation to streamline depths. The depths in 'cs' are depths along the probe, smaller = more superficial
@@ -169,7 +169,7 @@ begin # * Analyze phase delays
             x[1:1562, :, :] # Some trials are a tiny bit shorter
         end
         ϕ = set.(ϕ, [Ti => times(ϕ[1])])
-        ϕ = set.(ϕ, [Dim{:depth} => Dim{:depth}(unidepths)])
+        ϕ = set.(ϕ, [Depth => Depth(unidepths)])
         ϕ = set.(ϕ, [Dim{:changetime} => Dim{:changetime}(changetimes)])
         uniphi = stack(Dim{:structure}(structures), ϕ)
         Δ = [(a, b) for a in eachslice(uniphi, dims = 4), b in eachslice(uniphi, dims = 4)]
@@ -184,17 +184,17 @@ begin # * Analyze phase delays
         X = map(X...) do x...
             Δx = [b - a for a in x, b in x]
             Δx = Δx[filter(!=(0), triu(LinearIndices(Δx), 1))]
-            Δx = DimArray(Δx, (Dim{:pair}(1:length(Δx)),))
+            Δx = ToolsArray(Δx, (Dim{:pair}(1:length(Δx)),))
         end
-        stack(Dim{:depth}(unidepths), X)
+        stack(Depth(unidepths), X)
     end
     Δys = map(ys) do Y
         Y = map(Y...) do y...
             Δy = [b - a for a in y, b in y]
             Δy = Δy[filter(!=(0), triu(LinearIndices(Δy), 1))]
-            Δy = DimArray(Δy, (Dim{:pair}(1:length(Δy)),))
+            Δy = ToolsArray(Δy, (Dim{:pair}(1:length(Δy)),))
         end
-        stack(Dim{:depth}(unidepths), Y)
+        stack(Depth(unidepths), Y)
     end
     maxs = maximum(sqrt.(Δys .^ 2 .+ Δxs .^ 2); dims = :depth) # Normalize so all these measures are comparable
     Δys = Δys ./ maxs
@@ -296,7 +296,7 @@ begin # * Plots
                   title = "θ propagation (hierarchy)", xlabel = "Time (s)",
                   ylabel = "Cortical depth (%)")
         # ∂̄ = dropdims(mean(∂h, dims = Dim{:trial}), dims = :trial)
-        p, _ = plotlayermap!(ax, ∂h̄[Ti(SpatiotemporalMotifs.INTERVAL)] |> ustripall,
+        p, _ = plotlayermap!(ax, ∂h̄[𝑡(SpatiotemporalMotifs.INTERVAL)] |> ustripall,
                              colormap = darksunset,
                              colorrange = symextrema(∂h̄))
         Colorbar(gs[2][1, 2], p; label = "Mean hierarchical ∇ (a.u.)")
@@ -312,7 +312,7 @@ begin # * Plots
         # ∂̄ = dropdims(mean(∂[:, :, lookup(∂, :trial) .== true],
         #                    dims = Dim{:trial}),
         #               dims = :trial)
-        p, _ = plotlayermap!(ax, ∂̄[Ti(SpatiotemporalMotifs.INTERVAL)] |> ustripall,
+        p, _ = plotlayermap!(ax, ∂̄[𝑡(SpatiotemporalMotifs.INTERVAL)] |> ustripall,
                              colormap = :inferno)
         Colorbar(gs[3][1, 2], p; label = "Mean positional ∇ (a.u.)")
         plotlayerints!(ax, layerints; flipside = true, newticks = false,
@@ -327,7 +327,7 @@ begin # * Plots
     #     # ∂̄ = dropdims(circularmean(ψ[:, :, lookup(ψ, :trial) .== true],
     #     #                            dims = Dim{:trial}),
     #     #               dims = :trial)
-    #     p, _ = plotlayermap!(ax, ψ̄[Ti(SpatiotemporalMotifs.INTERVAL)] |> ustripall,
+    #     p, _ = plotlayermap!(ax, ψ̄[𝑡(SpatiotemporalMotifs.INTERVAL)] |> ustripall,
     #                          colormap = binarysunset, colorrange = symextrema(ψ̄))
     #     Colorbar(gs[4][1, 2], p; label = "Mean ψ (radians)")
     #     plotlayerints!(ax, layerints; flipside = true, newticks = false,
@@ -347,7 +347,7 @@ begin # * Animate the phase at any given moment, interpolating the background,
         ϕ = map(ϕ) do p
             set(set(dropdims(circularmean(p[1:1562, :, :]; dims = :changetime);
                              dims = :changetime), Ti => times(ϕs[1][1])[1:1562]),
-                Dim{:depth} => Dim{:depth}(unidepths))
+                Depth => Depth(unidepths))
         end
         stack(Dim{:structure}(structures), ϕ |> collect)
     end
@@ -365,7 +365,7 @@ begin
     n = SpatiotemporalMotifs.DEFAULT_TRIAL_NUM
     subphi = map(ϕs[end]) do p
         set(set(p[1:1562, :, n], Ti => times(ϕs[1][1])[1:1562]),
-            Dim{:depth} => Dim{:depth}(unidepths))
+            Depth => Depth(unidepths))
     end
     subphi = cat(subphi...; dims = Dim{:structure}(structures))
     subphi = subphi[:, d, :]
@@ -374,8 +374,8 @@ begin
     subpsi = ψ[end][:, d, n]
 
     t = Observable(first(times(mphi)))
-    c = lift(t -> subphi[Ti(At(t))] |> collect, t)
-    psi = lift(t -> subpsi[Ti(At(t))] |> collect, t)
+    c = lift(t -> subphi[𝑡(At(t))] |> collect, t)
+    psi = lift(t -> subpsi[𝑡(At(t))] |> collect, t)
     layout = Point2f[(-350, 350), # VISp
                      (-170, 310), # VISl
                      (-300, 130), # VISrl

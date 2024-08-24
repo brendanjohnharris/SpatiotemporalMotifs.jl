@@ -21,7 +21,7 @@ Random.seed!(32)
 
 stimulus = r"Natural_Images"
 datafile = datadir("theta_waves_task.jld2")
-INT = Ti(SpatiotemporalMotifs.INTERVAL)
+INT = 𝑡(SpatiotemporalMotifs.INTERVAL)
 
 session_table = load(datadir("session_table.jld2"), "session_table")
 oursessions = session_table.ecephys_session_id

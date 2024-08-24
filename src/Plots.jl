@@ -85,7 +85,7 @@ function plotlayerints!(ax, ints; dx = 0.03, width = dx, axis = :y, newticks = t
 
     return ps
 end
-function plotlayerints!(ax, ints::DimArray{<:String, 1}; width = 0.04, kwargs...)
+function plotlayerints!(ax, ints::ToolsArray{<:String, 1}; width = 0.04, kwargs...)
     ints = parselayernum.(ints)
     ds = diff(lookup(ints, :depth)) / 2
     append!(ds, first(ds))
@@ -368,7 +368,7 @@ function plot_visual_cortex(; kwargs...)
 end
 fooof = x -> AN.aperiodicfit(x, [3, 300]; aperiodic_mode = "fixed", max_n_peaks = 5,
                              peak_threshold = 1, peak_width_limits = [1, 50])
-function plotspectrum!(ax, s::AbstractDimArray;
+function plotspectrum!(ax, s::AbstractToolsArray;
                        textposition = (14, exp10(-2.9)), annotations = [:peaks, :fooof],
                        color = cucumber, label = nothing)
     μ = mean(s, dims = (:sessionid, :layer))

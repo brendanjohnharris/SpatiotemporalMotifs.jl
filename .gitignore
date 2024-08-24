@@ -19,3 +19,4 @@ plots/
 cache/
 tempfig.png
 test/
+.CondaPkg.2

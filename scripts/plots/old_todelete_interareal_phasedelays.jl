@@ -55,7 +55,7 @@ begin # * Uniphi
     @assert [dims(uniphi[1], 3) == dims(uniphi[i], 3) for i in eachindex(uniphi)] |> all
     unidepths = range(0.05, 0.95, length = 10)
     uniphi = map(uniphi) do phi
-        set(phi[Dim{:depth}(Near(unidepths))], Dim{:depth} => Dim{:depth}(unidepths))
+        set(phi[Depth(Near(unidepths))], Depth => Depth(unidepths))
     end
     uniphi = stack(Dim{:structure}(structures), uniphi)
     uniphi = uniphi[1:5:end, :, :, :] # Downsample

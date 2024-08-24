@@ -68,8 +68,9 @@ The `src` directory contains the main modularized code for the project, whereas 
 Broadly, the `scripts` in `scripts/calculations` will produce data required for the scripts in `scripts/plots`, and _all_ scripts in `scripts/calculations` should be run before any scripts in `scripts/plots`.
 In this section we walk through the order in which `scripts/calculations/*` should be run, treating `scripts/plots` in [Section 2](#2.-plotting-results).
 Each script can be run as `julia -t auto <path to script>` or, on Linux, `chmod u+x <path to script>` followed by executing `<path to script>`.
+Please hover over the header links to see the file name for each script.
 
-#### [Selecting sessions](scripts/calculations/select_sessions.jl)
+#### [Selecting sessions](scripts/calculations/session_selection.jl)
 
 First, we use the session metadata to filter sessions that fulfill a list of quality criteria (e.g. probes in all target regions, with low noise).
 This script creates the `data/session_table.jld2` file, which contains a `Dataframe` of the selected sessions and their metrics (also saved in JSON format at `data/session_table.json`).
@@ -85,10 +86,6 @@ Located at `scripts/calculations/cluster/power_spectra.jl`, this script calculat
 This script must be run on a high-performance computing cluster, and will need to be tweaked to use a cluster manager other than the University of Sydney School of Physics HPC (managed by the `USydClusters.jl` package). To ensure your cluster manager is functioning correctly, please edit the `scripts/calculations/cluster/testscript.jl` file until it returns without error.
 
 #### [Calculations](scripts/calculations/cluster/calculations.jl)
-
-................
-
-### [Thalamus calculations](scripts/calculations/cluster/thalamus_calculations.jl)
 
 ................
 

@@ -346,7 +346,7 @@ end
 #     #     b = length.(b)
 #     # end
 #     # b = set(bs[1], sum(bs))
-#     # b = set(b, Dim{:bin} => Ti(ts[1:(end - 1)]))
+#     # b = set(b, Dim{:bin} => 𝑡(ts[1:(end - 1)]))
 
 #     # s = log10.(spectrum(b, 0.5)[Freq = 1 .. 50])
 #     # lines(freqs(s), s)

@@ -53,24 +53,24 @@ for stimulus in stimuli
 
             unidepths = commondepths(streamlinedepths)
             out = map(out, streamlinedepths, layerinfo) do o, s, l
-                o = set(o, Dim{:depth} => s)
-                layernames = DimArray(l[1], Dim{:depth}(lookup(o, Dim{:depth})))
-                layernums = DimArray(l[3], Dim{:depth}(lookup(o, Dim{:depth})))
-                o = o[Dim{:depth}(Near(unidepths))]
-                layernames = layernames[Dim{:depth}(Near(unidepths))]
-                layernums = layernums[Dim{:depth}(Near(unidepths))]
-                # @assert length(unique(lookup(o, Dim{:depth}))) == length(unidepths)
-                @assert issorted(lookup(o, Dim{:depth}))
+                o = set(o, Depth => s)
+                layernames = ToolsArray(l[1], Depth(lookup(o, Depth)))
+                layernums = ToolsArray(l[3], Depth(lookup(o, Depth)))
+                o = o[Depth(Near(unidepths))]
+                layernames = layernames[Depth(Near(unidepths))]
+                layernums = layernums[Depth(Near(unidepths))]
+                # @assert length(unique(lookup(o, Depth))) == length(unidepths)
+                @assert issorted(lookup(o, Depth))
                 push!(o.metadata, :layernames => layernames)
                 push!(o.metadata, :layernums => layernums)
-                o = set(o, Dim{:depth} => unidepths)
+                o = set(o, Depth => unidepths)
             end
-            layernames = DimArray(stack(getindex.(DimensionalData.metadata.(out),
-                                                  :layernames)),
-                                  (Dim{:depths}(unidepths), Dim{:sessionid}(sessions)))
-            layernums = DimArray(stack(getindex.(DimensionalData.metadata.(out),
-                                                 :layernums)),
-                                 (Dim{:depths}(unidepths), Dim{:sessionid}(sessions)))
+            layernames = ToolsArray(stack(getindex.(DimensionalData.metadata.(out),
+                                                    :layernames)),
+                                    (Dim{:depths}(unidepths), Dim{:sessionid}(sessions)))
+            layernums = ToolsArray(stack(getindex.(DimensionalData.metadata.(out),
+                                                   :layernums)),
+                                   (Dim{:depths}(unidepths), Dim{:sessionid}(sessions)))
             S = stack(Dim{:sessionid}(sessions), out, dims = 3)
             layernums = parselayernum.(layernames)
             return S, layernames, layernums
@@ -83,8 +83,8 @@ for stimulus in stimuli
             round.(Int, mean(l, dims = 2))
         end
         S̄ = map(S, meanlayers) do s, l
-            # s = set(s, Dim{:depth} => Dim{:layer}(layernum2name.(parent(l)[:])))
-            s = set(s, Dim{:depth} => Dim{:layer}(parent(l)[:]))
+            # s = set(s, Depth => Dim{:layer}(layernum2name.(parent(l)[:])))
+            s = set(s, Depth => Dim{:layer}(parent(l)[:]))
             s = set(s, :layer => DimensionalData.Unordered)
         end
         S̄ = map(S̄) do s
@@ -97,8 +97,8 @@ for stimulus in stimuli
             end
             cat(ss..., dims = :layer)
         end
-        S̄ = DimArray(S̄ |> collect, (Dim{:structure}(lookup(Q, :structure)),))
-        S = DimArray(S |> collect, (Dim{:structure}(lookup(Q, :structure)),))
+        S̄ = ToolsArray(S̄ |> collect, (Dim{:structure}(lookup(Q, :structure)),))
+        S = ToolsArray(S |> collect, (Dim{:structure}(lookup(Q, :structure)),))
         S̄ = map(S̄) do s
             N = UnitEnergy(s, dims = 1)
             N(s)
@@ -254,12 +254,12 @@ for stimulus in stimuli
                 _s = log10.(ustripall(s))
                 s .= _s .- (_s |> freqs .|> l .|> log10)
             end
-            s = set(s, Dim{:depth} => Dim{:layer}(layernum2name.(parent(m)[:])))
+            s = set(s, Depth => Dim{:layer}(layernum2name.(parent(m)[:])))
             s = set(s, :layer => DimensionalData.Irregular)
         end
 
-        Sr_log = DimArray(Sr_log |> collect,
-                          (Dim{:structure}(lookup(Q, :structure)),))
+        Sr_log = ToolsArray(Sr_log |> collect,
+                            (Dim{:structure}(lookup(Q, :structure)),))
 
         for (i, structure) in enumerate(["VISl"])
             ax2 = Axis(f[1, i + 1]; xscale = log10,

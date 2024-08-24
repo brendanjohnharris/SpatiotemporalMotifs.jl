@@ -22,7 +22,7 @@ function targetintersections(sessionid)
     return mean(targetsintersected)
 end;
 
-blacklist = [1047969464, 1099598937, 1069461581, 1099869737] # Cannot identify surface position (probe probably inserted too deep)
+blacklist = [1047969464, 1099598937, 1069461581, 1099869737] # Cannot identify surface position
 
 nonan = x -> sum(.!isnan.(x)) ./ length(x)
 

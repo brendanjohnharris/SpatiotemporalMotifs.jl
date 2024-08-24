@@ -77,7 +77,7 @@ begin # * Extract burst mask from each trial. Takes about 15 minutes on 32 cores
 
                 # * Replace unified depths with probe depths
                 origdepths = sort(metadata(r)[:depths] |> values |> collect)
-                _m = set(m, Dim{:depth} => origdepths)
+                _m = set(m, Depth => origdepths)
                 _m = rectify(_m, dims = :depth)
                 # m = m[1:3:end, :, :] # Downsample for speed
 
@@ -117,11 +117,11 @@ begin # * Schematic diagram
     ax.xgridvisible = false
     ax.xypanelvisible = true
     ax.xypanelcolor = (:black, 0.05)
-    s = schemr[Ti(0.12u"s" .. 0.25u"s")] |> ustripall
-    s = set(s, Ti => (lookup(s, Ti) .- minimum(lookup(s, Ti))) .* 1000)
+    s = schemr[𝑡(0.12u"s" .. 0.25u"s")] |> ustripall
+    s = set(s, Ti => (lookup(s, 𝑡) .- minimum(lookup(s, 𝑡))) .* 1000)
     # s = upsample(s, 25, 1)
     # s = reverse(s, dims = 2)
-    x = [lookup(s, Ti) for i in 1:size(s, 2)]
+    x = [lookup(s, 𝑡) for i in 1:size(s, 2)]
     y = [repeat([i], size(s, 1)) for i in lookup(s, :depth)]
     z = eachcol(parent(s))
     cmap = cgrad(layercolors)
@@ -181,8 +181,8 @@ begin # * Heatmap of burst likelihood
         end
         Nb = map(vm) do m
             m = dropdims(mean(m .> 0, dims = 3), dims = 3) # * Probability of bursting, over trials
-            m = m[Ti(ts), Dim{:depth}(Near(unidepths))]
-            m = set(m, Dim{:depth} => unidepths)
+            m = m[𝑡(ts), Depth(Near(unidepths))]
+            m = set(m, Depth => unidepths)
         end
         N = mean(Nb)
         p, ps = plotlayermap!(ax, N; colorrange = (0, 0.35), rasterize = 5)
@@ -239,7 +239,7 @@ begin # * Distribution of burst widths
     bins = range(-0.25u"s", 0.75u"s", length = 25)
     xbins = map(Δx) do xx
         xs = map(xx) do x
-            B = HistBins(lookup(x, Ti); bins)
+            B = HistBins(lookup(x, 𝑡); bins)
             b = B.(eachslice(x, dims = 3))
             b = map(x -> mean.(x), b)
             dropdims(mean(cat(b..., dims = 2), dims = 2), dims = 2)

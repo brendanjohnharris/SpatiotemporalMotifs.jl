@@ -47,21 +47,21 @@ function send_powerspectra(sessionid; outpath = datadir("power_spectra"),
             try
                 LFP = AN.formatlfp(session; tol = 3, _params...)u"V"
 
-                LFP = set(LFP, Ti => Ti((times(LFP))u"s"))
+                LFP = set(LFP, Ti => 𝑡((times(LFP))u"s"))
                 channels = lookup(LFP, :channel)
                 # N = fit(UnitPower, LFP, dims=1) normalize!(LFP, N)
                 S = powerspectrum(LFP, 0.1; padding = 10000)
 
                 S = S[Freq(params[:pass][1] * u"Hz" .. params[:pass][2] * u"Hz")]
                 depths = AN.getchanneldepths(session, LFP; method = :probe)
-                S = set(S, Dim{:channel} => Dim{:depth}(depths))
+                S = set(S, Chan => Depth(depths))
 
                 # * Find peaks in the average power spectrum
-                s = mean(S, dims = Dim{:depth})[:, 1]
+                s = mean(S, dims = Depth)[:, 1]
                 pks, vals = findmaxima(s, 10)
                 pks, proms = peakproms(pks, s)
                 promidxs = (proms ./ vals .> 0.25) |> collect
-                maxs = maximum(S, dims = Dim{:depth})[:, 1]
+                maxs = maximum(S, dims = Depth)[:, 1]
                 pks = pks[promidxs]
                 pks = TimeseriesTools.freqs(s)[pks]
                 vals = s[Freq(At(pks))]
@@ -132,18 +132,18 @@ function send_powerspectra(sessionid; outpath = datadir("power_spectra"),
                 layerinfo = AN.Plots._layerplot(session, channels)
 
                 begin # * Spontaneous order parameter
-                    LFP = set(LFP, Dim{:channel} => Dim{:depth}(depths))
+                    LFP = set(LFP, Chan => Depth(depths))
                     LFP = rectify(LFP; dims = :depth)
 
                     θ = bandpass(LFP, SpatiotemporalMotifs.THETA)
                     ϕ = analyticphase(θ)
-                    k = -centralderiv(ϕ, dims = Dim{:depth}, grad = phasegrad)
+                    k = -centralderiv(ϕ, dims = Depth, grad = phasegrad)
                     R = dropdims(mean(sign.(k), dims = :depth); dims = :depth)
 
                     # * Surrogates
                     idxs = randperm(size(ϕ, :depth))
                     ϕ = set(ϕ, ϕ[:, idxs]) # Spatially shuffle channels
-                    k = -centralderiv(ϕ, dims = Dim{:depth}, grad = phasegrad)
+                    k = -centralderiv(ϕ, dims = Depth, grad = phasegrad)
                     Rs = dropdims(mean(sign.(k), dims = :depth); dims = :depth)
                 end
 
@@ -171,10 +171,10 @@ end
 
 function _calculations(LFP; pass_θ, pass_γ, ΔT, doupsample, starttimes)
     θ = bandpass(LFP, pass_θ)
-    doupsample > 0 && (θ = upsample(θ, doupsample, Dim{:depth}))
+    doupsample > 0 && (θ = upsample(θ, doupsample, Depth))
 
     γ = bandpass(LFP, pass_γ)
-    doupsample > 0 && (γ = upsample(γ, doupsample, Dim{:depth}))
+    doupsample > 0 && (γ = upsample(γ, doupsample, Depth))
 
     a = hilbert(θ)
     aᵧ = hilbert(γ)
@@ -186,13 +186,13 @@ function _calculations(LFP; pass_θ, pass_γ, ΔT, doupsample, starttimes)
 
     ω = centralderiv(ϕ, dims = Ti, grad = phasegrad) # Angular Frequency
 
-    k = -centralderiv(ϕ, dims = Dim{:depth}, grad = phasegrad) # Wavenumber
+    k = -centralderiv(ϕ, dims = Depth, grad = phasegrad) # Wavenumber
     # We have a minus sign because the hilbert transform uses the convention of ϕ = ωt (for
     # univariate; phase increases with time for positive frequencies), which implies ϕ = ωt - kx (for multivariate).
     v = ω ./ k # Phase velocity of theta
 
     ωᵧ = centralderiv(ϕᵧ, dims = Ti, grad = phasegrad) # Frequency
-    kᵧ = -centralderiv(ϕᵧ, dims = Dim{:depth}, grad = phasegrad) # Wavenumber
+    kᵧ = -centralderiv(ϕᵧ, dims = Depth, grad = phasegrad) # Wavenumber
     # ∂ωᵧ = centralderiv(ωᵧ; dims = Ti)
     # ∂kᵧ = centralderiv(kᵧ; dims = Ti)
     # vₚ = ωᵧ ./ kᵧ # Phase velocity
@@ -240,7 +240,7 @@ function _calculations(session::AN.AbstractSession, structure, stimulus)
     end
     _tmap = Timeseries(times(LFP), zeros(size(LFP, 1)))
     tmap = deepcopy(_tmap)
-    tmap[Ti(Near(starttimes))] .= starttimes
+    tmap[𝑡(Near(starttimes))] .= starttimes
     tmap = rectify(tmap, dims = Ti, tol = 3)
     dev = tmap[findlast(tmap .> 1)] - times(tmap)[findlast(tmap .> 1)] # * Gonna have to fix this
     LFP = rectify(LFP, dims = Ti, tol = 3)
@@ -251,7 +251,7 @@ function _calculations(session::AN.AbstractSession, structure, stimulus)
     units = units[units.ecephys_unit_id .∈ [keys(spiketimes)], :]
     spiketimes = map(collect(spiketimes)) do (u, ts) # * Rectify the spike times
         tmap = deepcopy(_tmap)
-        tmap[Ti(Near(ts))] .= ts
+        tmap[𝑡(Near(ts))] .= ts
         tmap = rectify(tmap, dims = Ti, tol = 3)
         ts = times(tmap[tmap .> 1]) |> collect
         return u => Float32.(ts)
@@ -259,13 +259,13 @@ function _calculations(session::AN.AbstractSession, structure, stimulus)
 
     channels = lookup(LFP, :channel)
     depths = AN.getchanneldepths(session, LFP; method = :probe)
-    LFP = set(LFP, Dim{:channel} => Dim{:depth}(depths))
+    LFP = set(LFP, Chan => Depth(depths))
 
     LFP = set(LFP, Ti => times(LFP) .* u"s")
-    LFP = set(LFP, Dim{:depth} => lookup(LFP, :depth) .* u"μm")
+    LFP = set(LFP, Depth => lookup(LFP, :depth) .* u"μm")
     starttimes = starttimes .* u"s"
     tmap = set(tmap .* u"s", Ti => times(tmap) .* u"s")
-    LFP = rectify(LFP, dims = Dim{:depth})
+    LFP = rectify(LFP, dims = Depth)
 
     return LFP, trials, starttimes, channels, depths, spiketimes, units
 end
@@ -362,10 +362,10 @@ function send_thalamus_calculations(D::Dict, session = AN.Session(D[:sessionid])
                                                                                  stimulus)
 
     θ = bandpass(LFP, pass_θ)
-    doupsample > 0 && (θ = upsample(θ, doupsample, Dim{:depth}))
+    doupsample > 0 && (θ = upsample(θ, doupsample, Depth))
 
     γ = bandpass(LFP, pass_γ)
-    doupsample > 0 && (γ = upsample(γ, doupsample, Dim{:depth}))
+    doupsample > 0 && (γ = upsample(γ, doupsample, Depth))
 
     a = hilbert(θ)
     aᵧ = hilbert(γ)
@@ -465,10 +465,10 @@ function load_calculations(Q; path = datadir("calculations"), stimulus, vars = [
             close(f)
 
             # Depth and layer info
-            layernames = DimArray(layerinfo[1],
-                                  Dim{:depth}(lookup(ovars[first(vars)], Dim{:depth})))
-            layernums = DimArray(layerinfo[3],
-                                 Dim{:depth}(lookup(ovars[first(vars)], Dim{:depth})))
+            layernames = ToolsArray(layerinfo[1],
+                                    Depth(lookup(ovars[first(vars)], Depth)))
+            layernums = ToolsArray(layerinfo[3],
+                                   Depth(lookup(ovars[first(vars)], Depth)))
 
             # Remove poor quality depth estimates
             idxs = 1:size(ovars[first(vars)], 2)
@@ -486,11 +486,11 @@ function load_calculations(Q; path = datadir("calculations"), stimulus, vars = [
                 k = k[:, idxs, :] .|> Float32
 
                 # We know the depths are sorted from above
-                k = set(k, Dim{:depth}(streamlinedepths))
+                k = set(k, Depth(streamlinedepths))
                 k = set(k,
-                        Dim{:depth} => DimensionalData.Irregular(extrema(streamlinedepths)))
+                        Depth => DimensionalData.Irregular(extrema(streamlinedepths)))
 
-                @assert issorted(lookup(k, Dim{:depth}))
+                @assert issorted(lookup(k, Depth))
                 push!(k.metadata.val, :layernames => layernames)
                 return v => k
             end
@@ -531,13 +531,13 @@ function unify_calculations(out; vars = [:x, :k])
         unidepths = commondepths(streamlinedepths)
         layernames = map(o) do p
             l = p[:layernames]
-            l = set(l, Dim{:depth} => p[:streamlinedepths])
+            l = set(l, Depth => p[:streamlinedepths])
             if last(l) ∈ ["or", "scwm", "cing"] # Sometime anomalies at the boundary; we fall back on the channel structure labels, the ground truth, for confidence that this is still a cortical channel
                 l[end] = l[end - 1]
             end
             l[depth = Near(unidepths)]
         end
-        layernums = [DimArray(parselayernum.(parent(p)), dims(p)) for p in layernames]
+        layernums = [ToolsArray(parselayernum.(parent(p)), dims(p)) for p in layernames]
 
         # * We want to get a unified array, plus (potentially overlapping) intervals for
         # * each layer
@@ -562,7 +562,7 @@ function unify_calculations(out; vars = [:x, :k])
             k = map(o) do p
                 k = p[v]
                 k = k[depth = Near(unidepths)]
-                k = set(k, Dim{:depth} => Dim{:depth}(unidepths))
+                k = set(k, Depth => Depth(unidepths))
                 if stimulus == r"Natural_Images"
                     d = Dim{:trial}(p[:trials].hit[1:size(k,
                                                           :changetime)])
@@ -572,11 +572,11 @@ function unify_calculations(out; vars = [:x, :k])
                 k = set(k, Dim{:changetime} => Dim{:trial})
                 set(k, DimensionalData.format(d, lookup(k, :trial)))
             end
-            mints = lookup.(k, Ti)
+            mints = lookup.(k, 𝑡)
             _, minti = findmin(length.(mints))
             mints = mints[minti]
             k = map(k) do p # Match to smallest time interval. Should only differ by a sample or so
-                p[Ti(At(mints))]
+                p[𝑡(At(mints))]
             end
             if stimulus == r"Natural_Images"
                 d = Dim{:trial}(vcat(lookup.(k, :trial)...))
@@ -592,11 +592,11 @@ function unify_calculations(out; vars = [:x, :k])
     return uni
 end
 
-function produce_out(Q::AbstractDimArray, config; path = datadir("calculations"))
+function produce_out(Q::AbstractToolsArray, config; path = datadir("calculations"))
     out = load_calculations(Q; path, stimulus = config["stimulus"], vars = config["vars"])
     @strdict out
 end
-produce_out(Q::AbstractDimArray; kwargs...) = config -> produce_out(Q, config; kwargs...)
+produce_out(Q::AbstractToolsArray; kwargs...) = config -> produce_out(Q, config; kwargs...)
 produce_out(; kwargs...) = config -> produce_out(config; kwargs...)
 function produce_out(config; path = datadir("calculations"),
                      structures = SpatiotemporalMotifs.structures)

@@ -38,7 +38,7 @@ begin # * Calculate a global order parameter at each time point
     Og = map(out) do o
         O = map(o) do p
             k = p[:k]
-            ret = dropdims(mean(sign.(k), dims = Dim{:depth}), dims = Dim{:depth})
+            ret = dropdims(mean(sign.(k), dims = Depth), dims = Depth)
             trials = p[:trials]
             trialtimes = trials.change_time_with_display_delay
             @assert all(isapprox.(ustripall(lookup(k, :changetime)), trialtimes,
@@ -57,7 +57,7 @@ begin # * LDA input data and downsampling
     H = [getindex.(Og, s) for s in eachindex(Og[1])] # Grouped by subject
 
     # * Make sure temporal dims same size
-    ts = intersect([intersect(lookup.(h, Ti)...) for h in H]...)
+    ts = intersect([intersect(lookup.(h, 𝑡)...) for h in H]...)
     H = [[_h[Ti = At(ts)] for _h in h] for h in H]
     H = stack.([Dim{:structure}(structures)], H, dims = 3)
     H = permutedims.(H, [(1, 3, 2)])
@@ -128,7 +128,7 @@ begin # * Map of layer-wise weightings
         N, M = classifier(h; regcoef = 0.5) # !!!
         W = projection(M)
         W = reshape(W, size(h)[1:2])
-        return DimArray(W, dims(h)[1:2])
+        return ToolsArray(W, dims(h)[1:2])
     end
     W = stack(Dim{:sessionid}(sessionids), W, dims = 3)
     W = W ./ maximum(abs.(W))
@@ -142,7 +142,7 @@ begin
     for structure in lookup(W, :structure)
         ws = W[structure = At(structure)]
         ws = upsample(ws, 5, 1)
-        ts = ustripall(lookup(ws, Ti))
+        ts = ustripall(lookup(ws, 𝑡))
         μ = mean(ws, dims = :sessionid) |> vec
         σ = std(ws, dims = :sessionid) ./ sqrt(size(ws, :sessionid)) |> ustripall |> vec
         band!(ax, ts, μ - σ, μ + σ; color = (structurecolormap[structure], 0.3))

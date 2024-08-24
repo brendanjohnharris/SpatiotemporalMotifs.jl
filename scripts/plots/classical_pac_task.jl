@@ -119,7 +119,7 @@ begin # * Phase annotations
         μ, (σl, σh) = bootstrapmedian(p |> ustripall; dims = 2)
     end .|> first
     if true
-        idx = Dim{:depth}(Near(0.25))
+        idx = Depth(Near(0.25))
         alphamin = 0.2
         struc = 1
         tortinset!(gs[1], peaks[struc][idx],
@@ -129,7 +129,7 @@ begin # * Phase annotations
                  markersize = 15,
                  strokecolor = :white, strokewidth = 2)
 
-        idx = Dim{:depth}(Near(0.3))
+        idx = Depth(Near(0.3))
         struc = 2
         tortinset!(gs[1], peaks[struc][idx],
                    colormap = seethrough(structurecolors[struc], alphamin, 1),
@@ -138,7 +138,7 @@ begin # * Phase annotations
                  markersize = 15,
                  strokecolor = :white, strokewidth = 2)
 
-        idx = Dim{:depth}(Near(0.9))
+        idx = Depth(Near(0.9))
         struc = 6
         tortinset!(gs[1], peaks[struc][idx],
                    colormap = seethrough(structurecolors[struc], alphamin, 1),
@@ -147,7 +147,7 @@ begin # * Phase annotations
                  markersize = 15,
                  strokecolor = :white, strokewidth = 2)
 
-        idx = Dim{:depth}(Near(0.9))
+        idx = Depth(Near(0.9))
         struc = 3
         tortinset!(gs[1], peaks[struc][idx],
                    colormap = seethrough(structurecolors[struc], alphamin, 1),
@@ -220,12 +220,12 @@ begin # * Classification
     # end
     # p = vcat(pacc...)
     p = pacc[6]
-    # p = DimArray(p, (Dim{:d}(1:size(p, 1)), dims(pacc[1], 2)))
+    # p = ToolsArray(p, (Dim{:d}(1:size(p, 1)), dims(pacc[1], 2)))
     H = [getindex.(trialpac, i) for i in eachindex(trialpac[1])]
     H = map(H) do h
         trials = lookup(h[1], :trial)
         h = vcat(h...)
-        h = DimArray(h, (Dim{:d}(1:size(h, 1)), Dim{:trial}(trials)))
+        h = ToolsArray(h, (Dim{:d}(1:size(h, 1)), Dim{:trial}(trials)))
         h = h[1:5:end, :]
     end
     bac = classify_kfold.(H; regcoef = 0.1, k = folds, repeats)
@@ -249,12 +249,12 @@ begin # * For one subject, plot the layerwise PAC
     ϕ = map(ϕ) do p
         d = dims(p, 2)
         p = vcat(eachslice(p, dims = 3)...)
-        p = DimArray(p, (Ti(1:size(p, 1)), d))
+        p = ToolsArray(p, (𝑡(1:size(p, 1)), d))
     end
     r = map(r) do p
         d = dims(p, 2)
         p = vcat(eachslice(p, dims = 3)...)
-        p = DimArray(p, (Ti(1:size(p, 1)), d))
+        p = ToolsArray(p, (𝑡(1:size(p, 1)), d))
     end
 
     pacc = [pac(ϕ[i], r[i]; dims = 1) for i in eachindex(ϕ)]
