@@ -30,7 +30,7 @@ The steps above will reproduce the exact versions of all dependencies used to ge
 > [!WARNING]
 >The Python dependencies should install automatically, but if you encounter issues, please see the documentation for [CondaPkg.jl](https://github.com/JuliaPy/CondaPkg.jl). As a last resort, you can always create a conda environment yourself, manually install the Python dependencies (listed in the `CondaPkg.toml` files of [AllenSDK.jl](https://github.com/brendanjohnharris/AllenSDK.jl) and [FOOOF.jl](https://github.com/beacon-biosignals/PyFOOOF.jl)), set `JULIA_CONDAPKG_ENV` to point to this environment, and disable automatic Conda updates with `JULIA_CONDAPKG_OFFLINE=false`.
 
-You should then set the `AllenNeuropixels` data directory to someplace convenient, with:
+You should then set the `AllenNeuropixels` data directory to some place convenient, with:
 ```julia
 import AllenNeuropixels as AN
 AN.setdatadir("/path/to/my/data/")
@@ -67,7 +67,7 @@ The `data` directory is initially empty, and will contains the calculated result
 The `src` directory contains the main modularized code for the project, whereas the `scripts` directory contains code for running the analyses defined in `src` and plotting the results; inside `scripts` are the `scripts/calculations` and `scripts/plots` directories.
 Broadly, the `scripts` in `scripts/calculations` will produce data required for the scripts in `scripts/plots`, and _all_ scripts in `scripts/calculations` should be run before any scripts in `scripts/plots`.
 In this section we walk through the order in which `scripts/calculations/*` should be run, treating `scripts/plots` in [Section 2](#2.-plotting-results).
-Each script can be run as `julia -t auto <path to script>` or, on linux, `chmod u+x <path to script>` followed by executing `<path to script>`.
+Each script can be run as `julia -t auto <path to script>` or, on Linux, `chmod u+x <path to script>` followed by executing `<path to script>`.
 
 #### [Selecting sessions](scripts/calculations/select_sessions.jl)
 
