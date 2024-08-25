@@ -58,7 +58,7 @@ for stimulus in stimuli
 
             m = DimensionalData.metadata.(out)
             out = map(out) do o
-                dropdims(mean(o, dims = :channel), dims = :channel)
+                dropdims(mean(o, dims = Chan), dims = Chan)
             end
             out = stack(Dim{:sessionid}(lookup(_Q, :sessionid)[idxs]), out, dims = 3)
             return out

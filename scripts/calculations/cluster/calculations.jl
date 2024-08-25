@@ -16,17 +16,18 @@ oursessions = session_table.ecephys_session_id
 outpath = datadir("calculations")
 rewrite = false
 
-if haskey(ENV, "JULIA_DISTRIBUTED")
-    procs = addprocs(10; ncpus = 8, mem = 45,
-                     walltime = 96, project) # ! If you have workers dying unexpectedly, try increasing the memory for each job
-    @everywhere begin
-        import SpatiotemporalMotifs: send_calculations, on_error
-        outpath = $outpath
-        rewrite = $rewrite
-    end
-    O = pmap(x -> send_calculations.(x; outpath, rewrite), oursessions; on_error)
-    fetch.(O)
-    display("All workers completed")
-end
-SM.send_calculations.(reverse(oursessions); outpath, rewrite)
+# if haskey(ENV, "JULIA_DISTRIBUTED")
+#     procs = addprocs(10; ncpus = 8, mem = 45,
+#                      walltime = 96, project) # ! If you have workers dying unexpectedly, try increasing the memory for each job
+#     @everywhere begin
+#         import SpatiotemporalMotifs: send_calculations, on_error
+#         outpath = $outpath
+#         rewrite = $rewrite
+#     end
+#     O = pmap(x -> send_calculations.(x; outpath, rewrite), oursessions; on_error)
+#     fetch.(O)
+#     display("All workers completed")
+# end
+# SM.send_calculations.(reverse(oursessions); outpath, rewrite)
+SM.send_calculations(first(oursessions); outpath, rewrite)
 # @sync selfdestruct()

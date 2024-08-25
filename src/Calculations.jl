@@ -48,7 +48,7 @@ function send_powerspectra(sessionid; outpath = datadir("power_spectra"),
                 LFP = AN.formatlfp(session; tol = 3, _params...)u"V"
 
                 LFP = set(LFP, 𝑡 => 𝑡((times(LFP))u"s"))
-                channels = lookup(LFP, :channel)
+                channels = lookup(LFP, Chan)
                 # N = fit(UnitPower, LFP, dims=1) normalize!(LFP, N)
                 S = powerspectrum(LFP, 0.1; padding = 10000)
 
@@ -104,11 +104,11 @@ function send_powerspectra(sessionid; outpath = datadir("power_spectra"),
                                       fₐ = 25:1:125, dp = 2, da = 20)
                 N = min(360000, size(LFP, 1))
                 C = progressmap(c, eachslice(LFP[1:N, :], dims = 2); parallel = true)
-                C = stack(dims(LFP[1:N, :], :channel), C, dims = 3)
+                C = stack(dims(LFP[1:N, :], Chan), C, dims = 3)
                 sLFP = mapslices(x -> surrogate(ustripall(parent(x)), IAAFT()), LFP[1:N, :],
                                  dims = 1)
                 sC = progressmap(c, eachslice(sLFP, dims = 2); parallel = true)
-                sC = stack(dims(LFP[1:N, :], :channel), sC, dims = 3)
+                sC = stack(dims(LFP[1:N, :], Chan), sC, dims = 3)
 
                 begin
                     f = Figure()
@@ -257,7 +257,7 @@ function _calculations(session::AN.AbstractSession, structure, stimulus)
         return u => Float32.(ts)
     end |> Dict
 
-    channels = lookup(LFP, :channel)
+    channels = lookup(LFP, Chan)
     depths = AN.getchanneldepths(session, LFP; method = :probe)
     LFP = set(LFP, Chan => Depth(depths))
 
