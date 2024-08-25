@@ -447,7 +447,7 @@ function spc!(spikes::AbstractDataFrame, ϕ::AbstractTimeSeries; pbar = nothing)
             spiketimes = unit.spiketimes
 
             _ϕ = map(eachslice(_ϕ, dims = 2)) do x # Individual trial
-                x = set(x, Ti => lookup(x, 𝑡) .+ refdims(x, :changetime))
+                x = set(x, 𝑡 => lookup(x, 𝑡) .+ refdims(x, :changetime))
             end
             γ_trial, p_trial, 𝑝_trial = ppc(_ϕ, spiketimes)
             spikes.trial_pairwise_phase_consistency[spikes.ecephys_unit_id .== unitid] .= [γ_trial]
@@ -520,7 +520,7 @@ function sac!(spikes::AbstractDataFrame, r::AbstractTimeSeries; pbar = nothing,
             spiketimes = unit.spiketimes
 
             _r = map(eachslice(_r, dims = 2)) do x # Individual trial
-                x = set(x, Ti => lookup(x, 𝑡) .+ refdims(x, :changetime))
+                x = set(x, 𝑡 => lookup(x, 𝑡) .+ refdims(x, :changetime))
             end
             γ_trial = sac(_r, spiketimes)
             spikes.trial_spike_amplitude_coupling[spikes.ecephys_unit_id .== unitid] .= [γ_trial]

@@ -87,7 +87,7 @@ This script must be run on a high-performance computing cluster, and will need t
 
 #### [Calculations](scripts/calculations/cluster/calculations.jl)
 
-................
+This script performs the bulk of the wave-based calcualtions, and must be run on a high-performance computing cluster...............
 
 #### [Post-hoc session filtering](scripts/calculations/posthoc_session_filter.jl)
 
@@ -99,7 +99,11 @@ At times it will be useful to have precomputed unified layer annotations for all
 
 ### 2. Plotting results
 
+#### Schematics
 
+.......
+
+To produce the supplemental 'glass brain' movie, you will need to manually install and configure RPR makie on a machine with a sizeable GPU. The script `scripts/plots/glass_brain.jl` will produce jpeg images for each frame of the animation, which you can stitch together with e.g. the `magick` command-line tool.
 
 #### Gamma bursts and nested oscillations
 
@@ -109,3 +113,4 @@ At times it will be useful to have precomputed unified layer annotations for all
 
 #### Spike-time coordination
 1. [Spike..](scripts/plots/spike_ppc.jl)
+

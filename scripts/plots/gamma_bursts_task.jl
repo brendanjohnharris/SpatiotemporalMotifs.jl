@@ -118,7 +118,7 @@ begin # * Schematic diagram
     ax.xypanelvisible = true
     ax.xypanelcolor = (:black, 0.05)
     s = schemr[𝑡(0.12u"s" .. 0.25u"s")] |> ustripall
-    s = set(s, Ti => (lookup(s, 𝑡) .- minimum(lookup(s, 𝑡))) .* 1000)
+    s = set(s, 𝑡 => (lookup(s, 𝑡) .- minimum(lookup(s, 𝑡))) .* 1000)
     # s = upsample(s, 25, 1)
     # s = reverse(s, dims = 2)
     x = [lookup(s, 𝑡) for i in 1:size(s, 2)]

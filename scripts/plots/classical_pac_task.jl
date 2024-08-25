@@ -192,7 +192,7 @@ end
 begin # * Single-trial PAC
     trialpac = map(ϕs, rs) do ϕ, r
         progressmap(ϕ, r; parallel = true) do p, a
-            pac(p, a; dims = Ti)
+            pac(p, a; dims = 𝑡)
         end
     end
     GC.gc()

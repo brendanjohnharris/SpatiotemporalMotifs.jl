@@ -168,7 +168,7 @@ begin # * Analyze phase delays
             x[ω .< 0] .= NaN # ! Mask negative frequency periods
             x[1:1562, :, :] # Some trials are a tiny bit shorter
         end
-        ϕ = set.(ϕ, [Ti => times(ϕ[1])])
+        ϕ = set.(ϕ, [𝑡 => times(ϕ[1])])
         ϕ = set.(ϕ, [Depth => Depth(unidepths)])
         ϕ = set.(ϕ, [Dim{:changetime} => Dim{:changetime}(changetimes)])
         uniphi = stack(Dim{:structure}(structures), ϕ)
@@ -346,7 +346,7 @@ begin # * Animate the phase at any given moment, interpolating the background,
     mphi = progressmap(ϕs; parallel = true) do ϕ
         ϕ = map(ϕ) do p
             set(set(dropdims(circularmean(p[1:1562, :, :]; dims = :changetime);
-                             dims = :changetime), Ti => times(ϕs[1][1])[1:1562]),
+                             dims = :changetime), 𝑡 => times(ϕs[1][1])[1:1562]),
                 Depth => Depth(unidepths))
         end
         stack(Dim{:structure}(structures), ϕ |> collect)
@@ -364,7 +364,7 @@ begin
 
     n = SpatiotemporalMotifs.DEFAULT_TRIAL_NUM
     subphi = map(ϕs[end]) do p
-        set(set(p[1:1562, :, n], Ti => times(ϕs[1][1])[1:1562]),
+        set(set(p[1:1562, :, n], 𝑡 => times(ϕs[1][1])[1:1562]),
             Depth => Depth(unidepths))
     end
     subphi = cat(subphi...; dims = Dim{:structure}(structures))

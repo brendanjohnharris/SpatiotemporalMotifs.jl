@@ -47,7 +47,7 @@ function send_powerspectra(sessionid; outpath = datadir("power_spectra"),
             try
                 LFP = AN.formatlfp(session; tol = 3, _params...)u"V"
 
-                LFP = set(LFP, Ti => 𝑡((times(LFP))u"s"))
+                LFP = set(LFP, 𝑡 => 𝑡((times(LFP))u"s"))
                 channels = lookup(LFP, :channel)
                 # N = fit(UnitPower, LFP, dims=1) normalize!(LFP, N)
                 S = powerspectrum(LFP, 0.1; padding = 10000)
@@ -184,17 +184,17 @@ function _calculations(LFP; pass_θ, pass_γ, ΔT, doupsample, starttimes)
     ϕ = angle.(a) # _generalized_phase(ustrip(θ)) #
     ϕᵧ = angle.(aᵧ) # _generalized_phase(ustrip(γ)) #
 
-    ω = centralderiv(ϕ, dims = Ti, grad = phasegrad) # Angular Frequency
+    ω = centralderiv(ϕ, dims = 𝑡, grad = phasegrad) # Angular Frequency
 
     k = -centralderiv(ϕ, dims = Depth, grad = phasegrad) # Wavenumber
     # We have a minus sign because the hilbert transform uses the convention of ϕ = ωt (for
     # univariate; phase increases with time for positive frequencies), which implies ϕ = ωt - kx (for multivariate).
     v = ω ./ k # Phase velocity of theta
 
-    ωᵧ = centralderiv(ϕᵧ, dims = Ti, grad = phasegrad) # Frequency
+    ωᵧ = centralderiv(ϕᵧ, dims = 𝑡, grad = phasegrad) # Frequency
     kᵧ = -centralderiv(ϕᵧ, dims = Depth, grad = phasegrad) # Wavenumber
-    # ∂ωᵧ = centralderiv(ωᵧ; dims = Ti)
-    # ∂kᵧ = centralderiv(kᵧ; dims = Ti)
+    # ∂ωᵧ = centralderiv(ωᵧ; dims = 𝑡)
+    # ∂kᵧ = centralderiv(kᵧ; dims = 𝑡)
     # vₚ = ωᵧ ./ kᵧ # Phase velocity
     # vᵧ = ∂ωᵧ ./ ∂kᵧ # Group velocity
 
@@ -241,9 +241,9 @@ function _calculations(session::AN.AbstractSession, structure, stimulus)
     _tmap = Timeseries(times(LFP), zeros(size(LFP, 1)))
     tmap = deepcopy(_tmap)
     tmap[𝑡(Near(starttimes))] .= starttimes
-    tmap = rectify(tmap, dims = Ti, tol = 3)
+    tmap = rectify(tmap, dims = 𝑡, tol = 3)
     dev = tmap[findlast(tmap .> 1)] - times(tmap)[findlast(tmap .> 1)] # * Gonna have to fix this
-    LFP = rectify(LFP, dims = Ti, tol = 3)
+    LFP = rectify(LFP, dims = 𝑡, tol = 3)
     @assert times(LFP) == times(tmap)
     starttimes = times(tmap[tmap .> 1]) |> collect # * The change times transformed to rectified time coordinates
     spiketimes = AN.getspiketimes(session, structure)
@@ -252,7 +252,7 @@ function _calculations(session::AN.AbstractSession, structure, stimulus)
     spiketimes = map(collect(spiketimes)) do (u, ts) # * Rectify the spike times
         tmap = deepcopy(_tmap)
         tmap[𝑡(Near(ts))] .= ts
-        tmap = rectify(tmap, dims = Ti, tol = 3)
+        tmap = rectify(tmap, dims = 𝑡, tol = 3)
         ts = times(tmap[tmap .> 1]) |> collect
         return u => Float32.(ts)
     end |> Dict
@@ -261,10 +261,10 @@ function _calculations(session::AN.AbstractSession, structure, stimulus)
     depths = AN.getchanneldepths(session, LFP; method = :probe)
     LFP = set(LFP, Chan => Depth(depths))
 
-    LFP = set(LFP, Ti => times(LFP) .* u"s")
+    LFP = set(LFP, 𝑡 => times(LFP) .* u"s")
     LFP = set(LFP, Depth => lookup(LFP, :depth) .* u"μm")
     starttimes = starttimes .* u"s"
-    tmap = set(tmap .* u"s", Ti => times(tmap) .* u"s")
+    tmap = set(tmap .* u"s", 𝑡 => times(tmap) .* u"s")
     LFP = rectify(LFP, dims = Depth)
 
     return LFP, trials, starttimes, channels, depths, spiketimes, units

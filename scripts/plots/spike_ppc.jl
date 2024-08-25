@@ -321,7 +321,7 @@ end
 #     ts = [a .. b for (a, b) in zip(ts[1:(end - 1)], ts[2:end])]
 
 #     ss = progressmap(spiketrains; parallel = true) do s
-#         length.(DimensionalData.groupby(s, Ti => Bins(ts)))
+#         length.(DimensionalData.groupby(s, 𝑡 =>Bins(ts)))
 #     end
 
 #     is = partialsortperm(sum.(ss), 1:10; rev = true)
@@ -331,14 +331,14 @@ end
 #     lines(range(dt, step = dt, length = length(y)), y)
 
 #     # s = sum(ss)
-#     # s = set(s, Ti => mean.(times(s)))
-#     # s = rectify(s, dims = Ti)
+#     # s = set(s, 𝑡 =>mean.(times(s)))
+#     # s = rectify(s, dims = 𝑡)
 #     # S = spectrum(s, 0.05; padding = 100)
 #     # lines((TimeseriesTools.freqs(S)[2:end]), (parent(S)[2:end]);
 #     #       axis = (; xscale = log10, yscale = log10, limits = ((1, nothing), nothing)))
 #     # * Now convert to mua
 #     # spiketrains = map(spiketrains) do s
-#     #     a = DimensionalData.groupby(s, Ti => Bins(ts))
+#     #     a = DimensionalData.groupby(s, 𝑡 =>Bins(ts))
 #     # end
 #     # bs = progressmap(collect(values(spikes))[1:100]; parallel = true) do x
 #     #     x = x[minimum(ts) .< x .< maximum(ts)]
