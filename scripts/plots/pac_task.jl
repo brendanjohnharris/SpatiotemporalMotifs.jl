@@ -138,13 +138,13 @@ begin # * Supplemental figure: spatiotemporal PAC over all regions
     for (g, l, P) in zip(gs, layerints, PAC)
         s = metadata(P)[:structure]
         ax = Axis(g[1, 1]; title = s, yreversed = true,
-                  limits = (nothing, (extrema(lookup(P, :depth)))))
+                  limits = (nothing, (extrema(lookup(P, Depth)))))
         p = plotlayermap!(ax, ustripall(P[Ti = SpatiotemporalMotifs.INTERVAL]), l) |> first
         Colorbar(g[1, 2], p, label = "PAC")
 
         if s == "VISl"
             ax = Axis(mgs[2][1, 1]; title = s, yreversed = true,
-                      limits = (nothing, (extrema(lookup(P, :depth)))))
+                      limits = (nothing, (extrema(lookup(P, Depth)))))
             p = plotlayermap!(ax, ustripall(P[Ti = SpatiotemporalMotifs.INTERVAL]), l) |>
                 first
             Colorbar(mgs[2][1, 2], p, label = "PAC")

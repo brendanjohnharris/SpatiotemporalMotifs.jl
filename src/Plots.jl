@@ -87,10 +87,10 @@ function plotlayerints!(ax, ints; dx = 0.03, width = dx, axis = :y, newticks = t
 end
 function plotlayerints!(ax, ints::ToolsArray{<:String, 1}; width = 0.04, kwargs...)
     ints = parselayernum.(ints)
-    ds = diff(lookup(ints, :depth)) / 2
+    ds = diff(lookup(ints, Depth)) / 2
     append!(ds, first(ds))
     ints = map(unique(ints), ds) do i, d
-        x = lookup(ints[ints .== i], :depth)
+        x = lookup(ints[ints .== i], Depth)
         return ustrip(minimum(x) - d) .. ustrip(maximum(x) + d)
     end
     return plotlayerints!(ax, ints; width, dx = 0, kwargs...)

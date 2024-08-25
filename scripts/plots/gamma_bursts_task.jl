@@ -78,7 +78,7 @@ begin # * Extract burst mask from each trial. Takes about 15 minutes on 32 cores
                 # * Replace unified depths with probe depths
                 origdepths = sort(metadata(r)[:depths] |> values |> collect)
                 _m = set(m, Depth => origdepths)
-                _m = rectify(_m, dims = :depth)
+                _m = rectify(_m, dims = Depth)
                 # m = m[1:3:end, :, :] # Downsample for speed
 
                 Δx = mapslices(m; dims = 2) do m
@@ -88,7 +88,7 @@ begin # * Extract burst mask from each trial. Takes about 15 minutes on 32 cores
                     m = Matrix(m') # label_components segfaults with vectors
                     cs = label_components(m)
                     c = component_lengths(cs) |> last
-                    c = c * step(lookup(_m, :depth)) .* u"μm"
+                    c = c * step(lookup(_m, Depth)) .* u"μm"
                 end
                 return m, Δt, Δx
             end
@@ -122,7 +122,7 @@ begin # * Schematic diagram
     # s = upsample(s, 25, 1)
     # s = reverse(s, dims = 2)
     x = [lookup(s, 𝑡) for i in 1:size(s, 2)]
-    y = [repeat([i], size(s, 1)) for i in lookup(s, :depth)]
+    y = [repeat([i], size(s, 1)) for i in lookup(s, Depth)]
     z = eachcol(parent(s))
     cmap = cgrad(layercolors)
     surface!(ax, s, alpha = 0.3; colormap = cmap, rasterize = 5)
@@ -207,7 +207,7 @@ begin # * Distribution of burst durations
     bins = range(0, 1, length = 11)
     tbins = map(Δt) do tt
         ts = map(tt) do t
-            B = HistBins(lookup(t, :depth); bins)
+            B = HistBins(lookup(t, Depth); bins)
             b = B.(eachslice(t, dims = 3))
             b = map(x -> mean.(x), b)
             dropdims(mean(cat(b..., dims = 2), dims = 2), dims = 2)

@@ -1,4 +1,5 @@
 using DataFrames
+using TimeseriesTools
 
 function send_powerspectra(sessionid; outpath = datadir("power_spectra"),
                            plotpath = datadir("power_spectra_plots"),
@@ -133,18 +134,18 @@ function send_powerspectra(sessionid; outpath = datadir("power_spectra"),
 
                 begin # * Spontaneous order parameter
                     LFP = set(LFP, Chan => Depth(depths))
-                    LFP = rectify(LFP; dims = :depth)
+                    LFP = rectify(LFP; dims = Depth)
 
                     θ = bandpass(LFP, SpatiotemporalMotifs.THETA)
                     ϕ = analyticphase(θ)
                     k = -centralderiv(ϕ, dims = Depth, grad = phasegrad)
-                    R = dropdims(mean(sign.(k), dims = :depth); dims = :depth)
+                    R = dropdims(mean(sign.(k), dims = Depth); dims = Depth)
 
                     # * Surrogates
-                    idxs = randperm(size(ϕ, :depth))
+                    idxs = randperm(size(ϕ, Depth))
                     ϕ = set(ϕ, ϕ[:, idxs]) # Spatially shuffle channels
                     k = -centralderiv(ϕ, dims = Depth, grad = phasegrad)
-                    Rs = dropdims(mean(sign.(k), dims = :depth); dims = :depth)
+                    Rs = dropdims(mean(sign.(k), dims = Depth); dims = Depth)
                 end
 
                 D = Dict(DimensionalData.metadata(LFP))
@@ -259,15 +260,16 @@ function _calculations(session::AN.AbstractSession, structure, stimulus)
 
     channels = lookup(LFP, Chan)
     depths = AN.getchanneldepths(session, LFP; method = :probe)
+    streamlinedepths = AN.getchanneldepths(session, LFP; method = :streamlines)
     LFP = set(LFP, Chan => Depth(depths))
 
     LFP = set(LFP, 𝑡 => times(LFP) .* u"s")
-    LFP = set(LFP, Depth => lookup(LFP, :depth) .* u"μm")
+    LFP = set(LFP, Depth => lookup(LFP, Depth) .* u"μm")
     starttimes = starttimes .* u"s"
     tmap = set(tmap .* u"s", 𝑡 => times(tmap) .* u"s")
     LFP = rectify(LFP, dims = Depth)
 
-    return LFP, trials, starttimes, channels, depths, spiketimes, units
+    return LFP, trials, starttimes, channels, depths, streamlinedepths, spiketimes, units
 end
 
 function send_calculations(D::Dict, session = AN.Session(D[:sessionid]);
@@ -287,10 +289,9 @@ function send_calculations(D::Dict, session = AN.Session(D[:sessionid]);
     end
 
     performance_metrics = AN.getperformancemetrics(session)
-    LFP, trials, starttimes, channels, depths, spiketimes, units = _calculations(session,
-                                                                                 structure,
-                                                                                 stimulus)
-    streamlinedepths = AN.getchanneldepths(session, LFP; method = :streamlines)
+    LFP, trials, starttimes, channels, depths, streamlinedepths, spiketimes, units = _calculations(session,
+                                                                                                   structure,
+                                                                                                   stimulus)
     layerinfo = AN.Plots._layerplot(session, channels)
     V, x, y, a, ϕ, ϕᵧ, ω, k, v, r, ωᵧ, kᵧ = _calculations(LFP; pass_θ, pass_γ, ΔT,
                                                           doupsample, starttimes)
@@ -545,14 +546,14 @@ function unify_calculations(out; vars = [:x, :k])
             depths = map(enumerate(layernums)) do (sid, ls)
                 if sum(ls .== l) == 0 # !!! BROKEN!!! No intersections with this layer??
                     ma = sum(ls .== l - 1) == 0 ? 1.0 :
-                         maximum(lookup(ls[ls .== l - 1], :depth))
+                         maximum(lookup(ls[ls .== l - 1], Depth))
                     mi = sum(ls .== l + 1) == 0 ? 0.0 :
-                         minimum(lookup(ls[ls .== l + 1], :depth))
+                         minimum(lookup(ls[ls .== l + 1], Depth))
                     m = mean([ma, mi])
                     @info "Session $(sessionids[sid]) has no layer $(l)"
                     [m, m]
                 else
-                    collect(extrema(lookup(ls, :depth)[ls .== l]))
+                    collect(extrema(lookup(ls, Depth)[ls .== l]))
                 end
             end
             Interval(extrema(vcat(depths...))...)

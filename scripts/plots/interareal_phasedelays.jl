@@ -124,11 +124,11 @@ begin # * Subject-by-subject phasedelays
         ϕs = map(o) do _o
             ϕ = _o[:ϕ]
             ω = _o[:ω]
-            odepths = lookup(ϕ, :depth)
+            odepths = lookup(ϕ, Depth)
             ϕ = ϕ[Depth(Near(unidepths))]
             ω = ω[Depth(Near(unidepths))]
-            idxs = indexin(lookup(ϕ, :depth), odepths)
-            cs = DimensionalData.metadata(ϕ)[:depths]
+            idxs = indexin(lookup(ϕ, Depth), odepths)
+            cs = DimensionalData.metadata(ϕ)[Depths]
             sortidxs = sortperm(collect(values(cs))) # Assume perfect monotonic correlation to streamline depths. The depths in 'cs' are depths along the probe, smaller = more superficial
             cs = collect(keys(cs))[sortidxs][idxs]
             idxs = [channels.ecephys_channel_id .== c for c in cs]
@@ -196,7 +196,7 @@ begin # * Analyze phase delays
         end
         stack(Depth(unidepths), Y)
     end
-    maxs = maximum(sqrt.(Δys .^ 2 .+ Δxs .^ 2); dims = :depth) # Normalize so all these measures are comparable
+    maxs = maximum(sqrt.(Δys .^ 2 .+ Δxs .^ 2); dims = Depth) # Normalize so all these measures are comparable
     Δys = Δys ./ maxs
     Δxs = Δxs ./ maxs
 
@@ -207,7 +207,7 @@ begin # * Analyze phase delays
     Δhs = Δhs ./ maximum(abs.(Δhs))
     Δhs = map(Δxs) do Δx # Copy onto shape of Δxs
         h = deepcopy(Δx)
-        for _h in eachslice(h, dims = :depth)
+        for _h in eachslice(h, dims = Depth)
             _h .= Δhs
         end
         return h
@@ -217,29 +217,29 @@ begin # * Analyze phase delays
     Δfs = Δfs ./ maximum(abs.(Δfs))
     Δfs = map(Δxs) do Δx
         f = deepcopy(Δx)
-        for _f in eachslice(f, dims = :depth)
+        for _f in eachslice(f, dims = Depth)
             _f .= Δfs
         end
         return f
     end
 
     ∂x = progressmap(Δs, Δxs; parallel = true) do Δ, Δx
-        mapslices(Δ; dims = (:pair, :depth)) do Δ
+        mapslices(Δ; dims = (:pair, Depth)) do Δ
             .-Δ ./ Δx # Minus because phase increases over time
         end
     end
     ∂y = progressmap(Δs, Δys; parallel = true) do Δ, Δy
-        mapslices(Δ; dims = (:pair, :depth)) do Δ
+        mapslices(Δ; dims = (:pair, Depth)) do Δ
             .-Δ ./ Δy # Minus because phase increases over time
         end
     end
     ∂h = progressmap(Δs, Δhs; parallel = true) do Δ, Δh
-        mapslices(Δ; dims = (:pair, :depth)) do Δ
+        mapslices(Δ; dims = (:pair, Depth)) do Δ
             .-Δ ./ Δh # Minus because phase increases over time
         end
     end
     ∂f = progressmap(Δs, Δfs; parallel = true) do Δ, Δf
-        mapslices(Δ; dims = (:pair, :depth)) do Δ
+        mapslices(Δ; dims = (:pair, Depth)) do Δ
             Main.@infiltrate # !!!!
             .-Δ ./ Δf # Minus because phase increases over time
         end

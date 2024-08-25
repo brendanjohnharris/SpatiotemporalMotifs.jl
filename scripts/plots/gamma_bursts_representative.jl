@@ -49,8 +49,8 @@ begin # * Single-trial LFP and wavenumber
         k = out[i][mouse][:ϕ][:, :, trial]
         x = abs.(out[i][mouse][:aᵧ][:, :, trial]) .* 1000 # mV to μV
         layernames = out[i][mouse].layernames
-        k = set(k, Depth(lookup(layernames, :depth)))
-        x = set(x, Depth(lookup(layernames, :depth)))
+        k = set(k, Depth(lookup(layernames, Depth)))
+        x = set(x, Depth(lookup(layernames, Depth)))
 
         ax = Axis(f[1, _i], yreversed = true)
         structure = metadata(x)[:structure]

@@ -49,7 +49,7 @@ begin
     pacc = map(pacc) do pa
         progressmap(pa; parallel = true) do p
             p = p[depth = Near(unidepths)]
-            set(p, :depth => unidepths)
+            set(p, Depth => unidepths)
         end
     end
     pacc = stack.([Dim{:sessionid}(sessionids)], pacc; dims = 2)
@@ -92,8 +92,8 @@ begin # * Polar plot of coupling angle peaks (find peaks? what if there is more 
         phimax = angles[i]
     end
     function phipeaks(r, ϕ; kwargs...)
-        peaks = progressmap(eachslice(r, dims = :depth),
-                            eachslice(ϕ, dims = :depth); parallel = true) do a, b
+        peaks = progressmap(eachslice(r, dims = Depth),
+                            eachslice(ϕ, dims = Depth); parallel = true) do a, b
             phipeak(a, b; kwargs...)
         end
         out = ϕ[1, :, 1] # Just a depth slice
@@ -108,7 +108,7 @@ begin # * Polar plot of coupling angle peaks (find peaks? what if there is more 
     peaks = map(peaks) do pa
         map(pa) do p
             p = p[depth = Near(unidepths)]
-            set(p, :depth => unidepths)
+            set(p, Depth => unidepths)
         end
     end
     peaks = stack.([Dim{:sessionid}(sessionids)], peaks; dims = 2)
@@ -199,7 +199,7 @@ begin # * Single-trial PAC
     trialpac = map(trialpac) do pa
         progressmap(pa; parallel = true) do p
             p = p[depth = Near(unidepths)]
-            set(p, :depth => unidepths)
+            set(p, Depth => unidepths)
         end
     end
     trialpac = map(trialpac, trials) do pa, tr

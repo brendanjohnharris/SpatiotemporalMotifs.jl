@@ -250,7 +250,7 @@ for stimulus in stimuli
             l = deepcopy(l)
             idxs = indexin(lookup(s, :sessionid), lookup(l, :sessionid))
             l = l[:, idxs] # Match sessions just in case
-            map(eachslice(s, dims = (:depth, :sessionid)), l) do s, l
+            map(eachslice(s, dims = (Depth, :sessionid)), l) do s, l
                 _s = log10.(ustripall(s))
                 s .= _s .- (_s |> freqs .|> l .|> log10)
             end
@@ -360,7 +360,7 @@ for stimulus in stimuli
             ss = Sr[structure = At(s)][Freq(theta)]
             # ss = upsample(ss, 5, 2)
             # no = mean(sum(ustripall(S[structure = At(s)]), dims = Freq);
-            #           dims = :depth)
+            #           dims = Depth)
             no = sum(ustripall(S[structure = At(s)]), dims = Freq) # Total power of each channel
             x = sum(ss, dims = Freq) ./ no # The fraction of power above the 1/f component in a given frequency band
             x = dropdims(x, dims = Freq)
@@ -397,7 +397,7 @@ for stimulus in stimuli
         for (i, s) in structures |> enumerate |> collect |> reverse
             ss = Sr[structure = At(s)][Freq(gamma)]
             # no = mean(sum(ustripall(S[structure = At(s)]), dims = Freq);
-            #           dims = :depth)
+            #           dims = Depth)
             no = sum(ustripall(S[structure = At(s)]), dims = Freq) # Total power of each channel
             ss = sum(ss, dims = Freq) ./ no # step(lookup(ss, Freq))
             ss = dropdims(ss, dims = Freq)
