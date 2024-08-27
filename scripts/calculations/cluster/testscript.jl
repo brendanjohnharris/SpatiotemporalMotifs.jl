@@ -5,12 +5,14 @@ exec julia -t auto "${BASH_SOURCE[0]}" "$@"
 using DrWatson
 @quickactivate "SpatiotemporalMotifs"
 using Distributed
-import USydClusters.Physics: addprocs
+import USydClusters.Physics: addprocs, selfdestruct
 
 project = "/headnode2/bhar9988/code/DDC/SpatiotemporalMotifs/"
-procs = addprocs(5; ncpus = 2, mem = 3,
+procs = addprocs(5; ncpus = 2, mem = 4,
                  walltime = 96, project)
+@everywhere using Pkg;
+@everywhere Pkg.instantiate();
 @everywhere import SpatiotemporalMotifs: test_calculations
-pmap(test_calculations, p)
+pmap(test_calculations, procs)
 display("All workers completed")
-@sync USydClusters.Physics.selfdestruct()
+@sync selfdestruct()

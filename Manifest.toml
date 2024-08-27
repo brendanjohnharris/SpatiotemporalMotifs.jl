@@ -2624,9 +2624,7 @@ version = "1.5.1"
 
 [[deps.USydClusters]]
 deps = ["ClusterManagers", "Distributed"]
-git-tree-sha1 = "0936a31fc11a68190e073080779a64b48d071bbf"
-repo-rev = "main"
-repo-url = "https://github.com/brendanjohnharris/UsydClusters.jl"
+path = "../../USydClusters"
 uuid = "0d53aa51-fded-4285-958f-a79747f7b7b4"
 version = "1.0.0-DEV"
 

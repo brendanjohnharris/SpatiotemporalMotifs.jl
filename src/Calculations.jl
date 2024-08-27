@@ -420,10 +420,12 @@ function send_thalamus_calculations(sessionid;
     return true
 end
 
-function test_calculations(args...; kwargs...)
-    while true
-        X = randn(20000, 20000) # Requires at least 3Gb memory
-        sleep(120)
+function test_calculations(args...; N = 10, kwargs...)
+    i = 0
+    while i < N
+        X = randn(10000, 10000) # Requires at least some amount of memory (1GB?)
+        sleep(12)
+        i += 1
         @info "Poll: $(ENV["PBS_JOBID"])"
     end
 end
