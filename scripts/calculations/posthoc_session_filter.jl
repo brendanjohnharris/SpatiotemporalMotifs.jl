@@ -23,8 +23,7 @@ begin
     path = datadir("calculations")
     Q = calcquality(path)[structure = At(structures)]
     quality = mean(Q[stimulus = At(stimulus)])
-    outfile = SpatiotemporalMotifs.collect_calculations(Q; stimulus)
-    out = jldopen(outfile, "r")
+    out = load_calculations(Q; stimulus, vars = [:r])
 end
 
 begin # * Layer consistency
@@ -33,7 +32,14 @@ begin # * Layer consistency
     depths = [getindex.(o, :streamlinedepths) for o in out]
 
     # ? Has most depths
-    has_good_depths = (maximum.(depths) .> 0.90) .& (minimum.(depths) .< 0.10)
+    has_good_depths = reduce(.&,
+                             [(maximum.(d) .> 0.90) .& (minimum.(d) .< 0.10)
+                              for d in depths])
+
+    # ? No missing layers
+    nomissinglayers = [[unique(parselayernum.(_l)) for _l in unique.(l)] for l in layers]
+    nomissinglayers = [[all(1:5 .∈ [_l]) for _l in _ls] for _ls in nomissinglayers]
+    nomissinglayers = reduce(.&, nomissinglayers)
 
     layerints = map(layers, depths) do ls, ds
         map(ls, ds) do l, d
@@ -70,7 +76,7 @@ begin # * Task performance
 end
 
 begin # * Manual blacklist
-    blacklist = [1128520325] # * This session has no channels in layer 3
+    # blacklist = [1128520325] # * This session has no channels in layer 3
     push!(blacklist, 1093642839) # * This session has no theta
     goodsessions = [g for g in goodsessions if g ∉ blacklist]
 end

@@ -559,16 +559,28 @@ function collect_calculations(Q; path = datadir("calculations"), stimulus, rewri
     return outfilepath
 end
 
-# function load_calculations(Q; vars, kwargs...)
-#     outfilepath = collect_calculations(Q; kwargs...)
-#     outfile = jldopen(outfilepath, "r")
-#     sessionids = unique([keys(outfile[s]) for s in structures])
-#     out = map(structures) do structure
-#         sessionids = keys(outfile[structure])
-#         map(sessionids) do sessionid
-#             if !
-
-# end
+function load_calculations(Q; vars, stimulus, kwargs...)
+    commonkeys = [
+        :streamlinedepths, :layernames, :pass_γ, :pass_θ, :trials, :sessionid,
+        :performance_metrics, :spiketimes
+    ]
+    vars = vcat(vars, commonkeys)
+    outfilepath = collect_calculations(Q; stimulus, kwargs...)
+    jldopen(outfilepath, "r") do outfile
+        @assert sort(keys(outfile)) == sort(structures)
+        sessionids = unique([keys(outfile[s]) for s in structures]) |> only
+        out = progressmap(structures) do structure
+            progressmap(sessionids) do sessionid
+                D = Dict()
+                for v in vars
+                    D[v] = outfile[structure][sessionid][string(v)]
+                end
+                return D
+            end
+        end
+        return out
+    end
+end
 
 function unify_calculations(out; vars = [:x, :k])
     # * Filter to posthoc sessions
