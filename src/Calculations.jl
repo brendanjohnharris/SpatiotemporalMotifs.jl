@@ -534,7 +534,7 @@ function collect_calculations(Q; path = datadir("calculations"), stimulus, rewri
     end
     if rewrite == false
         @info "Already calculated: $(stimulus). Checking quality"
-        jldopen(outfilepath, "w") do outfile
+        jldopen(outfilepath, "a+") do outfile
             sessionids = [keys(outfile[s]) for s in structures]
             if length(unique(sessionids)) > 1
                 @warn "Not all structures returned the same sessions. Attempting to repair"
