@@ -91,7 +91,7 @@ This script performs the bulk of the wave-based calcualtions, and must be run on
 
 #### [Post-hoc session filtering](scripts/calculations/posthoc_session_filter.jl)
 
-There are some session quality metrics---the layer assignment consistency, and subject performance---that we can only calculate after collecting and formatting the data. This script filters out sessions that do not meet our post-hoc quality criteria, and saves the results in `data/posthoc_session_table.jld2`.
+There are some session quality metrics---the layer assignment consistency, and subject performance---that we can only calculate after collecting and formatting the data. This script filters out sessions that do not meet our post-hoc quality criteria, and saves the results in `data/posthoc_session_table.jld2` and `data/posthoc_session_table.json`.
 
 #### [Storing unified layer annotations](scripts/calculations/grand_unified_layers.jl)
 

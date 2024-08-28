@@ -559,7 +559,7 @@ function collect_calculations(Q; path = datadir("calculations"), stimulus, rewri
     return outfilepath
 end
 
-function load_calculations(Q; vars, stimulus, kwargs...)
+function load_calculations(Q; vars = sort([:x, :ϕ, :r, :k, :ω]), stimulus, kwargs...)
     commonkeys = [
         :streamlinedepths, :layernames, :pass_γ, :pass_θ, :trials, :sessionid,
         :performance_metrics, :spiketimes
@@ -582,7 +582,9 @@ function load_calculations(Q; vars, stimulus, kwargs...)
     end
 end
 
-function unify_calculations(out; vars = [:x, :k])
+function unify_calculations(out; stimulus, vars = sort([:x, :ϕ, :r, :k, :ω]),
+                            rewrite = false)
+    outfilepath = savepath("uni", Dict("stimulus" => stimulus), "jld2", datadir())
     # * Filter to posthoc sessions
     session_table = load(datadir("posthoc_session_table.jld2"), "session_table")
     oursessions = session_table.ecephys_session_id
@@ -594,70 +596,79 @@ function unify_calculations(out; vars = [:x, :k])
     stimuli = [[DimensionalData.metadata(o[first(vars)])[:stimulus] for o in out[i]]
                for i in eachindex(out)]
     stimulus = only(unique(vcat(stimuli...)))
-    uni = map(enumerate(out)) do (si, o)
-        @info "Collecting data for structure $(structures[si])"
-        sessionids = getindex.(o, :sessionid)
-        streamlinedepths = getindex.(o, :streamlinedepths)
-        unidepths = commondepths(streamlinedepths)
-        layernames = map(o) do p
-            l = p[:layernames]
-            l = set(l, Depth => p[:streamlinedepths])
-            if last(l) ∈ ["or", "scwm", "cing"] # Sometime anomalies at the boundary; we fall back on the channel structure labels, the ground truth, for confidence that this is still a cortical channel
-                l[end] = l[end - 1]
-            end
-            l[depth = Near(unidepths)]
-        end
-        layernums = [ToolsArray(parselayernum.(parent(p)), dims(p)) for p in layernames]
+    if !isfile(outfilepath) || rewrite
+        jldopen(outfilepath, "w") do outfile
+            map(enumerate(out)) do (si, o)
+                @info "Collecting data for structure $(structures[si])"
+                sessionids = getindex.(o, :sessionid)
+                streamlinedepths = getindex.(o, :streamlinedepths)
+                unidepths = commondepths(streamlinedepths)
+                layernames = map(o) do p
+                    l = p[:layernames]
+                    l = set(l, Depth => p[:streamlinedepths])
+                    if last(l) ∈ ["or", "scwm", "cing"] # Sometime anomalies at the boundary; we fall back on the channel structure labels, the ground truth, for confidence that this is still a cortical channel
+                        l[end] = l[end - 1]
+                    end
+                    l[depth = Near(unidepths)]
+                end
+                layernums = [ToolsArray(parselayernum.(parent(p)), dims(p))
+                             for p in layernames]
 
-        # * We want to get a unified array, plus (potentially overlapping) intervals for
-        # * each layer
-        layerints = map(unique(vcat(parent.(layernums)...))) do l
-            depths = map(enumerate(layernums)) do (sid, ls)
-                if sum(ls .== l) == 0 # !!! BROKEN!!! No intersections with this layer??
-                    ma = sum(ls .== l - 1) == 0 ? 1.0 :
-                         maximum(lookup(ls[ls .== l - 1], Depth))
-                    mi = sum(ls .== l + 1) == 0 ? 0.0 :
-                         minimum(lookup(ls[ls .== l + 1], Depth))
-                    m = mean([ma, mi])
-                    @info "Session $(sessionids[sid]) has no layer $(l)"
-                    [m, m]
-                else
-                    collect(extrema(lookup(ls, Depth)[ls .== l]))
+                # * We want to get a unified array, plus (potentially overlapping) intervals for
+                # * each layer
+                layerints = map(unique(vcat(parent.(layernums)...))) do l
+                    depths = map(enumerate(layernums)) do (sid, ls)
+                        if sum(ls .== l) == 0 # !!! BROKEN!!! No intersections with this layer??
+                            ma = sum(ls .== l - 1) == 0 ? 1.0 :
+                                 maximum(lookup(ls[ls .== l - 1], Depth))
+                            mi = sum(ls .== l + 1) == 0 ? 0.0 :
+                                 minimum(lookup(ls[ls .== l + 1], Depth))
+                            m = mean([ma, mi])
+                            @info "Session $(sessionids[sid]) has no layer $(l)"
+                            [m, m]
+                        else
+                            collect(extrema(lookup(ls, Depth)[ls .== l]))
+                        end
+                    end
+                    Interval(extrema(vcat(depths...))...)
+                end
+
+                ovars = @strdict oursessions unidepths layerints layernames layernums
+
+                for v in vars
+                    k = map(o) do p
+                        k = p[v]
+                        k = k[depth = Near(unidepths)]
+                        k = set(k, Depth => Depth(unidepths))
+                        if stimulus == r"Natural_Images"
+                            d = Dim{:trial}(p[:trials].hit[1:size(k,
+                                                                  :changetime)])
+                        else
+                            d = Dim{:trial}(1:size(k, :changetime))
+                        end
+                        k = set(k, Dim{:changetime} => Dim{:trial})
+                        set(k, DimensionalData.format(d, lookup(k, :trial)))
+                    end
+                    mints = lookup.(k, 𝑡)
+                    _, minti = findmin(length.(mints))
+                    mints = mints[minti]
+                    k = map(k) do p # Match to smallest time interval. Should only differ by a sample or so
+                        p[𝑡(At(mints))]
+                    end
+                    if stimulus == r"Natural_Images"
+                        d = Dim{:trial}(vcat(lookup.(k, :trial)...))
+                        k = cat(k...; dims = d)
+                    else
+                        k = stack(Dim{:sessionid}(sessionids), k)
+                    end
+                    push!(ovars, v => k)
+                end
+
+                for (k, v) in pairs(ovars)
+                    outfile[string(structures[si]) * "/" * string(k)] = v
                 end
             end
-            Interval(extrema(vcat(depths...))...)
         end
-        ovars = Dict()
-        for v in vars
-            k = map(o) do p
-                k = p[v]
-                k = k[depth = Near(unidepths)]
-                k = set(k, Depth => Depth(unidepths))
-                if stimulus == r"Natural_Images"
-                    d = Dim{:trial}(p[:trials].hit[1:size(k,
-                                                          :changetime)])
-                else
-                    d = Dim{:trial}(1:size(k, :changetime))
-                end
-                k = set(k, Dim{:changetime} => Dim{:trial})
-                set(k, DimensionalData.format(d, lookup(k, :trial)))
-            end
-            mints = lookup.(k, 𝑡)
-            _, minti = findmin(length.(mints))
-            mints = mints[minti]
-            k = map(k) do p # Match to smallest time interval. Should only differ by a sample or so
-                p[𝑡(At(mints))]
-            end
-            if stimulus == r"Natural_Images"
-                d = Dim{:trial}(vcat(lookup.(k, :trial)...))
-                k = cat(k...; dims = d)
-            else
-                k = stack(Dim{:sessionid}(sessionids), k)
-            end
-            push!(ovars, v => k)
-        end
-
-        return (; oursessions, unidepths, layerints, layernames, layernums, ovars...)
     end
     return uni
 end
@@ -673,14 +684,14 @@ end
 #     Q = calcquality(path)[structure = At(structures)]
 #     return produce_out(Q, config; path)
 # end
-function produce_uni(config; path = datadir("calculations"), kwargs...)
-    @info "Producing unified data"
-    data, outfile = produce_or_load(produce_out(; path, kwargs...), config, datadir();
-                                    filename = savepath,
-                                    path, prefix = "out")
-    out = data["out"]
-    uni = unify_calculations(out; vars = config["vars"])
-    return @strdict uni outfile
+function collect_uni(config; vars = sort([:x, :ϕ, :r, :k, :ω]),
+                     path = datadir("calculations"),
+                     structures = SpatiotemporalMotifs.structures, kwargs...)
+    @info "Collecting unified data"
+    Q = calcquality(path)[structure = At(structures)]
+    out = load_calculations(Q; vars, kwargs...)
+    uni = unify_calculations(out; vars) # ! This should save to file instead of returning
+    # return @strdict uni outfile
 end
 produce_uni(; kwargs...) = config -> produce_uni(config; kwargs...)
 

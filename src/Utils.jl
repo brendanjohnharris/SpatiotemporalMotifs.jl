@@ -57,6 +57,10 @@ const GAMMA = (30, 100)
 const INTERVAL = -0.25u"s" .. 0.75u"s"
 const structures = ["VISp", "VISl", "VISrl", "VISal", "VISpm", "VISam"]
 
+DimensionalData.@dim Sesh ToolsDim "Session"
+DimensionalData.@dim Trial ToolsDim "Trial"
+export Sesh, Trial
+
 function calcquality(dirname; suffix = "jld2", connector = connector)
     files = readdir(dirname)
     ps = []

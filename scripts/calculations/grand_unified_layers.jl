@@ -24,8 +24,9 @@ oursessions = session_table.ecephys_session_id
 
 # * Theta wavenumber
 vars = [:k]
-config = @strdict stimulus vars
-data, file = produce_or_load(produce_uni, config, datadir(); filename = savepath)
+# config = @strdict stimulus vars
+produce_uni(; stimulus)
+# data, file = produce_or_load(produce_uni, config, datadir(); filename = savepath)
 uni = data["uni"]
 begin # * Grand  unified layers
     layerints = getindex.(uni, :layerints)
