@@ -452,68 +452,123 @@ function load_performance(; path = datadir("calculations"), stimulus = r"Natural
     return newsessions
 end
 
-function load_calculations(Q; path = datadir("calculations"), stimulus, vars = [:x, :k])
-    out = map(lookup(Q, :structure)) do structure
-        out = map(lookup(Q, :sessionid)) do sessionid
-            if Q[sessionid = At(sessionid), structure = At(structure)] == 0
-                return nothing
-            end
-            filename = savepath((@strdict sessionid structure stimulus), "jld2", path)
-            f = jldopen(filename, "r")
-            @unpack streamlinedepths, layerinfo, pass_γ, pass_θ, performance_metrics, spiketimes, trials = f
-            ovars = Dict()
-            for v in vars
-                push!(ovars, v => f[string(v)])
-            end
-            close(f)
-
-            # Depth and layer info
-            layernames = ToolsArray(layerinfo[1],
-                                    Depth(lookup(ovars[first(vars)], Depth)))
-            layernums = ToolsArray(layerinfo[3],
-                                   Depth(lookup(ovars[first(vars)], Depth)))
-
-            # Remove poor quality depth estimates
-            idxs = 1:size(ovars[first(vars)], 2)
-            try
-                while !issorted(streamlinedepths)
-                    idxs = idxs[1:(end - 1)]
-                    streamlinedepths = streamlinedepths[idxs]
-                end
-            catch e
-                return nothing
-            end
-            layernames = layernames[idxs]
-
-            ovars = map(collect(ovars)) do (v, k)
-                k = k[:, idxs, :] .|> Float32
-
-                # We know the depths are sorted from above
-                k = set(k, Depth(streamlinedepths))
-                k = set(k,
-                        Depth => DimensionalData.Irregular(extrema(streamlinedepths)))
-
-                @assert issorted(lookup(k, Depth))
-                push!(k.metadata.val, :layernames => layernames)
-                return v => k
-            end
-            return (; streamlinedepths, layernames, pass_γ, pass_θ, trials, sessionid,
-                    performance_metrics, spiketimes, ovars...)
-        end
-        out = filter(!isnothing, out)
-        out = filter(x -> maximum(x[:streamlinedepths]) > 0.90, out) # Remove sessions that don't have data to a reasonable depth
+function _collect_calculations(outfile; sessionid, structure, stimulus, path, subvars)
+    filename = savepath((@strdict sessionid structure stimulus), "jld2", path)
+    f = jldopen(filename, "r")
+    @unpack streamlinedepths, layerinfo, pass_γ, pass_θ, performance_metrics, spiketimes, trials = f
+    ovars = Dict()
+    for v in subvars
+        push!(ovars, v => f[string(v)])
     end
-    if length(unique(length.(out))) != 1
-        @warn "Not all structures returned the same sessions; filtering to common sessions"
-        commonsessions = [[o[:sessionid] for o in O]
-                          for O in out]
-        commonsessions = intersect(commonsessions...)
-        out = map(out) do O
-            filter(o -> (o[:sessionid] in commonsessions), O)
-        end
+    close(f)
+
+    # Depth and layer info
+    layernames = ToolsArray(layerinfo[1], (Depth(layerinfo[2]),))
+    layernums = ToolsArray(layerinfo[3], (Depth(layerinfo[2]),))
+
+    # Remove poor quality depth estimates
+    idxs = 1:length(streamlinedepths)
+    # try
+    while !issorted(streamlinedepths) # Make sure depths are increasing only
+        idxs = idxs[1:(end - 1)]
+        streamlinedepths = streamlinedepths[idxs]
+        @assert length(streamlinedepths) > 15
     end
-    return out
+    # catch e
+    #     return nothing
+    # end
+    layernames = layernames[idxs]
+
+    ovars = map(collect(ovars)) do (v, k)
+        k = k[:, idxs, :] .|> Float32
+
+        # We know the depths are sorted from above
+        k = set(k, Depth(streamlinedepths))
+        k = set(k,
+                Depth => DimensionalData.Irregular(extrema(streamlinedepths)))
+
+        @assert issorted(lookup(k, Depth))
+        push!(k.metadata.val, :layernames => layernames)
+        return v => k
+    end
+
+    D = @strdict streamlinedepths layernames pass_γ pass_θ trials sessionid performance_metrics spiketimes
+    for (k, v) in pairs(D)
+        outfile[string(structure) * "/" * string(sessionid) * "/" * k] = v
+    end
+    for (k, v) in ovars
+        outfile[string(structure) * "/" * string(sessionid) * "/" * string(k)] = v
+    end
+    return nothing
 end
+
+function collect_calculations(Q; path = datadir("calculations"), stimulus, rewrite = false)
+    outfilepath = savepath("out", Dict("stimulus" => stimulus), "jld2", datadir())
+    subvars = sort([:x, :ϕ, :r, :k, :ω])
+    if !isfile(outfilepath) || rewrite
+        jldopen(outfilepath, "w") do outfile
+            out = map(lookup(Q, :structure)) do structure
+                @info "Collecting data for structure $(structure)"
+                map(lookup(Q, :sessionid)) do sessionid
+                    if Q[sessionid = At(sessionid), structure = At(structure),
+                         stimulus = At(stimulus)] == 0
+                        return nothing
+                    end
+                    _collect_calculations(outfile; sessionid, structure, stimulus, path,
+                                          subvars)
+                end
+            end
+        end
+        # out = filter(!isnothing, out)
+        # out = filter(x -> maximum(x[:streamlinedepths]) > 0.90, out) # Remove sessions
+        # that don't have data to a reasonable depth --> Moved to posthoc session filter
+        # if length(unique(length.(out))) != 1
+        #     error("Not all structures returned the same sessions")
+        #     # commonsessions = [[o[:sessionid] for o in O]
+        #     #                   for O in out]
+        #     # commonsessions = intersect(commonsessions...)
+        #     # out = map(out) do O
+        #     #     filter(o -> (o[:sessionid] in commonsessions), O)
+        #     # end
+        # end
+    end
+    if rewrite == false
+        @info "Already calculated: $(stimulus). Checking quality"
+        jldopen(outfilepath, "w") do outfile
+            sessionids = [keys(outfile[s]) for s in structures]
+            if length(unique(sessionids)) > 1
+                @warn "Not all structures returned the same sessions. Attempting to repair"
+            end
+            sessionids = unique(vcat(sessionids...))
+            for sessionid in sessionids
+                for structure in structures
+                    if !haskey(outfile[structure], sessionid)
+                        @warn "Missing $(structure) $(sessionid)"
+                        sessionid = tryparse(Int, sessionid)
+                        if Q[sessionid = At(sessionid), structure = At(structure),
+                             stimulus = At(stimulus)] == 0
+                            return nothing
+                        end
+                        _collect_calculations(outfile; sessionid, structure, stimulus, path,
+                                              subvars)
+                    end
+                end
+            end
+        end
+    end
+    return outfilepath
+end
+
+# function load_calculations(Q; vars, kwargs...)
+#     outfilepath = collect_calculations(Q; kwargs...)
+#     outfile = jldopen(outfilepath, "r")
+#     sessionids = unique([keys(outfile[s]) for s in structures])
+#     out = map(structures) do structure
+#         sessionids = keys(outfile[structure])
+#         map(sessionids) do sessionid
+#             if !
+
+# end
 
 function unify_calculations(out; vars = [:x, :k])
     # * Filter to posthoc sessions
@@ -595,17 +650,17 @@ function unify_calculations(out; vars = [:x, :k])
     return uni
 end
 
-function produce_out(Q::AbstractToolsArray, config; path = datadir("calculations"))
-    out = load_calculations(Q; path, stimulus = config["stimulus"], vars = config["vars"])
-    @strdict out
-end
-produce_out(Q::AbstractToolsArray; kwargs...) = config -> produce_out(Q, config; kwargs...)
-produce_out(; kwargs...) = config -> produce_out(config; kwargs...)
-function produce_out(config; path = datadir("calculations"),
-                     structures = SpatiotemporalMotifs.structures)
-    Q = calcquality(path)[structure = At(structures)]
-    return produce_out(Q, config; path)
-end
+# function produce_out(Q::AbstractToolsArray, config; path = datadir("calculations"))
+#     out = load_calculations(Q; path, stimulus = config["stimulus"], vars = config["vars"])
+#     @strdict out
+# end
+# produce_out(Q::AbstractToolsArray; kwargs...) = config -> produce_out(Q, config; kwargs...)
+# produce_out(; kwargs...) = config -> produce_out(config; kwargs...)
+# function produce_out(config; path = datadir("calculations"),
+#                      structures = SpatiotemporalMotifs.structures)
+#     Q = calcquality(path)[structure = At(structures)]
+#     return produce_out(Q, config; path)
+# end
 function produce_uni(config; path = datadir("calculations"), kwargs...)
     @info "Producing unified data"
     data, outfile = produce_or_load(produce_out(; path, kwargs...), config, datadir();

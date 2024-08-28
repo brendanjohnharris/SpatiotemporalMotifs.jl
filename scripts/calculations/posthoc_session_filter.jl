@@ -15,7 +15,6 @@ using SpatiotemporalMotifs
 set_theme!(foresight(:physics))
 
 stimulus = r"Natural_Images"
-vars = [:r]
 
 session_table = load(datadir("session_table.jld2"), "session_table")
 oursessions = deepcopy(session_table)
@@ -24,16 +23,17 @@ begin
     path = datadir("calculations")
     Q = calcquality(path)[structure = At(structures)]
     quality = mean(Q[stimulus = At(stimulus)])
-    config = @strdict stimulus vars
-    data, file = produce_or_load(produce_out(Q), config, datadir(); filename = savepath,
-                                 prefix = "out")
-    out = data["out"]
+    outfile = SpatiotemporalMotifs.collect_calculations(Q; stimulus)
+    out = jldopen(outfile, "r")
 end
 
 begin # * Layer consistency
     sessions = [getindex.(o, :sessionid) for o in out]
     layers = [getindex.(o, :layernames) for o in out]
     depths = [getindex.(o, :streamlinedepths) for o in out]
+
+    # ? Has most depths
+    has_good_depths = (maximum.(depths) .> 0.90) .& (minimum.(depths) .< 0.10)
 
     layerints = map(layers, depths) do ls, ds
         map(ls, ds) do l, d
@@ -59,7 +59,7 @@ begin # * Layer consistency
     decision = maximum(hcat(layerdeviations...), dims = 2)[:] # Maximum value of IQR distance from median for any layer boundary in any region
     @assert all([sessions[1]] .== sessions)
     decision = decision .≤ 3.0
-    goodsessions = sessions[1][decision .& nomissinglayers]
+    goodsessions = sessions[1][decision .& nomissinglayers .& has_good_depths]
 end
 
 begin # * Task performance

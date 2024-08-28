@@ -175,8 +175,12 @@ allowedtypes = (Real, String, Regex, Symbol, TimeType, Vector, Tuple)
 
 symextrema(x) = (m = maximum(abs.(extrema(x))); (-m, m))
 
-function savepath(D, ext = "", args...)
+function savepath(D::Dict, ext = "", args...)
     filename = savename(D, ext; connector, val_to_string, allowedtypes)
+    return joinpath(args..., filename)
+end
+function savepath(prefix::String, D::Dict, ext = "", args...)
+    filename = savename(prefix, D, ext; connector, val_to_string, allowedtypes)
     return joinpath(args..., filename)
 end
 
