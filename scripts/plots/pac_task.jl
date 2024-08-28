@@ -33,17 +33,17 @@ stimuli = ["r\"Natural_Images\"", "spontaneous", "flash_250ms"]
 pQ = calcquality(datadir("power_spectra"))
 for stimulus in stimuli
     _Q = pQ[stimulus = At(stimulus), structure = At(structures)]
-    subsessions = intersect(oursessions, lookup(_Q, :sessionid))
+    subsessions = intersect(oursessions, lookup(_Q, SessionID))
     if length(subsessions) < length(oursessions)
         @warn "Power spectra calculations are incomplete, proceeding regardless"
     end
-    _Q = _Q[Dim{:sessionid}(At(subsessions))]
+    _Q = _Q[SessionID(At(subsessions))]
     filebase = stimulus == "spontaneous" ? "" : "_$stimulus"
     f = Figure(size = (900, 1080))
 
     begin # * Load data
         S = map(lookup(_Q, :structure)) do structure
-            out = map(lookup(_Q, :sessionid)) do sessionid
+            out = map(lookup(_Q, SessionID)) do sessionid
                 if _Q[sessionid = At(sessionid), structure = At(structure)] == 0
                     return nothing
                 end
@@ -60,7 +60,7 @@ for stimulus in stimuli
             out = map(out) do o
                 dropdims(mean(o, dims = Chan), dims = Chan)
             end
-            out = stack(Dim{:sessionid}(lookup(_Q, :sessionid)[idxs]), out, dims = 3)
+            out = stack(SessionID(lookup(_Q, SessionID)[idxs]), out, dims = 3)
             return out
         end
     end
@@ -71,7 +71,7 @@ for stimulus in stimuli
         map(gs, structures, S) do g, structure, s
             ax = Axis(g[1, 1]; title = structure, xlabel = "Phase frequency (Hz)",
                       ylabel = "Amplitude frequency (Hz)")
-            s = dropdims(mean(s, dims = :sessionid); dims = :sessionid)
+            s = dropdims(mean(s, dims = SessionID); dims = SessionID)
             s = upsample(s, 5, 1)
             s = upsample(s, 5, 2)
             p = heatmap!(ax, s; colormap = seethrough(reverse(sunrise)), rasterize = 5)
@@ -88,7 +88,7 @@ for stimulus in stimuli
                   ylabel = "Amplitude frequency (Hz)")
         s = S[lookup(_Q, :structure) .== structure] |> only
         display(s)
-        s = dropdims(mean(s, dims = :sessionid); dims = :sessionid)
+        s = dropdims(mean(s, dims = SessionID); dims = SessionID)
         s = upsample(s, 5, 1)
         s = upsample(s, 5, 2)
         p = heatmap!(ax, s; colormap = seethrough(reverse(sunrise)), rasterize = 5)
@@ -107,13 +107,13 @@ layernums = getindex.(uni, :layernums)
 
 begin # * Normalize amplitudes and generate a burst mask
     r = [abs.(uni[i][:r]) for i in eachindex(uni)]
-    r_h = [r[i][:, :, lookup(r[i], :trial) .== true] for i in eachindex(r)]
-    r_m = [r[i][:, :, lookup(r[i], :trial) .== false] for i in eachindex(r)]
+    r_h = [r[i][:, :, lookup(r[i], Trial) .== true] for i in eachindex(r)]
+    r_m = [r[i][:, :, lookup(r[i], Trial) .== false] for i in eachindex(r)]
 
     ϕ = [uni[i][:ϕ] for i in eachindex(uni)]
     ϕ = [mod2pi.(x .+ pi) .- pi for x in ϕ]
-    ϕ_h = [ϕ[i][:, :, lookup(ϕ[i], :trial) .== true] for i in eachindex(ϕ)]
-    ϕ_m = [ϕ[i][:, :, lookup(ϕ[i], :trial) .== false] for i in eachindex(ϕ)]
+    ϕ_h = [ϕ[i][:, :, lookup(ϕ[i], Trial) .== true] for i in eachindex(ϕ)]
+    ϕ_m = [ϕ[i][:, :, lookup(ϕ[i], Trial) .== false] for i in eachindex(ϕ)]
 
     uni = []
     GC.gc()
@@ -121,13 +121,13 @@ end
 
 begin # * Pac
     PAC = progressmap(ϕ, r) do ϕ, r
-        pac(ϕ, r; dims = :trial)
+        pac(ϕ, r; dims = Trial)
     end
     PAC_h = progressmap(ϕ_h, r_h) do ϕ, r
-        pac(ϕ, r; dims = :trial)
+        pac(ϕ, r; dims = Trial)
     end
     PAC_m = progressmap(ϕ_m, r_m) do ϕ, r
-        pac(ϕ, r; dims = :trial)
+        pac(ϕ, r; dims = Trial)
     end
 end
 
@@ -165,11 +165,11 @@ end
 
 #     ϕ = [abs.(uni[i][:ϕ]) for i in eachindex(uni)]
 
-#     ϕ_h = [ϕ[i][:, :, lookup(ϕ[i], :trial) .== true] for i in eachindex(ϕ)]
+#     ϕ_h = [ϕ[i][:, :, lookup(ϕ[i], Trial) .== true] for i in eachindex(ϕ)]
 #     ϕ̂_h = deepcopy(ϕ_h)
 #     [ϕ̂_h[i][.!mask_h[i]] .= NaN for i in eachindex(mask_h)]
 
-#     ϕ_m = [ϕ[i][:, :, lookup(ϕ[i], :trial) .== false] for i in eachindex(ϕ)]
+#     ϕ_m = [ϕ[i][:, :, lookup(ϕ[i], Trial) .== false] for i in eachindex(ϕ)]
 #     ϕ̂_m = deepcopy(ϕ_m)
 #     [ϕ̂_m[i][.!mask_m[i]] .= NaN for i in eachindex(mask_m)]
 

@@ -433,7 +433,7 @@ end
 function load_performance(; path = datadir("calculations"), stimulus = r"Natural_Images")
     Q = calcquality(path)[structure = At(structures)]
     out = map([lookup(Q, :structure) |> first]) do structure
-        out = map(lookup(Q, :sessionid)) do sessionid
+        out = map(lookup(Q, SessionID)) do sessionid
             if Q[sessionid = At(sessionid), structure = At(structure)] == 0
                 return nothing
             end
@@ -448,7 +448,7 @@ function load_performance(; path = datadir("calculations"), stimulus = r"Natural
     performance = only(out)
 
     newsessions = performance |> DataFrame
-    newsessions.sessionid = lookup(Q, :sessionid) .|> Int
+    newsessions.sessionid = lookup(Q, SessionID) .|> Int
     return newsessions
 end
 
@@ -509,7 +509,7 @@ function collect_calculations(Q; path = datadir("calculations"), stimulus, rewri
         jldopen(outfilepath, "w") do outfile
             out = map(lookup(Q, :structure)) do structure
                 @info "Collecting data for structure $(structure)"
-                map(lookup(Q, :sessionid)) do sessionid
+                map(lookup(Q, SessionID)) do sessionid
                     if Q[sessionid = At(sessionid), structure = At(structure),
                          stimulus = At(stimulus)] == 0
                         return nothing
@@ -641,13 +641,13 @@ function unify_calculations(out; stimulus, vars = sort([:x, :ϕ, :r, :k, :ω]),
                         k = k[depth = Near(unidepths)]
                         k = set(k, Depth => Depth(unidepths))
                         if stimulus == r"Natural_Images"
-                            d = Dim{:trial}(p[:trials].hit[1:size(k,
-                                                                  :changetime)])
+                            d = Trial(p[:trials].hit[1:size(k,
+                                                            :changetime)])
                         else
-                            d = Dim{:trial}(1:size(k, :changetime))
+                            d = Trial(1:size(k, :changetime))
                         end
-                        k = set(k, Dim{:changetime} => Dim{:trial})
-                        set(k, DimensionalData.format(d, lookup(k, :trial)))
+                        k = set(k, Dim{:changetime} => Trial)
+                        set(k, DimensionalData.format(d, lookup(k, Trial)))
                     end
                     mints = lookup.(k, 𝑡)
                     _, minti = findmin(length.(mints))
@@ -656,10 +656,10 @@ function unify_calculations(out; stimulus, vars = sort([:x, :ϕ, :r, :k, :ω]),
                         p[𝑡(At(mints))]
                     end
                     if stimulus == r"Natural_Images"
-                        d = Dim{:trial}(vcat(lookup.(k, :trial)...))
+                        d = Trial(vcat(lookup.(k, Trial)...))
                         k = cat(k...; dims = d)
                     else
-                        k = stack(Dim{:sessionid}(sessionids), k)
+                        k = stack(SessionID(sessionids), k)
                     end
                     push!(ovars, v => k)
                 end

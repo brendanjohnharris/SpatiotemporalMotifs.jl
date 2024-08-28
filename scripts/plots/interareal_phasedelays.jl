@@ -295,7 +295,7 @@ begin # * Plots
         ax = Axis(gs[2][1, 1], yreversed = true,
                   title = "θ propagation (hierarchy)", xlabel = "Time (s)",
                   ylabel = "Cortical depth (%)")
-        # ∂̄ = dropdims(mean(∂h, dims = Dim{:trial}), dims = :trial)
+        # ∂̄ = dropdims(mean(∂h, dims = Trial), dims = Trial)
         p, _ = plotlayermap!(ax, ∂h̄[𝑡(SpatiotemporalMotifs.INTERVAL)] |> ustripall,
                              colormap = darksunset,
                              colorrange = symextrema(∂h̄))
@@ -309,9 +309,9 @@ begin # * Plots
         ax = Axis(gs[3][1, 1], yreversed = true, ytickformat = depthticks,
                   title = "θ propagation (position)", xlabel = "Time (s)",
                   ylabel = "Cortical depth (%)")
-        # ∂̄ = dropdims(mean(∂[:, :, lookup(∂, :trial) .== true],
-        #                    dims = Dim{:trial}),
-        #               dims = :trial)
+        # ∂̄ = dropdims(mean(∂[:, :, lookup(∂, Trial) .== true],
+        #                    dims = Trial),
+        #               dims = Trial)
         p, _ = plotlayermap!(ax, ∂̄[𝑡(SpatiotemporalMotifs.INTERVAL)] |> ustripall,
                              colormap = :inferno)
         Colorbar(gs[3][1, 2], p; label = "Mean positional ∇ (a.u.)")
@@ -324,9 +324,9 @@ begin # * Plots
     #     ax = Axis(gs[4][1, 1], yreversed = true, ytickformat = depthticks,
     #               title = "θ propagation direction", xlabel = "Time (s)",
     #               ylabel = "Cortical depth (%)")
-    #     # ∂̄ = dropdims(circularmean(ψ[:, :, lookup(ψ, :trial) .== true],
-    #     #                            dims = Dim{:trial}),
-    #     #               dims = :trial)
+    #     # ∂̄ = dropdims(circularmean(ψ[:, :, lookup(ψ, Trial) .== true],
+    #     #                            dims = Trial),
+    #     #               dims = Trial)
     #     p, _ = plotlayermap!(ax, ψ̄[𝑡(SpatiotemporalMotifs.INTERVAL)] |> ustripall,
     #                          colormap = binarysunset, colorrange = symextrema(ψ̄))
     #     Colorbar(gs[4][1, 2], p; label = "Mean ψ (radians)")
@@ -351,8 +351,8 @@ begin # * Animate the phase at any given moment, interpolating the background,
         end
         stack(Dim{:structure}(structures), ϕ |> collect)
     end
-    mphi = cat(mphi...; dims = Dim{:sessionid}(oursessions))
-    mphi = dropdims(circularmean(mphi; dims = :sessionid); dims = :sessionid)
+    mphi = cat(mphi...; dims = SessionID(oursessions))
+    mphi = dropdims(circularmean(mphi; dims = SessionID); dims = SessionID)
 end
 begin
     set_theme!(foresight(:dark))

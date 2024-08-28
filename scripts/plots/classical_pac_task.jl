@@ -52,7 +52,7 @@ begin
             set(p, Depth => unidepths)
         end
     end
-    pacc = stack.([Dim{:sessionid}(sessionids)], pacc; dims = 2)
+    pacc = stack.([SessionID(sessionids)], pacc; dims = 2)
     GC.gc()
 end
 
@@ -111,7 +111,7 @@ begin # * Polar plot of coupling angle peaks (find peaks? what if there is more 
             set(p, Depth => unidepths)
         end
     end
-    peaks = stack.([Dim{:sessionid}(sessionids)], peaks; dims = 2)
+    peaks = stack.([SessionID(sessionids)], peaks; dims = 2)
 end
 
 begin # * Phase annotations
@@ -206,7 +206,7 @@ begin # * Single-trial PAC
         map(pa, tr) do p, t
             @assert all(isapprox.(ustripall(lookup(p, :changetime)),
                                   t.change_time_with_display_delay; atol = 1e-1))
-            set(p, :changetime => Dim{:trial}(t.hit))
+            set(p, :changetime => Trial(t.hit))
         end
     end
 end
@@ -223,15 +223,15 @@ begin # * Classification
     # p = ToolsArray(p, (Dim{:d}(1:size(p, 1)), dims(pacc[1], 2)))
     H = [getindex.(trialpac, i) for i in eachindex(trialpac[1])]
     H = map(H) do h
-        trials = lookup(h[1], :trial)
+        trials = lookup(h[1], Trial)
         h = vcat(h...)
-        h = ToolsArray(h, (Dim{:d}(1:size(h, 1)), Dim{:trial}(trials)))
+        h = ToolsArray(h, (Dim{:d}(1:size(h, 1)), Trial(trials)))
         h = h[1:5:end, :]
     end
     bac = classify_kfold.(H; regcoef = 0.1, k = folds, repeats)
 
-    # x = dropdims(mean(p[:, lookup(p, :trial)]; dims = 2); dims = 2)
-    # x = (x .- dropdims(mean(p[:, .!lookup(p, :trial)]; dims = 2); dims = 2)) ./ x
+    # x = dropdims(mean(p[:, lookup(p, Trial)]; dims = 2); dims = 2)
+    # x = (x .- dropdims(mean(p[:, .!lookup(p, Trial)]; dims = 2); dims = 2)) ./ x
     # plot(x)
 end
 

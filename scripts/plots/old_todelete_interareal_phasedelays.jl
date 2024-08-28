@@ -97,8 +97,8 @@ begin # * Massive
 end
 
 begin # * Plot mean correlation magnitude over layers and time
-    ∂̄ = dropdims(circularmean(∂[:, :, lookup(∂, :trial) .== true], dims = Dim{:trial}),
-                  dims = :trial)
+    ∂̄ = dropdims(circularmean(∂[:, :, lookup(∂, Trial) .== true], dims = Trial),
+                  dims = Trial)
 end
 begin
     f = Figure()
@@ -157,8 +157,8 @@ begin
 end
 
 begin # * Plot mean correlation magnitude over layers and time
-    ρ̄ = dropdims(mean(ρ_h[:, :, lookup(ρ, :trial) .== true], dims = Dim{:trial}),
-                  dims = :trial)
+    ρ̄ = dropdims(mean(ρ_h[:, :, lookup(ρ, Trial) .== true], dims = Trial),
+                  dims = Trial)
 end
 begin
     f = Figure()
@@ -170,8 +170,8 @@ begin
 end
 
 begin # * Plot mean correlation magnitude over layers and time
-    ψ̄ = dropdims(circularmean(ψ[:, :, lookup(ρ, :trial) .== true], dims = Dim{:trial}),
-                  dims = :trial)
+    ψ̄ = dropdims(circularmean(ψ[:, :, lookup(ρ, Trial) .== true], dims = Trial),
+                  dims = Trial)
 end
 begin
     f = Figure()

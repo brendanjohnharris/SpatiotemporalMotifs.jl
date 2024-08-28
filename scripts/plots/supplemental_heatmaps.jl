@@ -51,8 +51,8 @@ begin # * Supplemental material: likelihood of negative frequencies
         ax = Axis(f[1, 1], yreversed = true, limits = (nothing, (0.05, 0.95)))
         structure = metadata(k)[:structure]
         ax.title = structure * ": hit"
-        m = mean(k[:, :, lookup(k, :trial) .== true], dims = :trial)
-        m = dropdims(m, dims = :trial)
+        m = mean(k[:, :, lookup(k, Trial) .== true], dims = Trial)
+        m = dropdims(m, dims = Trial)
         colorrange = maximum(abs.(ustripall(m))) * [0, 1]
         ints = uni[i][:layerints]
         p = plotlayermap!(ax, m, ints; arrows = (200, 3), colorrange) |> first
@@ -63,8 +63,8 @@ begin # * Supplemental material: likelihood of negative frequencies
         # * Miss
         ax = Axis(f[1, 2], yreversed = true)
         ax.title = structure * ": miss"
-        m = mean(k[:, :, lookup(k, :trial) .== false], dims = :trial)
-        m = dropdims(m, dims = :trial)
+        m = mean(k[:, :, lookup(k, Trial) .== false], dims = Trial)
+        m = dropdims(m, dims = Trial)
         ints = uni[i][:layerints]
         p = plotlayermap!(ax, m, ints; colorrange) |> first
         c = Colorbar(f[1, 3], p)
@@ -96,8 +96,8 @@ begin # * Supplemental material: average phase velocity maps in each region
         ax = Axis(f[1, 1], yreversed = true)
         structure = metadata(k)[:structure]
         ax.title = structure * ": hit"
-        m = median(k[:, :, lookup(k, :trial) .== true], dims = :trial)
-        m = dropdims(m, dims = :trial)
+        m = median(k[:, :, lookup(k, Trial) .== true], dims = Trial)
+        m = dropdims(m, dims = Trial)
         colorrange = maximum(abs.(ustripall(m))) * [-1, 1]
         ints = uni[i][:layerints]
         p = plotlayermap!(ax, m, ints; arrows = (200, 3), colorrange) |> first
@@ -108,8 +108,8 @@ begin # * Supplemental material: average phase velocity maps in each region
         # * Miss
         ax = Axis(f[1, 2], yreversed = true)
         ax.title = structure * ": miss"
-        m = median(k[:, :, lookup(k, :trial) .== false], dims = :trial)
-        m = dropdims(m, dims = :trial)
+        m = median(k[:, :, lookup(k, Trial) .== false], dims = Trial)
+        m = dropdims(m, dims = Trial)
         ints = uni[i][:layerints]
         p = plotlayermap!(ax, m, ints; arrows = (200, 3), colorrange) |> first
         c = Colorbar(f[1, 3], p)
@@ -141,8 +141,8 @@ begin # * Supplemental material: average phase velocity maps in each region
         ax = Axis(f[1, 1], yreversed = true)
         structure = metadata(k)[:structure]
         ax.title = structure * ": hit"
-        m = median(k[:, :, lookup(k, :trial) .== true], dims = :trial)
-        m = dropdims(m, dims = :trial)
+        m = median(k[:, :, lookup(k, Trial) .== true], dims = Trial)
+        m = dropdims(m, dims = Trial)
         colorrange = maximum(abs.(ustripall(m))) * [-1, 1]
         ints = uni[i][:layerints]
         p = plotlayermap!(ax, m, ints; colorrange) |> first
@@ -153,8 +153,8 @@ begin # * Supplemental material: average phase velocity maps in each region
         # * Miss
         ax = Axis(f[1, 2], yreversed = true)
         ax.title = structure * ": miss"
-        m = median(k[:, :, lookup(k, :trial) .== false], dims = :trial)
-        m = dropdims(m, dims = :trial)
+        m = median(k[:, :, lookup(k, Trial) .== false], dims = Trial)
+        m = dropdims(m, dims = Trial)
         ints = uni[i][:layerints]
         p = plotlayermap!(ax, m, ints; colorrange) |> first
         c = Colorbar(f[1, 3], p)
@@ -186,8 +186,8 @@ begin # * Supplemental material: average phase velocity maps in each region
         ax = Axis(f[1, 1], yreversed = true)
         structure = metadata(k)[:structure]
         ax.title = structure * ": hit"
-        m = median(k[:, :, lookup(k, :trial) .== true], dims = :trial)
-        m = dropdims(m, dims = :trial)
+        m = median(k[:, :, lookup(k, Trial) .== true], dims = Trial)
+        m = dropdims(m, dims = Trial)
         colorrange = extrema(ustripall(m))
         ints = uni[i][:layerints]
         p = plotlayermap!(ax, m, ints; colorrange) |> first
@@ -198,8 +198,8 @@ begin # * Supplemental material: average phase velocity maps in each region
         # * Miss
         ax = Axis(f[1, 2], yreversed = true)
         ax.title = structure * ": miss"
-        m = median(k[:, :, lookup(k, :trial) .== false], dims = :trial)
-        m = dropdims(m, dims = :trial)
+        m = median(k[:, :, lookup(k, Trial) .== false], dims = Trial)
+        m = dropdims(m, dims = Trial)
         ints = uni[i][:layerints]
         p = plotlayermap!(ax, m, ints; colorrange) |> first
         c = Colorbar(f[1, 3], p)

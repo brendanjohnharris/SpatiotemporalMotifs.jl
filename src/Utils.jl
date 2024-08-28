@@ -57,9 +57,9 @@ const GAMMA = (30, 100)
 const INTERVAL = -0.25u"s" .. 0.75u"s"
 const structures = ["VISp", "VISl", "VISrl", "VISal", "VISpm", "VISam"]
 
-DimensionalData.@dim Sesh ToolsDim "Session"
+DimensionalData.@dim SessionID ToolsDim "SessionID"
 DimensionalData.@dim Trial ToolsDim "Trial"
-export Sesh, Trial
+export SessionID, Trial
 
 function calcquality(dirname; suffix = "jld2", connector = connector)
     files = readdir(dirname)
@@ -280,7 +280,7 @@ function classifier(h, labels; regcoef = 0.5)
     return N, M
 end
 
-function classifier(H; dim = :trial, regcoef = 0.1)
+function classifier(H; dim = Trial, regcoef = 0.1)
     labels = lookup(H, dim)
     @assert eltype(labels) == Bool
     negdims = setdiff(1:ndims(H), [dimnum(H, dim)])
@@ -289,7 +289,7 @@ function classifier(H; dim = :trial, regcoef = 0.1)
     classifier(h, labels; regcoef)
 end
 
-function classify_kfold(H, rng::AbstractRNG = Random.default_rng(); k = 5, dim = :trial,
+function classify_kfold(H, rng::AbstractRNG = Random.default_rng(); k = 5, dim = Trial,
                         repeats = 10,
                         kwargs...)
     labels = lookup(H, dim)
@@ -350,7 +350,7 @@ end
 #     return N, M
 # end
 
-# function regressor(H::AbstractArray{T, 3}, targets; dim = :trial, regcoef = 0.1) where {T}
+# function regressor(H::AbstractArray{T, 3}, targets; dim = Trial, regcoef = 0.1) where {T}
 #     negdims = setdiff(1:ndims(H), [dimnum(H, dim)])
 #     negsize = size(H)[negdims]
 #     h = reshape(H, (prod(negsize), size(H, dim))) # Flattened data, _ × trial
@@ -358,7 +358,7 @@ end
 # end
 
 # function regress_kfold(H, reaction_times, rng::AbstractRNG = Random.default_rng(); k = 5,
-#                        dim = :trial,
+#                        dim = Trial,
 #                        kwargs...)
 #     labels = lookup(H, dim)
 #     @assert eltype(labels) == Bool

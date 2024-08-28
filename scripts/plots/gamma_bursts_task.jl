@@ -285,8 +285,8 @@ end
 #         ax = Axis(f[i, 1], yreversed = true)
 #         structure = DimensionalData.metadata(k)[:structure]
 #         ax.title = structure * ": hit"
-#         m = median(k[:, :, lookup(k, :trial) .== true], dims = :trial)
-#         m = dropdims(m, dims = :trial)
+#         m = median(k[:, :, lookup(k, Trial) .== true], dims = Trial)
+#         m = dropdims(m, dims = Trial)
 #         colorrange = maximum(abs.(ustripall(m))) * [0, 1]
 #         ints = uni[i][:layerints]
 #         p = plotlayermap!(ax, m, ints; arrows = false, colorrange, colormap = :bone) |>
@@ -298,8 +298,8 @@ end
 #         # * Miss
 #         ax = Axis(f[i, 2], yreversed = true)
 #         ax.title = structure * ": miss"
-#         m = median(k[:, :, lookup(k, :trial) .== false], dims = :trial)
-#         m = dropdims(m, dims = :trial)
+#         m = median(k[:, :, lookup(k, Trial) .== false], dims = Trial)
+#         m = dropdims(m, dims = Trial)
 #         ints = uni[i][:layerints]
 #         p = plotlayermap!(ax, m, ints; arrows = false, colorrange, colormap = :bone) |>
 #             first

@@ -40,12 +40,12 @@ begin # * Supplemental material: Average gamma oscillation
     idxs = permutedims(idxs, (2, 1))
     for i in eachindex(uni)
         ax = Axis(f[idxs[i]...], yreversed = true)
-        m = median(uni[i][:y], dims = (:trial, :sessionid))
+        m = median(uni[i][:y], dims = (Trial, SessionID))
         structure = DimensionalData.metadata(m)[:structure]
         ax.title = structure
         m = m .* u"V"
         m = uconvert.(u"μV", m)
-        m = dropdims(m, dims = (:trial, :sessionid))
+        m = dropdims(m, dims = (Trial, SessionID))
         colorrange = maximum(abs.(ustripall(m))) * [-1, 1]
 
         p = heatmap!(ax, upsample(ustripall(m), 5, 2); colormap = :bone, colorrange)
@@ -72,10 +72,10 @@ begin # * Supplemental material: Mean gamma amplitude maps in each region
     idxs = [[i, j] for i in 1:3, j in 1:2]
     idxs = permutedims(idxs, (2, 1))
     for i in eachindex(uni)
-        m = median(abs.(uni[i][:aᵧ]), dims = (:trial, :sessionid))
+        m = median(abs.(uni[i][:aᵧ]), dims = (Trial, SessionID))
         m = m .* u"V"
         m = uconvert.(u"μV", m)
-        m = dropdims(m, dims = (:trial, :sessionid))
+        m = dropdims(m, dims = (Trial, SessionID))
 
         ax = Axis(f[idxs[i]...], yreversed = true)
         structure = DimensionalData.metadata(m)[:structure]

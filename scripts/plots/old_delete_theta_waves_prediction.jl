@@ -43,13 +43,13 @@ begin # * Calculate a global order parameter at each time point
             trialtimes = trials.change_time_with_display_delay
             @assert all(isapprox.(ustripall(lookup(k, :changetime)), trialtimes,
                                   atol = 0.05)) # These won't match exactly, because the data change times have been adjusted for rectification. This is OK.
-            ret = set(ret, Dim{:changetime} => Dim{:trial})
-            set(ret, DimensionalData.format(Dim{:trial}(trials.hit), lookup(ret, :trial)))
+            ret = set(ret, Dim{:changetime} => Trial)
+            set(ret, DimensionalData.format(Trial(trials.hit), lookup(ret, Trial)))
         end
     end
 
-    Og_h = [[o[:, lookup(o, :trial) .== true] for o in O] for O in Og]
-    Og_m = [[o[:, lookup(o, :trial) .== false] for o in O] for O in Og]
+    Og_h = [[o[:, lookup(o, Trial) .== true] for o in O] for O in Og]
+    Og_m = [[o[:, lookup(o, Trial) .== false] for o in O] for O in Og]
     sessionids = [o[:sessionid] for o in out[1]]
 end
 
@@ -103,8 +103,8 @@ begin # * Single-subject classifications
 
     bac_sur = progressmap(H; description = "Surrogate") do h
         h = h[Ti = -0.25u"s" .. 0.25u"s"]
-        idxs = randperm(size(h, :trial))
-        h = set(h, Dim{:trial} => lookup(h, :trial)[idxs])
+        idxs = randperm(size(h, Trial))
+        h = set(h, Trial => lookup(h, Trial)[idxs])
         bac = classify_kfold(h; regcoef = 0.5)
     end
 end
@@ -130,7 +130,7 @@ begin # * Map of layer-wise weightings
         W = reshape(W, size(h)[1:2])
         return ToolsArray(W, dims(h)[1:2])
     end
-    W = stack(Dim{:sessionid}(sessionids), W, dims = 3)
+    W = stack(SessionID(sessionids), W, dims = 3)
     W = W ./ maximum(abs.(W))
 end
 begin
@@ -143,8 +143,8 @@ begin
         ws = W[structure = At(structure)]
         ws = upsample(ws, 5, 1)
         ts = ustripall(lookup(ws, 𝑡))
-        μ = mean(ws, dims = :sessionid) |> vec
-        σ = std(ws, dims = :sessionid) ./ sqrt(size(ws, :sessionid)) |> ustripall |> vec
+        μ = mean(ws, dims = SessionID) |> vec
+        σ = std(ws, dims = SessionID) ./ sqrt(size(ws, SessionID)) |> ustripall |> vec
         band!(ax, ts, μ - σ, μ + σ; color = (structurecolormap[structure], 0.3))
         lines!(ax, ts, μ; color = structurecolormap[structure], label = structure)
     end
@@ -196,7 +196,7 @@ begin # * Now try regressing against reaction time... nothing
         h = h[Ti = -0.25u"s" .. 0.25u"s"]
         N, M = classifier(h; regcoef = 0.5f0)
         _h = reshape(h, prod(size(h)[1:2]), size(h)[3])
-        _h = _h[:, lookup(h, :trial) .== true]
+        _h = _h[:, lookup(h, Trial) .== true]
         predict(M, normalize(_h, N))[:]
     end
 
@@ -211,11 +211,11 @@ begin # * Now try regressing against reaction time... nothing
 
     scores_sur = map(H) do h
         h = h[Ti = -0.25u"s" .. 0.25u"s"]
-        idxs = randperm(size(h, :trial))
-        h = set(h, Dim{:trial} => lookup(h, :trial)[idxs])
+        idxs = randperm(size(h, Trial))
+        h = set(h, Trial => lookup(h, Trial)[idxs])
         N, M = classifier(h; regcoef = 0.5f0)
         _h = reshape(h, prod(size(h)[1:2]), size(h)[3])
-        _h = _h[:, lookup(h, :trial) .== true]
+        _h = _h[:, lookup(h, Trial) .== true]
         predict(M, normalize(_h, N))[:]
     end
     ρs_sur = map(scores_sur, reactions) do s, r

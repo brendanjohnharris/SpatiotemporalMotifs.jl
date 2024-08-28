@@ -371,10 +371,10 @@ fooof = x -> AN.aperiodicfit(x, [3, 300]; aperiodic_mode = "fixed", max_n_peaks 
 function plotspectrum!(ax, s::AbstractToolsArray;
                        textposition = (14, exp10(-2.9)), annotations = [:peaks, :fooof],
                        color = cucumber, label = nothing)
-    μ = mean(s, dims = (:sessionid, :layer))
-    μ = dropdims(μ, dims = (:sessionid, :layer)) |> ustripall
-    σ = std(s, dims = (:sessionid, :layer)) ./ 2
-    σ = dropdims(σ, dims = (:sessionid, :layer)) |> ustripall
+    μ = mean(s, dims = (SessionID, :layer))
+    μ = dropdims(μ, dims = (SessionID, :layer)) |> ustripall
+    σ = std(s, dims = (SessionID, :layer)) ./ 2
+    σ = dropdims(σ, dims = (SessionID, :layer)) |> ustripall
     p = lines!(ax, freqs(μ), collect(μ); color = (color, 0.8), label)
     band!(ax, freqs(μ), collect.([max.(μ - σ, eps()), μ + σ])...; color = (color, 0.32))
 

@@ -28,13 +28,13 @@ oursessions = session_table.ecephys_session_id
 for stimulus in stimuli
     path = datadir("power_spectra")
     Q = calcquality(path)[stimulus = At(stimulus), structure = At(structures)]
-    Q = Q[Dim{:sessionid}(At(oursessions))]
+    Q = Q[SessionID(At(oursessions))]
     filebase = stimulus == "spontaneous" ? "" : "_$stimulus"
     f = FourPanel()
 
     begin # * Load data
         S = map(lookup(Q, :structure)) do structure
-            out = map(lookup(Q, :sessionid)) do sessionid
+            out = map(lookup(Q, SessionID)) do sessionid
                 if Q[sessionid = At(sessionid), structure = At(structure)] == 0
                     return nothing
                 end
@@ -67,11 +67,11 @@ for stimulus in stimuli
             end
             layernames = ToolsArray(stack(getindex.(DimensionalData.metadata.(out),
                                                     :layernames)),
-                                    (Dim{:depths}(unidepths), Dim{:sessionid}(sessions)))
+                                    (Dim{:depths}(unidepths), SessionID(sessions)))
             layernums = ToolsArray(stack(getindex.(DimensionalData.metadata.(out),
                                                    :layernums)),
-                                   (Dim{:depths}(unidepths), Dim{:sessionid}(sessions)))
-            S = stack(Dim{:sessionid}(sessions), out, dims = 3)
+                                   (Dim{:depths}(unidepths), SessionID(sessions)))
+            S = stack(SessionID(sessions), out, dims = 3)
             layernums = parselayernum.(layernames)
             return S, layernames, layernums
         end
@@ -175,7 +175,7 @@ for stimulus in stimuli
             L = [first.(l) for l in L]
             save(file, Dict("χ" => χ, "L" => L))
         end
-        L = getindex.(L, [Dim{:sessionid}(At(oursessions))])
+        L = getindex.(L, [SessionID(At(oursessions))])
         L = L[structure = At(structures)]
         @assert all(last.(size.(L)) .≥ last.(size.(S))) # Check we have residuals for all sessions we have spectra for
     end
@@ -196,7 +196,7 @@ for stimulus in stimuli
                   limits = ((0, 1), (0.9, 2.1)), xtickformat = depthticks,
                   title = "1/f exponent")
         for (i, chi) in χ |> enumerate |> collect |> reverse
-            μ, (σl, σh) = bootstrapmedian(chi, dims = :sessionid)
+            μ, (σl, σh) = bootstrapmedian(chi, dims = SessionID)
             μ, σl, σh = upsample.((μ, σl, σh), 5)
 
             band!(ax, lookup(μ, 1), collect(σl), collect(σh);
@@ -218,8 +218,8 @@ for stimulus in stimuli
             x = mapslices(x, dims = (1, 2)) do s
                 s ./ maximum(s, dims = 2)
             end |> ustripall
-            x = dropdims(median(x[Freq = 1 .. 300], dims = :sessionid), dims = :sessionid)[:,
-                                                                                           2:end]
+            x = dropdims(median(x[Freq = 1 .. 300], dims = SessionID), dims = SessionID)[:,
+                                                                                         2:end]
 
             ax = Axis(gs[i][1, 1], xlabel = "Frequency (Hz)", ylabel = "Cortical depth (%)",
                       xtickformat = depthticks,
@@ -248,9 +248,9 @@ for stimulus in stimuli
         Sr_log = map(ustripall.(S), L, meanlayers) do s, l, m
             s = deepcopy(s)
             l = deepcopy(l)
-            idxs = indexin(lookup(s, :sessionid), lookup(l, :sessionid))
+            idxs = indexin(lookup(s, SessionID), lookup(l, SessionID))
             l = l[:, idxs] # Match sessions just in case
-            map(eachslice(s, dims = (Depth, :sessionid)), l) do s, l
+            map(eachslice(s, dims = (Depth, SessionID)), l) do s, l
                 _s = log10.(ustripall(s))
                 s .= _s .- (_s |> freqs .|> l .|> log10)
             end
@@ -279,9 +279,9 @@ for stimulus in stimuli
                 s = dropdims(mean(s, dims = :layer), dims = :layer)
                 d = (length(layers) - i + 1) / 2
                 hlines!(ax2, [d]; color = (c, 0.22), linestyle = :dash)
-                μ = dropdims(mean(s, dims = :sessionid), dims = :sessionid) .+
+                μ = dropdims(mean(s, dims = SessionID), dims = SessionID) .+
                     d
-                σ = dropdims(std(s, dims = :sessionid), dims = :sessionid)
+                σ = dropdims(std(s, dims = SessionID), dims = SessionID)
                 band!(ax2, TimeseriesTools.freqs(μ), collect(μ .- σ), collect(μ .+ σ);
                       color = (c, bandalpha))
                 lines!(ax2, TimeseriesTools.freqs(μ), collect(μ); color = (c, alpha))
@@ -318,9 +318,9 @@ for stimulus in stimuli
                 s = dropdims(mean(s, dims = :layer), dims = :layer)
                 d = (length(layers) - i + 1) / 2
                 hlines!(ax2, [d]; color = (c, 0.22), linestyle = :dash)
-                μ = dropdims(mean(s, dims = :sessionid), dims = :sessionid) .+
+                μ = dropdims(mean(s, dims = SessionID), dims = SessionID) .+
                     d
-                σ = dropdims(std(s, dims = :sessionid), dims = :sessionid)
+                σ = dropdims(std(s, dims = SessionID), dims = SessionID)
                 band!(ax2, TimeseriesTools.freqs(μ), collect(μ .- σ), collect(μ .+ σ);
                       color = (c, bandalpha))
                 lines!(ax2, TimeseriesTools.freqs(μ), collect(μ); color = (c, alpha))
@@ -340,7 +340,7 @@ for stimulus in stimuli
     begin # * Recalculate the residual power in each band. Still in decibels, but labelled by depth
         Sr = deepcopy(ustripall.(S))
         map(Sr, L) do s, l # Map over structures
-            idxs = indexin(lookup(s, :sessionid), lookup(l, :sessionid))
+            idxs = indexin(lookup(s, SessionID), lookup(l, SessionID))
             l = l[:, idxs] # Match sessions just in case
             for i in CartesianIndices(l)
                 s[:, i] .= (s[:, i]) .- (l[i].(freqs(s[:, i]))) # Units of power spectral density
@@ -364,13 +364,13 @@ for stimulus in stimuli
             no = sum(ustripall(S[structure = At(s)]), dims = Freq) # Total power of each channel
             x = sum(ss, dims = Freq) ./ no # The fraction of power above the 1/f component in a given frequency band
             x = dropdims(x, dims = Freq)
-            μ = dropdims(mean(x, dims = :sessionid), dims = :sessionid)
-            # σl = dropdims(quantile(x, 0.25, dims = :sessionid), dims = :sessionid)
-            # σh = dropdims(quantile(x, 0.75, dims = :sessionid), dims = :sessionid)
-            # σ = dropdims(std(x, dims = :sessionid), dims = :sessionid) ./ 2
+            μ = dropdims(mean(x, dims = SessionID), dims = SessionID)
+            # σl = dropdims(quantile(x, 0.25, dims = SessionID), dims = SessionID)
+            # σh = dropdims(quantile(x, 0.75, dims = SessionID), dims = SessionID)
+            # σ = dropdims(std(x, dims = SessionID), dims = SessionID) ./ 2
             # σl = μ .- σ
             # σh = μ .+ σ
-            μ, (σl, σh) = bootstrapmedian(x, dims = :sessionid)
+            μ, (σl, σh) = bootstrapmedian(x, dims = SessionID)
             μ, σl, σh = upsample.((μ, σl, σh), 5)
 
             band!(ax, lookup(μ, 1), collect(σl), collect(σh);
@@ -401,7 +401,7 @@ for stimulus in stimuli
             no = sum(ustripall(S[structure = At(s)]), dims = Freq) # Total power of each channel
             ss = sum(ss, dims = Freq) ./ no # step(lookup(ss, Freq))
             ss = dropdims(ss, dims = Freq)
-            μ, (σl, σh) = bootstrapmedian(ss, dims = :sessionid)
+            μ, (σl, σh) = bootstrapmedian(ss, dims = SessionID)
             μ, σl, σh = upsample.((μ, σl, σh), 5)
             band!(ax, lookup(μ, 1), collect(σl), collect(σh);
                   color = (structurecolors[i], bandalpha), label = structures[i])
@@ -433,7 +433,7 @@ for stimulus in stimuli
     #         μ = sum(fs .* N, dims = Freq) ./ df # Center of mass of gamma band
     #         σ = sqrt.(sum((fs .- μ) .^ 2 .* N, dims = 1) ./ df)
     #         σ = dropdims(σ, dims = Freq)
-    #         μ, (σl, σh) = bootstrapmedian(σ, dims = :sessionid)
+    #         μ, (σl, σh) = bootstrapmedian(σ, dims = SessionID)
     #         μ, σl, σh = upsample.((μ, σl, σh), 5)
     #         band!(ax, lookup(μ, 1), collect(σl), collect(σh);
     #               color = (structurecolors[i], bandalpha), label = structures[i])
