@@ -35,7 +35,7 @@ for stimulus in stimuli
     begin # * Load data
         S = map(lookup(Q, :structure)) do structure
             out = map(lookup(Q, SessionID)) do sessionid
-                if Q[sessionid = At(sessionid), structure = At(structure)] == 0
+                if Q[SessionID = At(sessionid), structure = At(structure)] == 0
                     return nothing
                 end
                 filename = savepath((@strdict sessionid structure stimulus), "jld2", path)

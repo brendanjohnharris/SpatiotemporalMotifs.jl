@@ -48,7 +48,7 @@ begin
     GC.gc()
     pacc = map(pacc) do pa
         progressmap(pa; parallel = true) do p
-            p = p[depth = Near(unidepths)]
+            p = p[Depth = Near(unidepths)]
             set(p, Depth => unidepths)
         end
     end
@@ -107,7 +107,7 @@ begin # * Polar plot of coupling angle peaks (find peaks? what if there is more 
     end
     peaks = map(peaks) do pa
         map(pa) do p
-            p = p[depth = Near(unidepths)]
+            p = p[Depth = Near(unidepths)]
             set(p, Depth => unidepths)
         end
     end
@@ -198,7 +198,7 @@ begin # * Single-trial PAC
     GC.gc()
     trialpac = map(trialpac) do pa
         progressmap(pa; parallel = true) do p
-            p = p[depth = Near(unidepths)]
+            p = p[Depth = Near(unidepths)]
             set(p, Depth => unidepths)
         end
     end

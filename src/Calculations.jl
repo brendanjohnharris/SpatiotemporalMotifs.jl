@@ -434,7 +434,7 @@ function load_performance(; path = datadir("calculations"), stimulus = r"Natural
     Q = calcquality(path)[structure = At(structures)]
     out = map([lookup(Q, :structure) |> first]) do structure
         out = map(lookup(Q, SessionID)) do sessionid
-            if Q[sessionid = At(sessionid), structure = At(structure)] == 0
+            if Q[SessionID = At(sessionid), structure = At(structure)] == 0
                 return nothing
             end
             filename = savepath((@strdict sessionid structure stimulus), "jld2", path)
@@ -510,7 +510,7 @@ function collect_calculations(Q; path = datadir("calculations"), stimulus, rewri
             out = map(lookup(Q, :structure)) do structure
                 @info "Collecting data for structure $(structure)"
                 map(lookup(Q, SessionID)) do sessionid
-                    if Q[sessionid = At(sessionid), structure = At(structure),
+                    if Q[SessionID = At(sessionid), structure = At(structure),
                          stimulus = At(stimulus)] == 0
                         return nothing
                     end
@@ -545,7 +545,7 @@ function collect_calculations(Q; path = datadir("calculations"), stimulus, rewri
                     if !haskey(outfile[structure], sessionid)
                         @warn "Missing $(structure) $(sessionid)"
                         sessionid = tryparse(Int, sessionid)
-                        if Q[sessionid = At(sessionid), structure = At(structure),
+                        if Q[SessionID = At(sessionid), structure = At(structure),
                              stimulus = At(stimulus)] == 0
                             return nothing
                         end
@@ -582,23 +582,26 @@ function load_calculations(Q; vars = sort([:x, :ϕ, :r, :k, :ω]), stimulus, kwa
     end
 end
 
-function unify_calculations(out; stimulus, vars = sort([:x, :ϕ, :r, :k, :ω]),
-                            rewrite = false)
-    outfilepath = savepath("uni", Dict("stimulus" => stimulus), "jld2", datadir())
+function unify_calculations(Q; stimulus, vars = sort([:x, :ϕ, :r, :k, :ω]),
+                            rewrite = false, kwargs...)
+    unifilepath = savepath("uni", Dict("stimulus" => stimulus), "jld2", datadir())
     # * Filter to posthoc sessions
-    session_table = load(datadir("posthoc_session_table.jld2"), "session_table")
-    oursessions = session_table.ecephys_session_id
-    out = map(out) do O
-        filter(o -> (o[:sessionid] in oursessions), O)
-    end
-    @assert all(length.(out) .== length(oursessions))
+    if !isfile(unifilepath) || rewrite
+        @info "Loading calculations"
+        out = load_calculations(Q; vars, stimulus, kwargs...)
+        @info "Loaded calculations, unifying"
+        session_table = load(datadir("posthoc_session_table.jld2"), "session_table")
+        oursessions = session_table.ecephys_session_id
+        out = map(out) do O
+            filter(o -> (o[:sessionid] in oursessions), O)
+        end
+        @assert all(length.(out) .== length(oursessions))
 
-    stimuli = [[DimensionalData.metadata(o[first(vars)])[:stimulus] for o in out[i]]
-               for i in eachindex(out)]
-    stimulus = only(unique(vcat(stimuli...)))
-    if !isfile(outfilepath) || rewrite
-        jldopen(outfilepath, "w") do outfile
-            map(enumerate(out)) do (si, o)
+        stimuli = [[DimensionalData.metadata(o[first(vars)])[:stimulus] for o in out[i]]
+                   for i in eachindex(out)]
+        stimulus = only(unique(vcat(stimuli...)))
+        jldopen(unifilepath, "w") do outfile
+            progressmap(enumerate(out)) do (si, o)
                 @info "Collecting data for structure $(structures[si])"
                 sessionids = getindex.(o, :sessionid)
                 streamlinedepths = getindex.(o, :streamlinedepths)
@@ -609,7 +612,7 @@ function unify_calculations(out; stimulus, vars = sort([:x, :ϕ, :r, :k, :ω]),
                     if last(l) ∈ ["or", "scwm", "cing"] # Sometime anomalies at the boundary; we fall back on the channel structure labels, the ground truth, for confidence that this is still a cortical channel
                         l[end] = l[end - 1]
                     end
-                    l[depth = Near(unidepths)]
+                    l[Depth = Near(unidepths)]
                 end
                 layernums = [ToolsArray(parselayernum.(parent(p)), dims(p))
                              for p in layernames]
@@ -618,7 +621,7 @@ function unify_calculations(out; stimulus, vars = sort([:x, :ϕ, :r, :k, :ω]),
                 # * each layer
                 layerints = map(unique(vcat(parent.(layernums)...))) do l
                     depths = map(enumerate(layernums)) do (sid, ls)
-                        if sum(ls .== l) == 0 # !!! BROKEN!!! No intersections with this layer??
+                        if sum(ls .== l) == 0
                             ma = sum(ls .== l - 1) == 0 ? 1.0 :
                                  maximum(lookup(ls[ls .== l - 1], Depth))
                             mi = sum(ls .== l + 1) == 0 ? 0.0 :
@@ -633,12 +636,15 @@ function unify_calculations(out; stimulus, vars = sort([:x, :ϕ, :r, :k, :ω]),
                     Interval(extrema(vcat(depths...))...)
                 end
 
-                ovars = @strdict oursessions unidepths layerints layernames layernums
+                ovars = Dict()
+                for (k, v) in pairs(@strdict oursessions unidepths layerints layernames layernums)
+                    push!(ovars, k => v)
+                end
 
                 for v in vars
                     k = map(o) do p
                         k = p[v]
-                        k = k[depth = Near(unidepths)]
+                        k = k[Depth = Near(unidepths)]
                         k = set(k, Depth => Depth(unidepths))
                         if stimulus == r"Natural_Images"
                             d = Trial(p[:trials].hit[1:size(k,
@@ -661,16 +667,16 @@ function unify_calculations(out; stimulus, vars = sort([:x, :ϕ, :r, :k, :ω]),
                     else
                         k = stack(SessionID(sessionids), k)
                     end
-                    push!(ovars, v => k)
+                    push!(ovars, string(v) => k)
                 end
-
+                @info "Saving data for $(structures[si])"
                 for (k, v) in pairs(ovars)
-                    outfile[string(structures[si]) * "/" * string(k)] = v
+                    outfile[string(structures[si]) * "/" * k] = v
                 end
             end
         end
     end
-    return uni
+    return unifilepath
 end
 
 # function produce_out(Q::AbstractToolsArray, config; path = datadir("calculations"))
@@ -684,16 +690,29 @@ end
 #     Q = calcquality(path)[structure = At(structures)]
 #     return produce_out(Q, config; path)
 # end
-function collect_uni(config; vars = sort([:x, :ϕ, :r, :k, :ω]),
-                     path = datadir("calculations"),
-                     structures = SpatiotemporalMotifs.structures, kwargs...)
-    @info "Collecting unified data"
+function load_uni(; stimulus, vars = sort([:x, :ϕ, :r, :k, :ω]),
+                  path = datadir("calculations"),
+                  structures = SpatiotemporalMotifs.structures,
+                  kwargs...)
     Q = calcquality(path)[structure = At(structures)]
-    out = load_calculations(Q; vars, kwargs...)
-    uni = unify_calculations(out; vars) # ! This should save to file instead of returning
-    # return @strdict uni outfile
+    unifilepath = unify_calculations(Q; stimulus)
+    @info "Loading unified data $vars for $stimulus"
+    commonvars = [:oursessions, :unidepths, :layerints, :layernames, :layernums]
+    jldopen(unifilepath, "r") do unifile
+        @assert sort(keys(unifile)) == sort(structures)
+        out = progressmap(structures) do structure
+            D = Dict()
+            for v in vars
+                D[v] = unifile[structure][string(v)]
+            end
+            for v in commonvars
+                D[v] = unifile[structure][string(v)]
+            end
+            return D
+        end
+        return out
+    end
 end
-produce_uni(; kwargs...) = config -> produce_uni(config; kwargs...)
 
 function produce_unitdepths(sessionids)
     Ds = map(sessionids) do sessionid

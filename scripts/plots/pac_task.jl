@@ -21,7 +21,7 @@ oursessions = session_table.ecephys_session_id
 
 path = datadir("calculations")
 Q = calcquality(path)[structure = At(structures)]
-Q = Q[sessionid = At(oursessions)]
+Q = Q[SessionID = At(oursessions)]
 quality = mean(Q[stimulus = At(stimulus)])
 
 begin # * Set up main figure
@@ -44,7 +44,7 @@ for stimulus in stimuli
     begin # * Load data
         S = map(lookup(_Q, :structure)) do structure
             out = map(lookup(_Q, SessionID)) do sessionid
-                if _Q[sessionid = At(sessionid), structure = At(structure)] == 0
+                if _Q[SessionID = At(sessionid), structure = At(structure)] == 0
                     return nothing
                 end
                 filename = savepath((@strdict sessionid structure stimulus), "jld2",
