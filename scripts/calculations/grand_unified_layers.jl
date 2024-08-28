@@ -24,7 +24,6 @@ oursessions = session_table.ecephys_session_id
 
 # * Theta wavenumber
 vars = [:k]
-# config = @strdict stimulus vars
 uni = load_uni(; stimulus, vars)
 begin # * Grand  unified layers
     layerints = getindex.(uni, :layerints)

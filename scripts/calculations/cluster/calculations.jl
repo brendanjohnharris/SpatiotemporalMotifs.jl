@@ -17,7 +17,7 @@ outpath = datadir("calculations")
 rewrite = false
 
 if haskey(ENV, "JULIA_DISTRIBUTED") # ? Should take a night or so
-    procs = addprocs(10; ncpus = 5, mem = 50,
+    procs = addprocs(4; ncpus = 10, mem = 50,
                      walltime = 96, project) # ! If you have workers dying unexpectedly, try increasing the memory for each job
     @everywhere begin
         import SpatiotemporalMotifs: send_calculations, on_error
@@ -25,10 +25,9 @@ if haskey(ENV, "JULIA_DISTRIBUTED") # ? Should take a night or so
         rewrite = $rewrite
     end
     O = pmap(x -> send_calculations.(x; outpath, rewrite), oursessions; on_error)
-    fetch.(O)
+    # fetch.(O)
     display("All workers completed")
 end
 SM.send_calculations.(reverse(oursessions); outpath, rewrite) # ? This version will take a few days if the above calculations errored, otherwise a few minutes (checks all calcualtions are correct)
-# SM.send_calculations(first(oursessions); outpath, rewrite)
 Q = calcquality(datadir("calculations"))
 # @sync selfdestruct()
