@@ -27,7 +27,7 @@ oursessions = session_table.ecephys_session_id
 
 for stimulus in stimuli
     path = datadir("power_spectra")
-    Q = calcquality(path)[stimulus = At(stimulus), structure = At(structures)]
+    Q = calcquality(path)[stimulus = At(stimulus), Structure = At(structures)]
     Q = Q[SessionID(At(oursessions))]
     filebase = stimulus == "spontaneous" ? "" : "_$stimulus"
     f = FourPanel()
@@ -35,7 +35,7 @@ for stimulus in stimuli
     begin # * Load data
         S = map(lookup(Q, Structure)) do structure
             out = map(lookup(Q, SessionID)) do sessionid
-                if Q[SessionID = At(sessionid), structure = At(structure)] == 0
+                if Q[SessionID = At(sessionid), Structure = At(structure)] == 0
                     return nothing
                 end
                 filename = savepath((@strdict sessionid structure stimulus), "jld2", path)

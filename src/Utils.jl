@@ -98,6 +98,8 @@ function calcquality(dirname; suffix = "jld2", connector = connector)
             return SessionID
         elseif d == "trial"
             return Trial
+        elseif d == "structure"
+            return Structure
         else
             return Dim{Symbol(d)}
         end

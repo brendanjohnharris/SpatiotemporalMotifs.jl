@@ -88,3 +88,20 @@ begin
 end
 # Read the dataframe as read("$(@__DIR__)/../session_table.json", String) |> JSON.parse |>
 # DataFrame
+
+# begin
+#     folder = "/headnode2/bhar9988/code/DDC/SpatiotemporalMotifs/data/calculations"
+#     files = readdir(folder)
+
+#     file = files[1]
+#     jldopen(joinpath(folder, file), "a+") do f
+#         for k in keys(f)
+#             if f[k] isa AbstractDimArray
+#                 print(dims(f[k]))
+#                 if "structure" ∈ dimname.(dims(f[k]))
+#                     println(k)
+#                 end
+#             end
+#         end
+#     end
+# end

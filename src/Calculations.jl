@@ -434,7 +434,7 @@ function load_performance(; path = datadir("calculations"), stimulus = r"Natural
     Q = calcquality(path)[Structure = At(structures)]
     out = map([lookup(Q, Structure) |> first]) do structure
         out = map(lookup(Q, SessionID)) do sessionid
-            if Q[SessionID = At(sessionid), structure = At(structure)] == 0
+            if Q[SessionID = At(sessionid), Structure = At(structure)] == 0
                 return nothing
             end
             filename = savepath((@strdict sessionid structure stimulus), "jld2", path)
@@ -510,7 +510,7 @@ function collect_calculations(Q; path = datadir("calculations"), stimulus, rewri
             out = map(lookup(Q, Structure)) do structure
                 @info "Collecting data for structure $(structure)"
                 map(lookup(Q, SessionID)) do sessionid
-                    if Q[SessionID = At(sessionid), structure = At(structure),
+                    if Q[SessionID = At(sessionid), Structure = At(structure),
                          stimulus = At(stimulus)] == 0
                         return nothing
                     end
@@ -545,7 +545,7 @@ function collect_calculations(Q; path = datadir("calculations"), stimulus, rewri
                     if !haskey(outfile[structure], sessionid)
                         @warn "Missing $(structure) $(sessionid)"
                         sessionid = tryparse(Int, sessionid)
-                        if Q[SessionID = At(sessionid), structure = At(structure),
+                        if Q[SessionID = At(sessionid), Structure = At(structure),
                              stimulus = At(stimulus)] == 0
                             return nothing
                         end

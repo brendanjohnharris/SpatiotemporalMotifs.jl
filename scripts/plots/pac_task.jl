@@ -32,7 +32,7 @@ end
 stimuli = ["r\"Natural_Images\"", "spontaneous", "flash_250ms"]
 pQ = calcquality(datadir("power_spectra"))
 for stimulus in stimuli
-    _Q = pQ[stimulus = At(stimulus), structure = At(structures)]
+    _Q = pQ[stimulus = At(stimulus), Structure = At(structures)]
     subsessions = intersect(oursessions, lookup(_Q, SessionID))
     if length(subsessions) < length(oursessions)
         @warn "Power spectra calculations are incomplete, proceeding regardless"
@@ -44,7 +44,7 @@ for stimulus in stimuli
     begin # * Load data
         S = map(lookup(_Q, Structure)) do structure
             out = map(lookup(_Q, SessionID)) do sessionid
-                if _Q[SessionID = At(sessionid), structure = At(structure)] == 0
+                if _Q[SessionID = At(sessionid), Structure = At(structure)] == 0
                     return nothing
                 end
                 filename = savepath((@strdict sessionid structure stimulus), "jld2",
