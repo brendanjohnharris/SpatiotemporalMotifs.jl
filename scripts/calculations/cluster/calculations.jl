@@ -4,6 +4,8 @@ exec julia -t auto "${BASH_SOURCE[0]}" "$@"
 =#
 using DrWatson
 @quickactivate "SpatiotemporalMotifs"
+using Pkg
+Pkg.instantiate()
 project = Base.active_project()
 import AllenNeuropixels as AN
 import SpatiotemporalMotifs as SM
@@ -20,6 +22,8 @@ if haskey(ENV, "JULIA_DISTRIBUTED") # ? Should take a night or so
     procs = addprocs(3; ncpus = 10, mem = 64,
                      walltime = 96, project) # ! If you have workers dying unexpectedly, try increasing the memory for each job
     @everywhere begin
+        using Pkg
+        Pkg.instantiate()
         import SpatiotemporalMotifs: send_calculations, on_error
         outpath = $outpath
         rewrite = $rewrite
@@ -29,5 +33,5 @@ if haskey(ENV, "JULIA_DISTRIBUTED") # ? Should take a night or so
     display("All workers completed")
 end
 SM.send_calculations.(reverse(oursessions); outpath, rewrite) # ? This version will take a few days if the above calculations errored, otherwise a few minutes (checks all calcualtions are correct)
-Q = calcquality(datadir("calculations"))
+Q = SM.calcquality(datadir("calculations"))
 # @sync selfdestruct()
