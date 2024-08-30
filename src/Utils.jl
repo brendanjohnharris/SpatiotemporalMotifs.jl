@@ -91,13 +91,23 @@ function calcquality(dirname; suffix = "jld2", connector = connector)
         vs = replace(vs, "Natural_Images" => r"Natural_Images")
         uvs[si] = replace(uvs[si], "Natural_Images" => r"Natural_Images")
     end
-    ddims = Tuple([Dim{Symbol(d)}(s) for (s, d) in zip(uvs, dims)])
+
+    function map2dims(d)
+        if d == "sessionid"
+            return SessionID
+        elseif d == "trial"
+            return Trial
+        else
+            return Dim{Symbol(d)}
+        end
+    end
+    ddims = Tuple([map2dims(d)(s) for (s, d) in zip(uvs, dims)])
 
     Q = Array{Bool}(undef, length.(uvs)...)
     Q = ToolsArray(Q, ddims)
     Q .= false
     for v in eachcol(vs)
-        ds = [Dim{Symbol(d)}(At(s)) for (s, d) in zip(v, dims)]
+        ds = [map2dims(d)(At(s)) for (s, d) in zip(v, dims)]
         Q[ds...] = true
     end
     if any(isa.(DimensionalData.dims(Q), (Dim{:structure},))) &&
