@@ -33,7 +33,7 @@ for stimulus in stimuli
     f = FourPanel()
 
     begin # * Load data
-        S = map(lookup(Q, :structure)) do structure
+        S = map(lookup(Q, Structure)) do structure
             out = map(lookup(Q, SessionID)) do sessionid
                 if Q[SessionID = At(sessionid), structure = At(structure)] == 0
                     return nothing
@@ -97,8 +97,8 @@ for stimulus in stimuli
             end
             cat(ss..., dims = :layer)
         end
-        S̄ = ToolsArray(S̄ |> collect, (Dim{:structure}(lookup(Q, :structure)),))
-        S = ToolsArray(S |> collect, (Dim{:structure}(lookup(Q, :structure)),))
+        S̄ = ToolsArray(S̄ |> collect, (Structure(lookup(Q, Structure)),))
+        S = ToolsArray(S |> collect, (Structure(lookup(Q, Structure)),))
         S̄ = map(S̄) do s
             N = UnitEnergy(s, dims = 1)
             N(s)
@@ -129,7 +129,7 @@ for stimulus in stimuli
                 linewidth = 4)
 
         psa = map(enumerate(structures)) do (i, s)
-            s = S̄[structure = At(s)][Freq = 3u"Hz" .. 300u"Hz"]
+            s = S̄[Structure = At(s)][Freq = 3u"Hz" .. 300u"Hz"]
             s = s ./ 10^((i - 1.5) / 2.5)
             yc = only(mean(s[Freq = Near(3u"Hz")]))
             if i == 1
@@ -176,7 +176,7 @@ for stimulus in stimuli
             save(file, Dict("χ" => χ, "L" => L))
         end
         L = getindex.(L, [SessionID(At(oursessions))])
-        L = L[structure = At(structures)]
+        L = L[Structure = At(structures)]
         @assert all(last.(size.(L)) .≥ last.(size.(S))) # Check we have residuals for all sessions we have spectra for
     end
 
@@ -259,7 +259,7 @@ for stimulus in stimuli
         end
 
         Sr_log = ToolsArray(Sr_log |> collect,
-                            (Dim{:structure}(lookup(Q, :structure)),))
+                            (Structure(lookup(Q, Structure)),))
 
         for (i, structure) in enumerate(["VISl"])
             ax2 = Axis(f[1, i + 1]; xscale = log10,
@@ -274,7 +274,7 @@ for stimulus in stimuli
                     linewidth = 4)
 
             for (i, (c, l)) in (reverse ∘ collect ∘ enumerate ∘ zip)(layercolors, layers)
-                s = Sr_log[structure = At(structure)][Freq(3 .. 300)]
+                s = Sr_log[Structure = At(structure)][Freq(3 .. 300)]
                 s = s[layer = (lookup(s, :layer) .== [l])]
                 s = dropdims(mean(s, dims = :layer), dims = :layer)
                 d = (length(layers) - i + 1) / 2
@@ -313,7 +313,7 @@ for stimulus in stimuli
                     linewidth = 4)
 
             for (i, (c, l)) in (reverse ∘ collect ∘ enumerate ∘ zip)(layercolors, layers)
-                s = Sr_log[structure = At(structure)][Freq(3 .. 300)]
+                s = Sr_log[Structure = At(structure)][Freq(3 .. 300)]
                 s = s[layer = (lookup(s, :layer) .== [l])]
                 s = dropdims(mean(s, dims = :layer), dims = :layer)
                 d = (length(layers) - i + 1) / 2
@@ -357,11 +357,11 @@ for stimulus in stimuli
                   title = "Residual θ power") # [$(unit(eltype(S[1][1])))]
 
         for (i, s) in reverse(collect(enumerate(structures)))
-            ss = Sr[structure = At(s)][Freq(theta)]
+            ss = Sr[Structure = At(s)][Freq(theta)]
             # ss = upsample(ss, 5, 2)
-            # no = mean(sum(ustripall(S[structure = At(s)]), dims = Freq);
+            # no = mean(sum(ustripall(S[Structure = At(s)]), dims = Freq);
             #           dims = Depth)
-            no = sum(ustripall(S[structure = At(s)]), dims = Freq) # Total power of each channel
+            no = sum(ustripall(S[Structure = At(s)]), dims = Freq) # Total power of each channel
             x = sum(ss, dims = Freq) ./ no # The fraction of power above the 1/f component in a given frequency band
             x = dropdims(x, dims = Freq)
             μ = dropdims(mean(x, dims = SessionID), dims = SessionID)
@@ -395,10 +395,10 @@ for stimulus in stimuli
                   title = "Residual γ power") # [$(unit(eltype(S[1][1])))]
 
         for (i, s) in structures |> enumerate |> collect |> reverse
-            ss = Sr[structure = At(s)][Freq(gamma)]
-            # no = mean(sum(ustripall(S[structure = At(s)]), dims = Freq);
+            ss = Sr[Structure = At(s)][Freq(gamma)]
+            # no = mean(sum(ustripall(S[Structure = At(s)]), dims = Freq);
             #           dims = Depth)
-            no = sum(ustripall(S[structure = At(s)]), dims = Freq) # Total power of each channel
+            no = sum(ustripall(S[Structure = At(s)]), dims = Freq) # Total power of each channel
             ss = sum(ss, dims = Freq) ./ no # step(lookup(ss, Freq))
             ss = dropdims(ss, dims = Freq)
             μ, (σl, σh) = bootstrapmedian(ss, dims = SessionID)
@@ -425,7 +425,7 @@ for stimulus in stimuli
     #               yticklabelrotation = π / 2)
 
     #     for (i, s) in (reverse ∘ collect ∘ enumerate)(structures)
-    #         ss = Sr[structure = At(s)][Freq(gamma)]
+    #         ss = Sr[Structure = At(s)][Freq(gamma)]
     #         ss[ss .< 0] .-= minimum(ss) # ! Ok?
     #         df = ustrip(step(lookup(Sr[1], Freq)))
     #         N = ss ./ (sum(ss, dims = 1) ./ df) # A density

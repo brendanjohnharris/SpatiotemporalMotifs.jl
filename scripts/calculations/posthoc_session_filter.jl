@@ -21,7 +21,7 @@ oursessions = deepcopy(session_table)
 
 begin
     path = datadir("calculations")
-    Q = calcquality(path)[structure = At(structures)]
+    Q = calcquality(path)[Structure = At(structures)]
     quality = mean(Q[stimulus = At(stimulus)])
     out = load_calculations(Q; stimulus, vars = [:r])
 end

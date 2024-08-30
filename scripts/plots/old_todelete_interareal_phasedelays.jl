@@ -23,7 +23,7 @@ session_table = load(datadir("session_table.jld2"), "session_table")
 oursessions = session_table.ecephys_session_id
 
 path = datadir("calculations")
-Q = calcquality(path)[structure = At(structures)]
+Q = calcquality(path)[Structure = At(structures)]
 
 config = @strdict stimulus vars
 data, file = produce_or_load(produce_out(Q), config, datadir(); filename = savepath,
@@ -57,14 +57,14 @@ begin # * Uniphi
     uniphi = map(uniphi) do phi
         set(phi[Depth(Near(unidepths))], Depth => Depth(unidepths))
     end
-    uniphi = stack(Dim{:structure}(structures), uniphi)
+    uniphi = stack(Structure(structures), uniphi)
     uniphi = uniphi[1:5:end, :, :, :] # Downsample
 end
 
 begin # * Massive
-    xs = getindex.([visual_cortex_layout], lookup(uniphi, :structure)) .|> first .|> Float32
-    ys = getindex.([visual_cortex_layout], lookup(uniphi, :structure)) .|> last .|> Float32
-    hs = getindex.([hierarchy_scores], lookup(uniphi, :structure)) .|> Float32
+    xs = getindex.([visual_cortex_layout], lookup(uniphi, Structure)) .|> first .|> Float32
+    ys = getindex.([visual_cortex_layout], lookup(uniphi, Structure)) .|> last .|> Float32
+    hs = getindex.([hierarchy_scores], lookup(uniphi, Structure)) .|> Float32
     xs = MinMax(xs)(xs)
     ys = MinMax(ys)(ys)
     hs = MinMax(hs)(hs)
@@ -109,14 +109,14 @@ begin
 end
 
 begin # * Calculate ρ_x, ρ_y, ρ_h for unified depths in each subject
-    xs = getindex.([visual_cortex_layout], lookup(uniphi, :structure)) .|> first
-    ys = getindex.([visual_cortex_layout], lookup(uniphi, :structure)) .|> last
-    hs = getindex.([hierarchy_scores], lookup(uniphi, :structure))
+    xs = getindex.([visual_cortex_layout], lookup(uniphi, Structure)) .|> first
+    ys = getindex.([visual_cortex_layout], lookup(uniphi, Structure)) .|> last
+    hs = getindex.([hierarchy_scores], lookup(uniphi, Structure))
     xs = MinMax(xs)(xs)
     ys = MinMax(ys)(ys)
     hs = MinMax(hs)(hs)
 
-    ρ_x = similar(uniphi[structure = At("VISp")])
+    ρ_x = similar(uniphi[Structure = At("VISp")])
     ρ_y = similar(ρ_x)
     ρ_h = similar(ρ_x)
     Threads.@threads for (i, uphi) in collect(enumerate(eachslice(uniphi, dims = 1)))

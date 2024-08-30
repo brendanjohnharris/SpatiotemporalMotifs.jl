@@ -31,7 +31,7 @@ begin # * Extract burst mask from each trial. Takes about 15 minutes on 32 cores
         m, Δt, Δx, ints, schemr = load(file, "m", "Δt", "Δx", "ints", "schemr")
     else
         path = datadir("calculations")
-        Q = calcquality(path)[structure = At(structures)]
+        Q = calcquality(path)[Structure = At(structures)]
         quality = mean(Q[stimulus = At(stimulus)])
         config = @strdict stimulus vars
         data, _ = produce_or_load(produce_out(Q), config, datadir(); filename = savepath,

@@ -59,7 +59,8 @@ const structures = ["VISp", "VISl", "VISrl", "VISal", "VISpm", "VISam"]
 
 DimensionalData.@dim SessionID ToolsDim "SessionID"
 DimensionalData.@dim Trial ToolsDim "Trial"
-export SessionID, Trial
+DimensionalData.@dim Structure ToolsDim "Structure"
+export SessionID, Trial, Structure
 
 function calcquality(dirname; suffix = "jld2", connector = connector)
     files = readdir(dirname)
@@ -110,9 +111,9 @@ function calcquality(dirname; suffix = "jld2", connector = connector)
         ds = [map2dims(d)(At(s)) for (s, d) in zip(v, dims)]
         Q[ds...] = true
     end
-    if any(isa.(DimensionalData.dims(Q), (Dim{:structure},))) &&
-       all(lookup(Q, :structure) .∈ [structures])
-        Q = Q[structure = At(structures)] # * Sort to global structures order
+    if any(isa.(DimensionalData.dims(Q), (Structure,))) &&
+       all(lookup(Q, Structure) .∈ [structures])
+        Q = Q[Structure = At(structures)] # * Sort to global structures order
     end
     return Q
 end

@@ -27,7 +27,7 @@ session_table = load(datadir("session_table.jld2"), "session_table")
 oursessions = session_table.ecephys_session_id
 
 path = datadir("calculations")
-Q = calcquality(path)[structure = At(structures)]
+Q = calcquality(path)[Structure = At(structures)]
 quality = mean(Q[stimulus = At(stimulus)])
 
 config = @strdict stimulus vars

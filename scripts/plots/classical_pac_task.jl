@@ -21,7 +21,7 @@ session_table = load(datadir("posthoc_session_table.jld2"), "session_table")
 oursessions = session_table.ecephys_session_id
 
 path = datadir("calculations")
-Q = calcquality(path)[structure = At(structures)]
+Q = calcquality(path)[Structure = At(structures)]
 quality = mean(Q[stimulus = At(stimulus)])
 
 begin

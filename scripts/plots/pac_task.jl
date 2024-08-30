@@ -20,7 +20,7 @@ session_table = load(datadir("posthoc_session_table.jld2"), "session_table")
 oursessions = session_table.ecephys_session_id
 
 path = datadir("calculations")
-Q = calcquality(path)[structure = At(structures)]
+Q = calcquality(path)[Structure = At(structures)]
 Q = Q[SessionID = At(oursessions)]
 quality = mean(Q[stimulus = At(stimulus)])
 
@@ -42,7 +42,7 @@ for stimulus in stimuli
     f = Figure(size = (900, 1080))
 
     begin # * Load data
-        S = map(lookup(_Q, :structure)) do structure
+        S = map(lookup(_Q, Structure)) do structure
             out = map(lookup(_Q, SessionID)) do sessionid
                 if _Q[SessionID = At(sessionid), structure = At(structure)] == 0
                     return nothing
@@ -86,7 +86,7 @@ for stimulus in stimuli
         structure = "VISl"
         ax = Axis(mgs[1][1, 1]; title = structure, xlabel = "Phase frequency (Hz)",
                   ylabel = "Amplitude frequency (Hz)")
-        s = S[lookup(_Q, :structure) .== structure] |> only
+        s = S[lookup(_Q, Structure) .== structure] |> only
         display(s)
         s = dropdims(mean(s, dims = SessionID); dims = SessionID)
         s = upsample(s, 5, 1)

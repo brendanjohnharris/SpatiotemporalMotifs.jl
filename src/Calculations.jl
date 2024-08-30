@@ -431,8 +431,8 @@ function test_calculations(args...; N = 10, kwargs...)
 end
 
 function load_performance(; path = datadir("calculations"), stimulus = r"Natural_Images")
-    Q = calcquality(path)[structure = At(structures)]
-    out = map([lookup(Q, :structure) |> first]) do structure
+    Q = calcquality(path)[Structure = At(structures)]
+    out = map([lookup(Q, Structure) |> first]) do structure
         out = map(lookup(Q, SessionID)) do sessionid
             if Q[SessionID = At(sessionid), structure = At(structure)] == 0
                 return nothing
@@ -507,7 +507,7 @@ function collect_calculations(Q; path = datadir("calculations"), stimulus, rewri
     subvars = sort([:x, :ϕ, :r, :k, :ω])
     if !isfile(outfilepath) || rewrite
         jldopen(outfilepath, "w") do outfile
-            out = map(lookup(Q, :structure)) do structure
+            out = map(lookup(Q, Structure)) do structure
                 @info "Collecting data for structure $(structure)"
                 map(lookup(Q, SessionID)) do sessionid
                     if Q[SessionID = At(sessionid), structure = At(structure),
@@ -687,14 +687,14 @@ end
 # produce_out(; kwargs...) = config -> produce_out(config; kwargs...)
 # function produce_out(config; path = datadir("calculations"),
 #                      structures = SpatiotemporalMotifs.structures)
-#     Q = calcquality(path)[structure = At(structures)]
+#     Q = calcquality(path)[Structure = At(structures)]
 #     return produce_out(Q, config; path)
 # end
 function load_uni(; stimulus, vars = sort([:x, :ϕ, :r, :k, :ω]),
                   path = datadir("calculations"),
                   structures = SpatiotemporalMotifs.structures,
                   kwargs...)
-    Q = calcquality(path)[structure = At(structures)]
+    Q = calcquality(path)[Structure = At(structures)]
     unifilepath = unify_calculations(Q; stimulus)
     @info "Loading unified data $vars for $stimulus"
     commonvars = [:oursessions, :unidepths, :layerints, :layernames, :layernums]

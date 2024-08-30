@@ -24,7 +24,7 @@ session_table = load(datadir("posthoc_session_table.jld2"), "session_table")
 oursessions = session_table.ecephys_session_id
 
 path = datadir("calculations")
-Q = calcquality(path)[structure = At(structures)]
+Q = calcquality(path)[Structure = At(structures)]
 
 config = @strdict stimulus vars
 data, file = produce_or_load(produce_out(Q), config, datadir(); filename = savepath,
@@ -171,7 +171,7 @@ begin # * Analyze phase delays
         ϕ = set.(ϕ, [𝑡 => times(ϕ[1])])
         ϕ = set.(ϕ, [Depth => Depth(unidepths)])
         ϕ = set.(ϕ, [Dim{:changetime} => Dim{:changetime}(changetimes)])
-        uniphi = stack(Dim{:structure}(structures), ϕ)
+        uniphi = stack(Structure(structures), ϕ)
         Δ = [(a, b) for a in eachslice(uniphi, dims = 4), b in eachslice(uniphi, dims = 4)]
         Δ = Δ[filter(!=(0), triu(LinearIndices(Δ), 1))]
         Δ = map(Δ) do (a, b) # ! Check interpretation of phase difference to propagation direction
@@ -349,7 +349,7 @@ begin # * Animate the phase at any given moment, interpolating the background,
                              dims = :changetime), 𝑡 => times(ϕs[1][1])[1:1562]),
                 Depth => Depth(unidepths))
         end
-        stack(Dim{:structure}(structures), ϕ |> collect)
+        stack(Structure(structures), ϕ |> collect)
     end
     mphi = cat(mphi...; dims = SessionID(oursessions))
     mphi = dropdims(circularmean(mphi; dims = SessionID); dims = SessionID)
@@ -367,7 +367,7 @@ begin
         set(set(p[1:1562, :, n], 𝑡 => times(ϕs[1][1])[1:1562]),
             Depth => Depth(unidepths))
     end
-    subphi = cat(subphi...; dims = Dim{:structure}(structures))
+    subphi = cat(subphi...; dims = Structure(structures))
     subphi = subphi[:, d, :]
     subpar = ∂[end][:, d, n]
     subh = ∂h[end][:, d, n]

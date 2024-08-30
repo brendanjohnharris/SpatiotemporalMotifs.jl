@@ -20,7 +20,7 @@ session_table = load(datadir("session_table.jld2"), "session_table")
 oursessions = session_table.ecephys_session_id
 
 path = datadir("calculations")
-Q = calcquality(path)[structure = At(structures)]
+Q = calcquality(path)[Structure = At(structures)]
 quality = mean(Q[stimulus = At(stimulus)])
 
 config = @strdict stimulus vars
@@ -59,7 +59,7 @@ begin # * LDA input data and downsampling
     # * Make sure temporal dims same size
     ts = intersect([intersect(lookup.(h, 𝑡)...) for h in H]...)
     H = [[_h[Ti = At(ts)] for _h in h] for h in H]
-    H = stack.([Dim{:structure}(structures)], H, dims = 3)
+    H = stack.([Structure(structures)], H, dims = 3)
     H = permutedims.(H, [(1, 3, 2)])
 
     H = [h[1:10:end, :, :] for h in H]
@@ -139,8 +139,8 @@ begin
               title = "Regional classification weights")
     vlines!(ax, [0, 0.25], color = (:black, 0.2), linestyle = :dash)
     hlines!(ax, [0], color = (:black, 0.5), linewidth = 2)
-    for structure in lookup(W, :structure)
-        ws = W[structure = At(structure)]
+    for structure in lookup(W, Structure)
+        ws = W[Structure = At(structure)]
         ws = upsample(ws, 5, 1)
         ts = ustripall(lookup(ws, 𝑡))
         μ = mean(ws, dims = SessionID) |> vec
