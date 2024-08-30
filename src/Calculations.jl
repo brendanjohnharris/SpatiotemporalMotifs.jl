@@ -52,7 +52,6 @@ function send_powerspectra(sessionid; outpath = datadir("power_spectra"),
                 channels = lookup(LFP, Chan)
                 # N = fit(UnitPower, LFP, dims=1) normalize!(LFP, N)
                 S = powerspectrum(LFP, 0.1; padding = 10000)
-
                 S = S[Freq(params[:pass][1] * u"Hz" .. params[:pass][2] * u"Hz")]
                 depths = AN.getchanneldepths(session, LFP; method = :probe)
                 S = set(S, Chan => Depth(depths))
@@ -105,11 +104,11 @@ function send_powerspectra(sessionid; outpath = datadir("power_spectra"),
                                       fₐ = 25:1:125, dp = 2, da = 20)
                 N = min(360000, size(LFP, 1))
                 C = progressmap(c, eachslice(LFP[1:N, :], dims = 2); parallel = true)
-                C = stack(dims(LFP[1:N, :], Chan), C, dims = 3)
+                C = stack(dims(LFP[1:N, :], Chan), ToolsArray.(C), dims = 3)
                 sLFP = mapslices(x -> surrogate(ustripall(parent(x)), IAAFT()), LFP[1:N, :],
                                  dims = 1)
                 sC = progressmap(c, eachslice(sLFP, dims = 2); parallel = true)
-                sC = stack(dims(LFP[1:N, :], Chan), sC, dims = 3)
+                sC = stack(dims(LFP[1:N, :], Chan), ToolsArray.(sC), dims = 3)
 
                 begin
                     f = Figure()
@@ -145,7 +144,7 @@ function send_powerspectra(sessionid; outpath = datadir("power_spectra"),
                     idxs = randperm(size(ϕ, Depth))
                     ϕ = set(ϕ, ϕ[:, idxs]) # Spatially shuffle channels
                     k = -centralderiv(ϕ, dims = Depth, grad = phasegrad)
-                    Rs = dropdims(mean(sign.(k), dims = Depth); dims = Depth)
+                    sR = dropdims(mean(sign.(k), dims = Depth); dims = Depth)
                 end
 
                 D = Dict(DimensionalData.metadata(LFP))

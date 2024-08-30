@@ -60,7 +60,8 @@ const structures = ["VISp", "VISl", "VISrl", "VISal", "VISpm", "VISam"]
 DimensionalData.@dim SessionID ToolsDim "SessionID"
 DimensionalData.@dim Trial ToolsDim "Trial"
 DimensionalData.@dim Structure ToolsDim "Structure"
-export SessionID, Trial, Structure
+const Freq = TimeseriesTools.𝑓
+export SessionID, Trial, Structure, Freq
 
 function calcquality(dirname; suffix = "jld2", connector = connector)
     files = readdir(dirname)
