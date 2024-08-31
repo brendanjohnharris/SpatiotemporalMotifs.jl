@@ -12,13 +12,13 @@ ENV["JULIA_DEBUG"] = "AllenNeuropixelsBase"
 
 session_table = load(datadir("session_table.jld2"), "session_table")
 oursessions = session_table.ecephys_session_id
-SM.send_powerspectra(first(oursessions); rewrite=false, retry_errors=true)
+SM.send_powerspectra(last(oursessions); rewrite = false, retry_errors = true)
 if haskey(ENV, "JULIA_DISTRIBUTED")
     exprs = map(oursessions) do o
         expr = quote
             using Pkg
-	    Pkg.instantiate()
-	    import SpatiotemporalMotifs as SM
+            Pkg.instantiate()
+            import SpatiotemporalMotifs as SM
             SM.send_powerspectra($o; rewrite = false, retry_errors = true)
         end
     end
