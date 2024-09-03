@@ -10,23 +10,30 @@ SM.@preamble
 set_theme!(foresight(:physics))
 ENV["JULIA_DEBUG"] = "AllenNeuropixelsBase"
 
+stimuli = ["spontaneous", "flash_250ms", r"Natural_Images"]
 session_table = load(datadir("session_table.jld2"), "session_table")
 oursessions = session_table.ecephys_session_id
 
 if haskey(ENV, "JULIA_DISTRIBUTED")
-    exprs = map(oursessions) do o
+    params = Iterators.product(oursessions, stimuli) |> collect
+    idxs = map(xy -> SM.powerspectra_quality(xy...; rewrite = false,
+                                             retry_errors = true), params)
+    params = params[.!idxs]
+    exprs = map(params) do (o, stimulus)
         expr = quote
             using Pkg
             Pkg.instantiate()
             import SpatiotemporalMotifs as SM
-            SM.send_powerspectra($o; rewrite = false, retry_errors = true)
+            SM.send_powerspectra($o, $stimulus; rewrite = false, retry_errors = true)
         end
     end
-    USydClusters.Physics.runscript.(exprs; ncpus = 32, mem = 90, walltime = 4,
+    USydClusters.Physics.runscripts(exprs; ncpus = 14, mem = 60, walltime = 2,
                                     project = projectdir())
 else
     for o in reverse(oursessions)
-        SM.send_powerspectra(o; rewrite = false, retry_errors = true)
-        GC.gc()
+        for stimulus in stimuli
+            SM.send_powerspectra(o, stimulus; rewrite = false, retry_errors = true)
+            GC.gc()
+        end
     end
 end

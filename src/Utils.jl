@@ -159,18 +159,23 @@ function layernum2name(num)
     end
 end
 
-function isbad(outfile; retry_errors = true)
+function isbad(outfile; retry_errors = true, check_other_file = false)
     if !isfile(outfile)
         return true
     end
+    if isnothing(check_other_file)
+        check_other_file = true
+    else
+        check_other_file = isfile(check_other_file)
+    end
     if retry_errors
-        jldopen(outfile) do f
+        jldopen(outfile, "r") do f
             ind = haskey(f, "error")
             if ind
                 if contains(f["error"], "Region error")
                     return false
                 else
-                    return true
+                    return check_other_file
                 end
             else
                 return false
