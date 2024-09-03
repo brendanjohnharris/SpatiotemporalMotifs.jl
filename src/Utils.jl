@@ -4,6 +4,7 @@ using HypothesisTests
 using RobustModels
 using Distributed
 import Bootstrap
+using MultipleTesting
 # import LIBSVM
 
 if !haskey(ENV, "DRWATSON_STOREPATCH")
@@ -56,6 +57,7 @@ const THETA = (5, 10)
 const GAMMA = (30, 100)
 const INTERVAL = -0.25u"s" .. 0.75u"s"
 const structures = ["VISp", "VISl", "VISrl", "VISal", "VISpm", "VISam"]
+const PTHR = 1e-2
 
 DimensionalData.@dim SessionID ToolsDim "SessionID"
 DimensionalData.@dim Trial ToolsDim "Trial"
@@ -668,3 +670,79 @@ function bootstrapaverage(average, X::AbstractToolsArray; dims = 1, kwargs...)
     return μ, (σl, σh)
 end
 bootstrapmedian(args...; kwargs...) = bootstrapaverage(median, args...; kwargs...)
+
+"""
+hierarchicalkendall(x::AbstractVector{<:Real}, y::AbstractDimArray,
+                         mode = :group; kwargs...)
+Compute the Kendall's tau between a vector of hierarchy scores `x` and a 3D array of
+features `y`. `y` should have dimensions `Depth`, `SessionID`, and `Structure`.
+mode can be either `:group` or `:individual`. In the `:group` mode, the Kendall's tau
+"""
+function hierarchicalkendall(x::AbstractVector{<:Real}, y::AbstractDimArray,
+                             mode = Val(:group); kwargs...)
+    hasdim(y, Depth) ||
+        throw(ArgumentError("Argument 2 should have a Depth dimension"))
+    hasdim(y, SessionID) ||
+        throw(ArgumentError("Argument 2 should have a SessionID dimension"))
+    hasdim(y, Structure) ||
+        throw(ArgumentError("Argument 2 should have a Structure dimension"))
+    hierarchicalkendall(x, y, mode; kwargs...)
+end
+function hierarchicalkendall(x::AbstractVector{<:Real}, y::AbstractDimArray,
+                             mode::Symbol; kwargs...)
+    hierarchicalkendall(x, y, Val(mode); kwargs...)
+end
+function pairedkendall(xy)
+    corkendall(first.(xy)[:], last.(xy)[:])
+end
+function _hierarchicalkendall(xx, yy; N = 10000, confint = 0.95)
+    b = Bootstrap.bootstrap(pairedkendall, collect(zip(xx, yy)),
+                            Bootstrap.BalancedSampling(N))
+    μ, σ... = only(Bootstrap.confint(b, Bootstrap.BCaConfInt(confint)))
+    nsesh = hasdim(yy, SessionID) ? size(yy, SessionID) : 1
+    μsur = map(1:N) do _
+        idxs = stack(randperm(size(yy, Structure)) for _ in 1:nsesh)
+        idxs = yy isa AbstractMatrix ? idxs' : idxs[:]
+        ys = view(yy, idxs) # A different shuffle for each session
+        @assert size(xx) == size(ys)
+        pairedkendall(collect(zip(xx, ys)))
+    end
+    𝑝 = mean(abs.(μ) .< abs.(μsur))
+    return μ, σ, 𝑝
+end
+
+function hierarchicalkendall(x::AbstractVector{<:Real}, y::AbstractDimArray,
+                             ::Val{:group}; kwargs...)
+    y = permutedims(y, (Depth, SessionID, Structure)) # Check right orientation
+    xx = repeat(x', size(y, SessionID), 1) # Sessionid × Structure
+    ms = asyncmap(eachslice(y, dims = Depth)) do yy
+        μ, σ, 𝑝 = _hierarchicalkendall(xx, yy; kwargs...)
+    end
+    𝑝 = last.(ms)
+    𝑝 = set(𝑝, MultipleTesting.adjust(collect(𝑝), BenjaminiHochberg()))
+    return first.(ms), getindex.(ms, 2), 𝑝
+end
+function hierarchicalkendall(x::AbstractVector{<:Real}, y::AbstractDimArray,
+                             ::Val{:individual}; N)
+    y = permutedims(y, (Depth, SessionID, Structure)) # Check right orientation
+    ms = asyncmap(eachslice(y, dims = Depth)) do yy
+        mnms = map(eachslice(yy, dims = SessionID)) do yyy # Individual 6-vector
+            μ = corkendall(x, yyy)
+            s = map(1:N) do _
+                idxs = randperm(length(yyy))
+                corkendall(x, yyy[idxs]) # A shuffle
+            end
+            return μ, s
+        end
+        μ = first.(mnms)
+        s = last.(mnms)
+        σ = (percentile(μ, 25), percentile(μ, 75))
+        s = collect(Iterators.flatten(s))
+        𝑝 = MannWhitneyUTest(s, μ) |> pvalue
+        μ = median(μ)
+        return μ, σ, 𝑝
+    end
+    𝑝 = last.(ms)
+    𝑝 = set(𝑝, MultipleTesting.adjust(collect(𝑝), BenjaminiHochberg()))
+    return first.(ms), getindex.(ms, 2), 𝑝
+end

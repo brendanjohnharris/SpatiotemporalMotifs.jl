@@ -46,6 +46,13 @@ function send_powerspectra(sessionid; outpath = datadir("power_spectra"),
             end
             @info "Calculating $(stimulus) LFP in $(structure) for session $(params[:sessionid])"
             try
+                probestructures = AN.getprobestructures(session)
+                structures = unique(vcat(values(probestructures)...))
+                if structure ∉ structures
+                    @warn "Structure $(structure) not found in $(params[:sessionid])"
+                    continue
+                end
+
                 LFP = AN.formatlfp(session; tol = 3, _params...)u"V"
 
                 LFP = set(LFP, 𝑡 => 𝑡((times(LFP))u"s"))
@@ -155,10 +162,12 @@ function send_powerspectra(sessionid; outpath = datadir("power_spectra"),
                 GC.safepoint()
                 GC.gc()
             catch e
+                Main.@infiltrate
                 LFP = D = streamlinedepths = layerinfo = S = sC = mc = sLFP = C = s = f = p = ax = c = depths = outD = θ = ϕ = k = R = sR = []
                 GC.safepoint()
                 GC.gc()
-                @warn e tagsave(outfile, Dict("error" => sprint(showerror, e)))
+                @warn e
+                tagsave(outfile, Dict("error" => sprint(showerror, e)))
             end
             LFP = D = streamlinedepths = layerinfo = S = sC = mc = sLFP = C = s = f = p = ax = c = depths = outD = θ = ϕ = k = R = sR = []
             GC.safepoint()

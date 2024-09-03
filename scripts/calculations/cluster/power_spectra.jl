@@ -21,7 +21,7 @@ if haskey(ENV, "JULIA_DISTRIBUTED")
             SM.send_powerspectra($o; rewrite = false, retry_errors = true)
         end
     end
-    USydClusters.Physics.runscript.(exprs; ncpus = 8, mem = 60, walltime = 12,
+    USydClusters.Physics.runscript.(exprs; ncpus = 16, mem = 90, walltime = 4,
                                     project = projectdir())
 else
     for o in reverse(oursessions)

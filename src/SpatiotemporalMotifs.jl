@@ -74,7 +74,7 @@ export classifier,
        plot_visual_cortex!,
        ppc, spc!, sac, sac!, HistBins, pac,
        confidence, quartiles,
-       bootstrapmedian, bootstrapaverage,
+       bootstrapmedian, bootstrapaverage, hierarchicalkendall,
        progressmap,
        plotspectrum!, fooof, tortinset!,
        @preamble
