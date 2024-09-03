@@ -83,7 +83,7 @@ This script creates the `data/power_spectra` directory, containing `.jld2` files
 #### [Power spectra](scripts/calculations/cluster/power_spectra.jl)
 
 Located at `scripts/calculations/cluster/power_spectra.jl`, this script calculates the power spectra of the local field potentials for each session, seven structure (the six visual cortical regions and the dorsal lateral geniculate nucleus), and three stimuli (spontaneous, flashes, and task-active natural images).
-This script must be run on a high-performance computing cluster, and will need to be tweaked to use a cluster manager other than the University of Sydney School of Physics HPC (managed by the [USydClusters.jl](https://github.com/brendanjohnharris/UsydClusters.jl) package). To ensure your cluster manager is functioning correctly, please edit the `scripts/calculations/cluster/testscript.jl` file until it returns without error.
+This script must be run on a high-performance computing cluster, and will need to be tweaked to use a cluster manager other than the University of Sydney School of Physics HPC (managed by the [USydClusters.jl](https://github.com/brendanjohnharris/UsydClusters.jl) package). To ensure your cluster manager is functioning correctly, please edit the `scripts/calculations/cluster/testscript.jl` file until it returns without error. You may need to run this script in the REPl to ensure there are no errors.
 
 #### [Calculations](scripts/calculations/cluster/calculations.jl)
 

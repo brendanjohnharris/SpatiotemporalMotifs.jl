@@ -47,9 +47,11 @@ function send_powerspectra(sessionid; outpath = datadir("power_spectra"),
             @info "Calculating $(stimulus) LFP in $(structure) for session $(params[:sessionid])"
             try
                 probestructures = AN.getprobestructures(session)
-                structures = unique(vcat(values(probestructures)...))
-                if structure ∉ structures
-                    @warn "Structure $(structure) not found in $(params[:sessionid])"
+                probestructures = unique(vcat(values(probestructures)...))
+                if structure ∉ probestructures
+                    str = "Region error: structure $(structure) not found in $(params[:sessionid])"
+                    @warn str
+                    tagsave(outfile, Dict("error" => str))
                     continue
                 end
 
@@ -162,7 +164,6 @@ function send_powerspectra(sessionid; outpath = datadir("power_spectra"),
                 GC.safepoint()
                 GC.gc()
             catch e
-                Main.@infiltrate
                 LFP = D = streamlinedepths = layerinfo = S = sC = mc = sLFP = C = s = f = p = ax = c = depths = outD = θ = ϕ = k = R = sR = []
                 GC.safepoint()
                 GC.gc()

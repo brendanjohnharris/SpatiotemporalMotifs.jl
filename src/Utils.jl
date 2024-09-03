@@ -164,13 +164,17 @@ function isbad(outfile; retry_errors = true)
         return true
     end
     if retry_errors
-        f = jldopen(outfile)
-        ind = haskey(f, "error")
-        close(f)
-        if ind
-            return true
-        else
-            return false
+        jldopen(outfile) do f
+            ind = haskey(f, "error")
+            if ind
+                if contains(f["error"], "Region error")
+                    return false
+                else
+                    return true
+                end
+            else
+                return false
+            end
         end
     else
         @info "File $outfile exists but contains an error. It will not be overwritten as $retry_errors is `false`."

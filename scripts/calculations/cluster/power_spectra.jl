@@ -12,6 +12,7 @@ ENV["JULIA_DEBUG"] = "AllenNeuropixelsBase"
 
 session_table = load(datadir("session_table.jld2"), "session_table")
 oursessions = session_table.ecephys_session_id
+
 if haskey(ENV, "JULIA_DISTRIBUTED")
     exprs = map(oursessions) do o
         expr = quote
@@ -21,7 +22,7 @@ if haskey(ENV, "JULIA_DISTRIBUTED")
             SM.send_powerspectra($o; rewrite = false, retry_errors = true)
         end
     end
-    USydClusters.Physics.runscript.(exprs; ncpus = 16, mem = 90, walltime = 4,
+    USydClusters.Physics.runscript.(exprs; ncpus = 32, mem = 90, walltime = 4,
                                     project = projectdir())
 else
     for o in reverse(oursessions)
