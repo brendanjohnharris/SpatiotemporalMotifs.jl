@@ -291,6 +291,10 @@ for stimulus in stimuli
                         linewidth = 4)
                 vlines!(ax2, [54.4], color = (cornflowerblue, 0.42), linestyle = :dash,
                         linewidth = 4)
+                vspan!(ax, extrema(theta)..., color = (crimson, 0.22),
+                       label = "𝛉 ($(theta.left) – $(theta.right) Hz)")
+                vspan!(ax, extrema(gamma)..., color = (cornflowerblue, 0.22),
+                       label = "𝛄 ($(gamma.left) – $(gamma.right) Hz)")
 
                 for (i, (c, l)) in (reverse ∘ collect ∘ enumerate ∘ zip)(layercolors,
                                                                          layers)

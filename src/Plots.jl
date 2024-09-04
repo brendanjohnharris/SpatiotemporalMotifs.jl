@@ -108,7 +108,7 @@ end
 function plotlayermap!(ax, m; arrows = false,
                        colorrange = extrema(ustripall(m)),
                        colormap = binarysunset, doupsample = true, domain = nothing,
-                       rasterize = 10, stimulus = [0, 0.25], lengthscale = 0.07,
+                       rasterize = 5, stimulus = [0, 0.25], lengthscale = 0.07,
                        arrowsize = 5, arrowcolor = (:black, 0.4), kwargs...)
     if doupsample
         if isnothing(domain)
