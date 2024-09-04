@@ -83,7 +83,7 @@ This script creates the `data/power_spectra` directory, containing `.jld2` files
 #### [Power spectra](scripts/calculations/cluster/power_spectra.jl)
 
 Located at `scripts/calculations/cluster/power_spectra.jl`, this script calculates the power spectra of the local field potentials for each session, seven structure (the six visual cortical regions and the dorsal lateral geniculate nucleus), and three stimuli (spontaneous, flashes, and task-active natural images).
-This script must be run on a high-performance computing cluster, and will need to be tweaked to use a cluster manager other than the University of Sydney School of Physics HPC (managed by the [USydClusters.jl](https://github.com/brendanjohnharris/UsydClusters.jl) package). To ensure your cluster manager is functioning correctly, please edit the `scripts/calculations/cluster/testscript.jl` file until it returns without error. You may need to run this script in the REPl to ensure there are no errors.
+This script must be run on a high-performance computing cluster, and will need to be tweaked to use a cluster manager other than the University of Sydney School of Physics HPC (managed by the [USydClusters.jl](https://github.com/brendanjohnharris/UsydClusters.jl) package). To ensure your cluster manager is functioning correctly, please edit the `scripts/calculations/cluster/testscript.jl` file until it returns without error. You may need to run this script again in the REPl to ensure there are no errors (this script is prone to memory overflow).
 
 #### [Calculations](scripts/calculations/cluster/calculations.jl)
 
@@ -104,6 +104,14 @@ At times it will be useful to have precomputed unified layer annotations for all
 .......
 
 To produce the supplemental 'glass brain' movie, you will need to manually install and configure RPR makie on a machine with a sizeable GPU. The script `scripts/plots/glass_brain.jl` will produce jpeg images for each frame of the animation, which you can stitch together with e.g. the `magick` command-line tool.
+
+#### [Power spectra](scripts/plots/power_spectra.jl)
+
+This script produces Fig. 2 of the paper, summarizing the spectral properties of visual cortical LFP.
+It also produces version of Fig. 2 for other visual stimuli.
+The script will take about 2 hours to run without pre-computed `fooof.jld` files, otherwise, about 15 minutes.
+
+#### [Theta propagation]
 
 #### Gamma bursts and nested oscillations
 

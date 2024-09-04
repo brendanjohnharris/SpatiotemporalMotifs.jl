@@ -14,7 +14,6 @@ using SpatiotemporalMotifs
 import SpatiotemporalMotifs.layers
 import SpatiotemporalMotifs.PTHR
 using Random
-Random.seed!(32)
 @preamble
 set_theme!(foresight(:physics))
 
@@ -35,6 +34,8 @@ for stimulus in stimuli
         Q = Q[SessionID(At(oursessions))]
         @assert mean(Q) > 0.9
         filebase = stimulus == "spontaneous" ? "" : "_$stimulus"
+        statsfile = plotdir("power_spectra", "power_spectra$filebase.txt")
+        close(open(statsfile, "w")) # Create the file or clear it
         f = SixPanel()
 
         begin # * Load data
@@ -213,8 +214,16 @@ for stimulus in stimuli
             l = axislegend(ax, position = :rb, nbanks = 2, labelsize = 12, merge = true)
             reverselegend!(l)
             plotlayerints!(ax, layerints; axis = :x, newticks = false, flipside = true)
-            wsave(plotdir("power_spectra", "exponent_supplement$(filebase).pdf"), fff)
-            display(fff)
+        end
+        begin # * Is the exponent correlated to depth?
+            tps = [SpatiotemporalMotifs.mediankendallpvalue(lookup(x, Depth), x) for x in χ]
+            τs = cat(first.(tps), last.(tps); dims = Var([:kendall, :pvalue]))
+            mtau = median(τs[2:end, 1]) # Median excluding VISp
+            open(statsfile, "a+") do file
+                write(file, "\n## 1/f exponent\n")
+                show(file, DataFrame(DimTable(τs; layersfrom = Var)))
+                write(file, "\nMedian τ (no VISp) = $mtau\n")
+            end
         end
 
         begin # * Relative power (supplement)
@@ -401,6 +410,17 @@ for stimulus in stimuli
             ax.limits = ((0, 1), (-0.075, 0.65))
             display(f)
         end
+        begin # * Does residual theta increase along layers
+            tps = [SpatiotemporalMotifs.mediankendallpvalue(lookup(x, Depth), x)
+                   for x in θr]
+            τs = cat(first.(tps), last.(tps); dims = Var([:kendall, :pvalue]))
+            mtau = median(τs[:, 1])
+            open(statsfile, "a+") do file
+                write(file, "\n## Residual θ\n")
+                show(file, DataFrame(DimTable(τs; layersfrom = Var)))
+                write(file, "\nMedian τ = $mtau\n")
+            end
+        end
 
         begin # * Residual gamma power across channels
             # f = Figure()
@@ -521,7 +541,7 @@ for stimulus in stimuli
             # lines!(ax, unidepths, collect(μg); alpha = bandalpha, label = "Residual γ power",
             #    color = cornflowerblue)
             scatter!(ax, unidepths[𝑝g .< PTHR], collect(μg[𝑝g .< PTHR]);
-                     label = "Residual γr", color = cornflowerblue)
+                     label = "Residual γ", color = cornflowerblue)
             scatter!(ax, unidepths[𝑝g .≥ PTHR], collect(μg[𝑝g .≥ PTHR]);
                      color = :transparent, strokecolor = cornflowerblue,
                      strokewidth = 1)
@@ -529,7 +549,6 @@ for stimulus in stimuli
             axislegend(ax, position = :rt, merge = true, labelsize = 12, nbanks = 3)
 
             plotlayerints!(ax, layerints; axis = :x, newticks = false, flipside = false)
-            fog
         end
         addlabels!(f)
         f |> display

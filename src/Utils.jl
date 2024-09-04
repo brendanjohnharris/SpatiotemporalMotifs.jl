@@ -136,6 +136,11 @@ function commondepths(depths)
                   length = 20)
 end
 
+function coordinates(X::AbstractDimArray)
+    cs = Iterators.product(lookup(X)...)
+    cs = [getindex.(cs, i) for i in 1:ndims(X)]
+end
+
 function parselayernum(layername)
     m = match(r"\d+", layername)
     if m !== nothing
@@ -169,17 +174,23 @@ function isbad(outfile; retry_errors = true, check_other_file = false)
         check_other_file = isfile(check_other_file)
     end
     if retry_errors
-        jldopen(outfile, "r") do f
-            ind = haskey(f, "error")
-            if ind
-                if contains(f["error"], "Region error")
-                    return false
+        try
+            jldopen(outfile, "r") do f
+                ind = haskey(f, "error")
+                if ind
+                    if contains(f["error"], "Region error")
+                        return false
+                    else
+                        return check_other_file
+                    end
                 else
-                    return check_other_file
+                    return false
                 end
-            else
-                return false
             end
+        catch e
+            @warn e
+            @warn "Could not open $outfile"
+            return true
         end
     else
         @info "File $outfile exists but contains an error. It will not be overwritten as $retry_errors is `false`."
@@ -718,6 +729,17 @@ function _hierarchicalkendall(xx, yy; N = 10000, confint = 0.95)
     end
     𝑝 = mean(abs.(μ) .< abs.(μsur))
     return μ, σ, 𝑝
+end
+
+function mediankendallpvalue(x::AbstractVector, Y::AbstractMatrix; N = 10000) # Take the correlation of each column
+    τ = corkendall(x, Y)
+    τsur = asyncmap(1:N) do _
+        idxs = randperm(length(x))
+        corspearman(x[idxs], Y)
+    end
+    τsur = vcat(τsur...)
+    𝑝 = MannWhitneyUTest(τ[:], τsur[:]) |> pvalue
+    return median(τ), 𝑝
 end
 
 function hierarchicalkendall(x::AbstractVector{<:Real}, y::AbstractDimArray,

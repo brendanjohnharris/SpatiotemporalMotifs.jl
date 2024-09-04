@@ -52,7 +52,10 @@ function send_powerspectra(sessionid, stimulus; outpath = datadir("power_spectra
                                 "structure" => structure), "jld2", outpath)
         @info outfile
 
-        if !rewrite && !isbad(outfile; retry_errors)
+        plotfile = joinpath(plotpath, "$(_params[:sessionid])",
+                            "$(_params[:stimulus])_$(_params[:structure]).pdf")
+
+        if !rewrite && !isbad(outfile; retry_errors, check_other_file = plotfile)
             @info "Already calculated: $(stimulus), $(structure), $(params[:sessionid])"
             continue
         end
@@ -119,8 +122,6 @@ function send_powerspectra(sessionid, stimulus; outpath = datadir("power_spectra
                              colormap = sunset)
                 # rowsize!(f.layout, 1, Relative(0.8))
                 mkpath(joinpath(plotpath, "$(_params[:sessionid])"))
-                plotfile = joinpath(plotpath, "$(_params[:sessionid])",
-                                    "$(_params[:stimulus])_$(_params[:structure]).pdf")
                 wsave(plotfile, f)
                 @info "Saved plot to $plotfile"
             end
