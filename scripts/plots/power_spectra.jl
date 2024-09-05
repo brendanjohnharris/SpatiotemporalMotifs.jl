@@ -185,6 +185,8 @@ for stimulus in stimuli
             end
             L = getindex.(L, [SessionID(At(oursessions))])
             L = L[Structure = At(structures)]
+            χ = getindex.(χ, [SessionID(At(oursessions))])
+            χ = χ[Structure = At(structures)]
             @assert all(last.(size.(L)) .≥ last.(size.(S))) # Check we have residuals for all sessions we have spectra for
         end
 
@@ -300,7 +302,7 @@ for stimulus in stimuli
                                                                          layers)
                     s = Sr_log[Structure = At(structure)][Freq(3 .. 300)]
                     s = s[layer = (lookup(s, :layer) .== [l])]
-                    s = dropdims(mean(s, dims = :layer), dims = :layer)
+                    s = dropdims(nansafe(mean; dims = :layer)(s), dims = :layer)
                     d = (length(layers) - i + 1) / 2
                     hlines!(ax2, [d]; color = (c, 0.22), linestyle = :dash)
                     μ = dropdims(mean(s, dims = SessionID), dims = SessionID) .+

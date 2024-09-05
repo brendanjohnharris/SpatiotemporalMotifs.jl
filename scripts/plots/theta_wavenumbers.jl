@@ -17,9 +17,9 @@ set_theme!(foresight(:physics))
 Random.seed!(32)
 
 vars = [:k]
-INTERVAL = -0.25u"s" .. 0.5u"s"
+INTERVAL = SpatiotemporalMotifs.INTERVAL
 mainstructure = "VISl"
-maincolorrange = []
+maincolorrange = [-2.5, 2.5]
 session_table = load(datadir("posthoc_session_table.jld2"), "session_table")
 oursessions = session_table.ecephys_session_id
 path = datadir("calculations")
@@ -62,9 +62,10 @@ begin # * Supplemental material: average wavenumbers in each region
             m = dropdims(m, dims = Trial)[𝑡(SpatiotemporalMotifs.INTERVAL)]
             ints = uni[i][:layerints]
             p = plotlayermap!(ax, m, ints; arrows = true, colorrange) |> first
-            c = Colorbar(mfs[end]; colorrange, colormap = binarysunset)
-            c.label = "k̃ ($(unit(eltype(k))))"
-            push!(maincolorrange, colorrange)
+            c = Colorbar(mfs[end]; colorrange = maincolorrange, colormap = defaultcolormap,
+                         highclip = defaultcolormap[end], lowclip = defaultcolormap[1])
+            c.label = "θ wavenumber ($(unit(eltype(k))))"
+            # push!(maincolorrange, colorrange)
         end
 
         # * Miss
@@ -76,7 +77,7 @@ begin # * Supplemental material: average wavenumbers in each region
         ints = uni[i][:layerints]
         p = plotlayermap!(ax, m, ints; arrows = true, colorrange) |> first
         c = Colorbar(f[i, 3], p)
-        c.label = "k̃ ($(unit(eltype(k))))"
+        c.label = "θ wavenumber ($(unit(eltype(k))))"
 
         if structure == mainstructure # * Plot into main figure
             ax = Axis(mfs[2], yreversed = true)
@@ -86,7 +87,8 @@ begin # * Supplemental material: average wavenumbers in each region
             m = median(k[:, :, lookup(k, Trial) .== false], dims = Trial)
             m = dropdims(m, dims = Trial)[𝑡(SpatiotemporalMotifs.INTERVAL)]
             ints = uni[i][:layerints]
-            p = plotlayermap!(ax, m, ints; arrows = true, colorrange) |> first
+            p = plotlayermap!(ax, m, ints; arrows = true, colorrange = maincolorrange) |>
+                first
         end
     end
     addlabels!(f)
@@ -115,9 +117,9 @@ begin # * Supplemental material: average wavenumbers in each region
         ints = uni[i][:layerints]
         p = plotlayermap!(ax, m, ints; arrows = true) |> first
         c = Colorbar(gs[i][1, 2], p)
-        c.label = "k̃ ($(unit(eltype(k))))"
+        c.label = "θ wavenumber ($(unit(eltype(k))))"
         if structure == mainstructure
-            colorrange = maincolorrange[1]
+            colorrange = maincolorrange
             ax = Axis(mfs[3], yreversed = true, xlabel = "Time (s)")
             ax.limits = (nothing, (0.1, 0.95))
             ax.title = structure * ": flashes"
@@ -129,7 +131,7 @@ begin # * Supplemental material: average wavenumbers in each region
     end
     addlabels!(f)
     display(f)
-    wsave(plotdir("theta_wavenumbers", "supplemental_wavenumber.pdf"), f)
+    wsave(plotdir("theta_wavenumbers", "supplemental_wavenumber_flash.pdf"), f)
 end
 
 begin # * Save main figure

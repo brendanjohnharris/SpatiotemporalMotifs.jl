@@ -111,7 +111,10 @@ This script produces Fig. 2 of the paper, summarizing the spectral properties of
 It also produces version of Fig. 2 for other visual stimuli.
 The script will take about 2 hours to run without pre-computed `fooof.jld` files, otherwise, about 15 minutes.
 
-#### [Theta propagation]
+#### Theta propagation
+
+1. [Theta wavenumbers](scripts/plots/theta_wavenumbers.jl): produces panels A--C of Fig.3, heatmaps of the median wavenumber in `VISl` during hit, miss, and flash trials.
+2. [Order parameter](scripts/plots/theta_order_parameter.jl):.............
 
 #### Gamma bursts and nested oscillations
 

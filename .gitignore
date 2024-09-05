@@ -16,7 +16,7 @@ data
 docs/build/
 docs/site/
 old/
-plots/old/
+plots/
 cache/
 tempfig.png
 test/

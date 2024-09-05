@@ -713,7 +713,10 @@ function hierarchicalkendall(x::AbstractVector{<:Real}, y::AbstractDimArray,
     hierarchicalkendall(x, y, Val(mode); kwargs...)
 end
 function pairedkendall(xy)
-    corkendall(first.(xy)[:], last.(xy)[:])
+    x = first.(xy)
+    y = last.(xy)
+    notnan = .!(isnan.(y) .| isnan.(x))
+    corkendall(x[notnan], y[notnan])
 end
 function _hierarchicalkendall(xx, yy; N = 10000, confint = 0.95)
     b = Bootstrap.bootstrap(pairedkendall, collect(zip(xx, yy)),
@@ -732,10 +735,16 @@ function _hierarchicalkendall(xx, yy; N = 10000, confint = 0.95)
 end
 
 function mediankendallpvalue(x::AbstractVector, Y::AbstractMatrix; N = 10000) # Take the correlation of each column
-    τ = corkendall(x, Y)
+    τ = map(eachslice(collect(Y), dims = 2)) do y
+        notnan = .!isnan.(y)
+        corkendall(x[notnan], y[notnan])
+    end
     τsur = asyncmap(1:N) do _
         idxs = randperm(length(x))
-        corspearman(x[idxs], Y)
+        taus = map(eachslice(collect(Y), dims = 2)) do y
+            notnan = .!isnan.(y)
+            corspearman(x[idxs][notnan], y[notnan])
+        end
     end
     τsur = vcat(τsur...)
     𝑝 = MannWhitneyUTest(τ[:], τsur[:]) |> pvalue

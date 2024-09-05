@@ -27,8 +27,8 @@ const defaultcolormap = binarysunset
 const lfpcolormap = darksunset
 const amplitudecolormap = :bone
 const phasecolormap = cyclic
-DEFAULT_SESSION_ID = 1140102579
-DEFAULT_TRIAL_NUM = 26
+const DEFAULT_SESSION_ID = 1140102579
+const DEFAULT_TRIAL_NUM = 26
 
 const visual_cortex_layout = Dict("VISp" => [350, 350],
                                   "VISl" => [170, 310],
@@ -107,7 +107,7 @@ function wrap(x; domain)
 end
 function plotlayermap!(ax, m; arrows = false,
                        colorrange = extrema(ustripall(m)),
-                       colormap = binarysunset, doupsample = true, domain = nothing,
+                       colormap = defaultcolormap, doupsample = true, domain = nothing,
                        rasterize = 5, stimulus = [0, 0.25], lengthscale = 0.07,
                        arrowsize = 5, arrowcolor = (:black, 0.4), kwargs...)
     if doupsample
