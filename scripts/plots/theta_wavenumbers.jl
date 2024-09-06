@@ -16,7 +16,7 @@ using SpatiotemporalMotifs
 set_theme!(foresight(:physics))
 Random.seed!(32)
 
-vars = [:k]
+vars = [:k, :ω]
 INTERVAL = SpatiotemporalMotifs.INTERVAL
 mainstructure = "VISl"
 maincolorrange = [-2.0, 2.0]
@@ -40,7 +40,9 @@ begin # * Supplemental material: average wavenumbers in each region
 
     for i in eachindex(uni)
         k = uni[i][:k]
+        ω = uni[i][:ω]
         k = uconvert.(u"mm^-1", k)
+        k[ustripall(ω) .< 0] .= NaN * unit(eltype(k)) # Mask out negative frequency periods
 
         # * Hit
         ax = Axis(f[i, 1], yreversed = true)
@@ -127,7 +129,9 @@ begin # * Supplemental material: average wavenumbers in each region
 
     for i in eachindex(uni)
         k = uni[i][:k]
+        ω = uni[i][:ω]
         k = uconvert.(u"mm^-1", k)
+        k[ustripall(ω) .< 0] .= NaN * unit(eltype(k)) # Mask out negative frequency periods
         structure = metadata(k)[:structure]
 
         ax = Axis(gs[i][1, 1], yreversed = true, xlabel = "Time (s)")

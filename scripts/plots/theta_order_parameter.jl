@@ -28,7 +28,7 @@ begin # * Set up main figure
 
     function orderparameter(Og)
         map(Og) do O
-            o = dropdims.(mean.(O; dims = Trial), dims = Trial)
+            o = dropdims.(nansafe(mean; dims = Trial).(O), dims = Trial)
             sessionids = [metadata(_o)[:sessionid] for _o in O]
             o = [_o[(end - minimum(length.(o)) + 1):end] for _o in o]
             stack(SessionID(sessionids), o)
@@ -38,9 +38,16 @@ end
 
 # * Flash stimulus
 stimulus = "flash_250ms"
-out = load_calculations(; stimulus, vars)
+Q = calcquality(path)[Structure = At(structures)]
+quality = mean(Q[stimulus = At(stimulus)])
+out = load_calculations(Q; stimulus, vars)
 
 begin # * Calculate a global order parameter at each time point
+    out = map(out) do o
+        filter(o) do _o
+            _o[:sessionid] ∈ oursessions
+        end
+    end
     Og = map(out) do o
         O = map(o) do p
             k = p[:k]
@@ -83,18 +90,20 @@ end
 stimulus = r"Natural_Images"
 Q = calcquality(path)[Structure = At(structures)]
 quality = mean(Q[stimulus = At(stimulus)])
-config = @strdict stimulus vars
-data, file = produce_or_load(produce_out(Q), config, datadir(); filename = savepath,
-                             prefix = "out")
-out = data["out"]
+out = load_calculations(Q; stimulus, vars)
 
 begin # * Calculate a global order parameter at each time point
+    out = map(out) do o
+        filter(o) do _o
+            o[:sessionid] ∈ oursessions
+        end
+    end
     Og = map(out) do o
         O = map(o) do p
             k = p[:k]
             ω = p[:ω]
             k[ustripall(ω) .< 0] .= NaN * unit(eltype(k))
-            ret = dropdims(mean(sign.(k), dims = Depth), dims = Depth)
+            ret = dropdims(nansafe(mean, dims = Depth)(sign.(k)), dims = Depth)
             trials = p[:trials][1:size(k, :changetime), :]
             trialtimes = trials.change_time_with_display_delay
             @assert all(isapprox.(ustripall(lookup(k, :changetime)), trialtimes,
@@ -155,45 +164,59 @@ begin # * Plot the mean order parameter across time
     # axislegend(ax, position = :rb, framevisible = true, labelsize = 12)
     # display(f)
     # wsave(plotdir("theta_waves_task", "regional_orderparameter.pdf"), f)
+    fig
 end
 
 # ---------------------------------- Hit/miss prediction --------------------------------- #
 begin # * Filter out poor-performing mice and regenerate order parameters
-    performance = load_performance(; path)
-    newsessions = performance.sessionid[performance.mean_dprime .> 1]
-
     """
     f is a function applied to every element of the varaible var (e.g. `sign` for the
     direction of the phase velocity var=:k). One of these will take about 1 minute over 64 cores
     """
-    function filter_out(out, newsessions, var = :k, f = sign)
-        out = [filter(x -> x.sessionid ∈ newsessions, o) for o in out]
+    # function filter_out(out, newsessions, var = :k, f = sign)
+    #     out = [filter(x -> x.sessionid ∈ newsessions, o) for o in out]
 
-        Og = progressmap(out; parallel = true) do o
-            O = map(o) do p
-                k = p[var]
-                k = ZScore(k, dims = 1)(k)
-                ret = dropdims(mean(f.(k), dims = Depth), dims = Depth)
-                trials = p[:trials]
-                trialtimes = trials.change_time_with_display_delay
-                @assert all(isapprox.(ustripall(lookup(k, :changetime)), trialtimes,
-                                      atol = 0.05)) # These won't match exactly, because the data change times have been adjusted for rectification. This is OK.
-                ret = set(ret, Dim{:changetime} => Trial)
-                set(ret,
-                    DimensionalData.format(Trial(trials.hit), lookup(ret, Trial)))
-            end
+    #     Og = progressmap(out; parallel = true) do o
+    #         O = map(o) do p
+    #             k = p[var]
+    #             k = ZScore(k, dims = 1)(k)
+    #             ret = dropdims(mean(f.(k), dims = Depth), dims = Depth)
+    #             trials = p[:trials]
+    #             trialtimes = trials.change_time_with_display_delay
+    #             @assert all(isapprox.(ustripall(lookup(k, :changetime)), trialtimes,
+    #                                   atol = 0.05)) # These won't match exactly, because the data change times have been adjusted for rectification. This is OK.
+    #             ret = set(ret, Dim{:changetime} => Trial)
+    #             set(ret,
+    #                 DimensionalData.format(Trial(trials.hit), lookup(ret, Trial)))
+    #         end
+    #     end
+
+    #     Og_h = [[o[:, lookup(o, Trial) .== true] for o in O] for O in Og]
+    #     Og_m = [[o[:, lookup(o, Trial) .== false] for o in O] for O in Og]
+    #     sessionids = [o[:sessionid] for o in out[1]]
+
+    #     return Og, Og_h, Og_m, sessionids
+    # end
+    # Og, Og_h, Og_m, sessionids = filter_out(out, newsessions, :k, sign) # mean order parameter
+    # GC.gc()
+    # Ol, Ol_h, Ol_m, _ = filter_out(out, newsessions, :x, identity) # Mean theta LFP
+    # GC.gc()
+
+    Ol = map(out) do o
+        O = map(o) do p
+            k = p[:x]
+            k = ZScore(k, dims = 1)(k)
+            ret = dropdims(nansafe(mean; dims = Depth)(k), dims = Depth)
+            trials = p[:trials][1:size(k, :changetime), :]
+            trialtimes = trials.change_time_with_display_delay
+            @assert all(isapprox.(ustripall(lookup(k, :changetime)), trialtimes,
+                                  atol = 0.05)) # These won't match exactly, because the data change times have been adjusted for rectification. This is OK.
+            set(ret, Dim{:changetime} => Trial(trials.hit))
         end
-
-        Og_h = [[o[:, lookup(o, Trial) .== true] for o in O] for O in Og]
-        Og_m = [[o[:, lookup(o, Trial) .== false] for o in O] for O in Og]
-        sessionids = [o[:sessionid] for o in out[1]]
-
-        return Og, Og_h, Og_m, sessionids
     end
-    Og, Og_h, Og_m, sessionids = filter_out(out, newsessions, :k, sign) # mean order parameter
-    GC.gc()
-    Ol, Ol_h, Ol_m, _ = filter_out(out, newsessions, :x, identity) # Mean theta LFP
-    GC.gc()
+
+    Ol_h = [[o[:, lookup(o, Trial) .== true] for o in O] for O in Ol]
+    Ol_m = [[o[:, lookup(o, Trial) .== false] for o in O] for O in Ol]
 end
 
 # begin # Delete
