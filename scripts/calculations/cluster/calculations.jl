@@ -19,7 +19,7 @@ outpath = datadir("calculations")
 rewrite = false
 
 if haskey(ENV, "JULIA_DISTRIBUTED") # ? Should take a night or so
-    procs = addprocs(3; ncpus = 10, mem = 64,
+    procs = addprocs(4; ncpus = 14, mem = 72,
                      walltime = 96, project) # ! If you have workers dying unexpectedly, try increasing the memory for each job
     @everywhere begin
         using Pkg
