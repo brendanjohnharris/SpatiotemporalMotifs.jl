@@ -53,7 +53,7 @@ macro preamble()
     _preamble()
 end
 @preamble
-const THETA = (5, 10)
+const THETA = (3, 10)
 const GAMMA = (30, 100)
 const INTERVAL = -0.25u"s" .. 0.75u"s"
 const structures = ["VISp", "VISl", "VISrl", "VISal", "VISpm", "VISam"]
