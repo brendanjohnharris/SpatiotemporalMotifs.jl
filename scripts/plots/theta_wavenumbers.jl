@@ -19,10 +19,13 @@ Random.seed!(32)
 vars = [:k]
 INTERVAL = SpatiotemporalMotifs.INTERVAL
 mainstructure = "VISl"
-maincolorrange = [-2.5, 2.5]
+maincolorrange = [-2.0, 2.0]
 session_table = load(datadir("posthoc_session_table.jld2"), "session_table")
 oursessions = session_table.ecephys_session_id
 path = datadir("calculations")
+statsfile = plotdir("theta_wavenumbers", "$mainstructure.txt")
+close(open(statsfile, "w"))
+ylims = (0.05, 0.95)
 
 begin # * Set up main figure
     mf = TwoPanel()
@@ -36,12 +39,12 @@ begin # * Supplemental material: average wavenumbers in each region
     f = Figure(size = (720, 1440))
 
     for i in eachindex(uni)
-        k = uni[i][:k][:, 2:end, :]
+        k = uni[i][:k]
         k = uconvert.(u"mm^-1", k)
 
         # * Hit
         ax = Axis(f[i, 1], yreversed = true)
-        ax.limits = (nothing, (0.1, 0.95))
+        ax.limits = (nothing, ylims)
         structure = metadata(k)[:structure]
         ax.title = structure * ": hit"
         m = median(k[:, :, lookup(k, Trial) .== true], dims = Trial)
@@ -56,7 +59,7 @@ begin # * Supplemental material: average wavenumbers in each region
         if structure == mainstructure # * Plot into main figure
             ax = Axis(mfs[1], yreversed = true)
             ax.xlabel = "Time (s)"
-            ax.limits = (nothing, (0.1, 0.95))
+            ax.limits = (nothing, ylims)
             ax.title = structure * ": hit"
             m = median(k[:, :, lookup(k, Trial) .== true], dims = Trial)
             m = dropdims(m, dims = Trial)[𝑡(SpatiotemporalMotifs.INTERVAL)]
@@ -65,12 +68,30 @@ begin # * Supplemental material: average wavenumbers in each region
             c = Colorbar(mfs[end]; colorrange = maincolorrange, colormap = defaultcolormap,
                          highclip = defaultcolormap[end], lowclip = defaultcolormap[1])
             c.label = "θ wavenumber ($(unit(eltype(k))))"
-            # push!(maincolorrange, colorrange)
+
+            # * Calculate some stats of this figure
+            open(statsfile, "a+") do file
+                write(file, "## $mainstructure average wavenumbers\n")
+                ................
+                write(file,
+                      "Average wavenumber (median ± IQR) = $(median(k[:])) ± $(iqr(k[:]))\n")
+                write(file,
+                      "Average wavenumber magnitude (median ± IQR) = $(median(abs.(k[:]))) ± $(iqr(abs.(k[:])))\n")
+            end
+
+            ff = Figure()
+            ax = Axis(ff[1, 1]; limits = ((-20, 20), nothing))
+            density!(ax, prewavenumber[:] |> ustripall,
+                     label = "Pre-stimulus")
+            density!(ax, postwavenumber[:] |> ustripall,
+                     label = "Post-stimulus")
+            f
+            push!(maincolorrange, colorrange)
         end
 
         # * Miss
         ax = Axis(f[i, 2], yreversed = true)
-        ax.limits = (nothing, (0.1, 0.95))
+        ax.limits = (nothing, ylims)
         ax.title = structure * ": miss"
         m = median(k[:, :, lookup(k, Trial) .== false], dims = Trial)
         m = dropdims(m, dims = Trial)[𝑡(SpatiotemporalMotifs.INTERVAL)]
@@ -82,7 +103,7 @@ begin # * Supplemental material: average wavenumbers in each region
         if structure == mainstructure # * Plot into main figure
             ax = Axis(mfs[2], yreversed = true)
             ax.xlabel = "Time (s)"
-            ax.limits = (nothing, (0.1, 0.95))
+            ax.limits = (nothing, ylims)
             ax.title = structure * ": miss"
             m = median(k[:, :, lookup(k, Trial) .== false], dims = Trial)
             m = dropdims(m, dims = Trial)[𝑡(SpatiotemporalMotifs.INTERVAL)]
@@ -105,12 +126,12 @@ begin # * Supplemental material: average wavenumbers in each region
     gs = subdivide(f, 3, 2)
 
     for i in eachindex(uni)
-        k = uni[i][:k][:, 2:end, :, :]
+        k = uni[i][:k]
         k = uconvert.(u"mm^-1", k)
         structure = metadata(k)[:structure]
 
         ax = Axis(gs[i][1, 1], yreversed = true, xlabel = "Time (s)")
-        ax.limits = (nothing, (0.1, 0.95))
+        ax.limits = (nothing, ylims)
         ax.title = structure
         m = median(k, dims = (Trial, SessionID))
         m = dropdims(m, dims = (Trial, SessionID))[𝑡(SpatiotemporalMotifs.INTERVAL)]
@@ -121,7 +142,7 @@ begin # * Supplemental material: average wavenumbers in each region
         if structure == mainstructure
             colorrange = maincolorrange
             ax = Axis(mfs[3], yreversed = true, xlabel = "Time (s)")
-            ax.limits = (nothing, (0.1, 0.95))
+            ax.limits = (nothing, ylims)
             ax.title = structure * ": flashes"
             m = median(k, dims = (Trial, SessionID))
             m = dropdims(m, dims = (Trial, SessionID))[𝑡(SpatiotemporalMotifs.INTERVAL)]
