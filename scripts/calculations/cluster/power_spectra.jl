@@ -27,10 +27,11 @@ if haskey(ENV, "JULIA_DISTRIBUTED")
             using Pkg
             Pkg.instantiate()
             import SpatiotemporalMotifs as SM
-            SM.send_powerspectra($o, $stimulus; rewrite, retry_errors)
+            SM.send_powerspectra($o, $stimulus; rewrite = $rewrite,
+                                 retry_errors = $retry_errors)
         end
     end
-    USydClusters.Physics.runscripts(exprs; ncpus = 32, mem = 96, walltime = 4,
+    USydClusters.Physics.runscripts(exprs; ncpus = 16, mem = 90, walltime = 4,
                                     project = projectdir())
 else
     for o in reverse(oursessions)

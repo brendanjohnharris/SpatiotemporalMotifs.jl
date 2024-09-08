@@ -309,8 +309,14 @@ function send_calculations(D::Dict, session = AN.Session(D[:sessionid]);
 
     @info outfile
     if !rewrite && isfile(outfile)
-        @info "Calculations already complete for $(sessionid), $(structure), $(stimulus)"
-        return GC.gc()
+        fl = jldopen(outfile, "r")
+        if !haskey(fl, "error")
+            @info "Calculations already complete for $(sessionid), $(structure), $(stimulus)"
+            close(fl)
+            return GC.gc()
+        else
+            close(fl)
+        end
     end
 
     performance_metrics = AN.getperformancemetrics(session)
