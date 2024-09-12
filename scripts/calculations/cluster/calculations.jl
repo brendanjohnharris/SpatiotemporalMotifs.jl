@@ -34,4 +34,5 @@ if haskey(ENV, "JULIA_DISTRIBUTED") # ? Should take a night or so
 end
 SM.send_calculations.(reverse(oursessions); outpath, rewrite) # ? This version will take a few days if the above calculations errored, otherwise a few minutes (checks all calcualtions are correct)
 Q = SM.calcquality(datadir("calculations"))
+@assert all(oursessions .∈ [lookup(Q, SessionID)])
 # @sync selfdestruct()
