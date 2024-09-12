@@ -43,13 +43,14 @@ begin # * Supplemental material: average wavenumbers in each region
         ω = uni[i][:ω]
         k = uconvert.(u"mm^-1", k)
         k[ustripall(ω) .< 0] .= NaN * unit(eltype(k)) # Mask out negative frequency periods
+        @info "$(round(100*sum(ω .< 0u"Hz")/length(ω), sigdigits=2))% of data has a negative frequency"
 
         # * Hit
         ax = Axis(f[i, 1], yreversed = true)
         ax.limits = (nothing, ylims)
         structure = metadata(k)[:structure]
         ax.title = structure * ": hit"
-        m = median(k[:, :, lookup(k, Trial) .== true], dims = Trial)
+        m = nansafe(median, dims = Trial)(k[:, :, lookup(k, Trial) .== true])
         m = dropdims(m, dims = Trial)[𝑡(SpatiotemporalMotifs.INTERVAL)]
         colorrange = maximum(abs.(ustripall(m))) * [-1, 1]
         ints = uni[i][:layerints]
@@ -63,7 +64,7 @@ begin # * Supplemental material: average wavenumbers in each region
             ax.xlabel = "Time (s)"
             ax.limits = (nothing, ylims)
             ax.title = structure * ": hit"
-            m = median(k[:, :, lookup(k, Trial) .== true], dims = Trial)
+            m = nansafe(median, dims = Trial)(k[:, :, lookup(k, Trial) .== true])
             m = dropdims(m, dims = Trial)[𝑡(SpatiotemporalMotifs.INTERVAL)]
             ints = uni[i][:layerints]
             p = plotlayermap!(ax, m, ints; arrows = true, colorrange) |> first
@@ -74,28 +75,18 @@ begin # * Supplemental material: average wavenumbers in each region
             # * Calculate some stats of this figure
             open(statsfile, "a+") do file
                 write(file, "## $mainstructure average wavenumbers\n")
-                ................
                 write(file,
-                      "Average wavenumber (median ± IQR) = $(median(k[:])) ± $(iqr(k[:]))\n")
+                      "Average wavenumber (median ± IQR) = $(only(nansafe(median)(k[:]))) ± $(nansafe(iqr)(k[:])|>only)\n")
                 write(file,
-                      "Average wavenumber magnitude (median ± IQR) = $(median(abs.(k[:]))) ± $(iqr(abs.(k[:])))\n")
+                      "Average wavenumber magnitude (median ± IQR) = $(only(nansafe(median)(abs.(k[:])))) ± $(nansafe(iqr)(abs.(k[:]))|>only)\n")
             end
-
-            ff = Figure()
-            ax = Axis(ff[1, 1]; limits = ((-20, 20), nothing))
-            density!(ax, prewavenumber[:] |> ustripall,
-                     label = "Pre-stimulus")
-            density!(ax, postwavenumber[:] |> ustripall,
-                     label = "Post-stimulus")
-            f
-            push!(maincolorrange, colorrange)
         end
 
         # * Miss
         ax = Axis(f[i, 2], yreversed = true)
         ax.limits = (nothing, ylims)
         ax.title = structure * ": miss"
-        m = median(k[:, :, lookup(k, Trial) .== false], dims = Trial)
+        m = nansafe(median, dims = Trial)(k[:, :, lookup(k, Trial) .== false])
         m = dropdims(m, dims = Trial)[𝑡(SpatiotemporalMotifs.INTERVAL)]
         ints = uni[i][:layerints]
         p = plotlayermap!(ax, m, ints; arrows = true, colorrange) |> first
@@ -107,7 +98,7 @@ begin # * Supplemental material: average wavenumbers in each region
             ax.xlabel = "Time (s)"
             ax.limits = (nothing, ylims)
             ax.title = structure * ": miss"
-            m = median(k[:, :, lookup(k, Trial) .== false], dims = Trial)
+            m = nansafe(median; dims = Trial)(k[:, :, lookup(k, Trial) .== false])
             m = dropdims(m, dims = Trial)[𝑡(SpatiotemporalMotifs.INTERVAL)]
             ints = uni[i][:layerints]
             p = plotlayermap!(ax, m, ints; arrows = true, colorrange = maincolorrange) |>
@@ -137,7 +128,7 @@ begin # * Supplemental material: average wavenumbers in each region
         ax = Axis(gs[i][1, 1], yreversed = true, xlabel = "Time (s)")
         ax.limits = (nothing, ylims)
         ax.title = structure
-        m = median(k, dims = (Trial, SessionID))
+        m = nansafe(median, dims = (Trial, SessionID))(k)
         m = dropdims(m, dims = (Trial, SessionID))[𝑡(SpatiotemporalMotifs.INTERVAL)]
         ints = uni[i][:layerints]
         p = plotlayermap!(ax, m, ints; arrows = true) |> first
@@ -148,7 +139,7 @@ begin # * Supplemental material: average wavenumbers in each region
             ax = Axis(mfs[3], yreversed = true, xlabel = "Time (s)")
             ax.limits = (nothing, ylims)
             ax.title = structure * ": flashes"
-            m = median(k, dims = (Trial, SessionID))
+            m = nansafe(median, dims = (Trial, SessionID))(k)
             m = dropdims(m, dims = (Trial, SessionID))[𝑡(SpatiotemporalMotifs.INTERVAL)]
             ints = uni[i][:layerints]
             p = plotlayermap!(ax, m, ints; arrows = true, colorrange) |> first

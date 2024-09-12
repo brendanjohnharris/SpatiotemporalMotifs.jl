@@ -95,7 +95,7 @@ out = load_calculations(Q; stimulus, vars)
 begin # * Calculate a global order parameter at each time point
     out = map(out) do o
         filter(o) do _o
-            o[:sessionid] ∈ oursessions
+            _o[:sessionid] ∈ oursessions
         end
     end
     Og = map(out) do o
