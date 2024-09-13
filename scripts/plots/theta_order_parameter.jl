@@ -251,8 +251,28 @@ begin # * LDA input data and downsampling
     # H = [h[1:10:end, :, :] for h in H]
     # Hl = [h[1:10:end, :, :] for h in Hl]
     cg = h -> coarsegrain(h; dims = 1, newdim = 4)
-    H = [dropdims(mean((cg ∘ cg ∘ cg)(h); dims = 4); dims = 4) for h in H]
-    Hl = [dropdims(mean((cg ∘ cg ∘ cg)(h); dims = 4); dims = 4) for h in Hl]
+    H = [dropdims(nansafe(mean; dims = 4)((cg ∘ cg ∘ cg)(h)); dims = 4) for h in H]
+    @assert maximum(sum.([isnan.(x) for x in H])) .< 10
+    map(H) do h
+        for x in eachslice(h; dims = (Structure, Trial))
+            while !isempty(findall(isnan.(x)))
+                idxs = findall(isnan.(x))
+                x[idxs] .= x[idxs .- 1]
+            end
+        end
+    end
+    @assert maximum(sum.([isnan.(x) for x in H])) .== 0
+    Hl = [dropdims(nansafe(mean; dims = 4)((cg ∘ cg ∘ cg)(h)); dims = 4) for h in Hl]
+    @assert maximum(sum.([isnan.(x) for x in Hl])) .< 10
+    map(Hl) do h
+        for x in eachslice(h; dims = (Structure, Trial))
+            while !isempty(findall(isnan.(x)))
+                idxs = findall(isnan.(x))
+                x[idxs] .= x[idxs .- 1]
+            end
+        end
+    end
+    @assert maximum(sum.([isnan.(x) for x in Hl])) .== 0
     GC.gc()
 end
 
