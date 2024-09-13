@@ -2585,7 +2585,7 @@ weakdeps = ["Makie"]
 
 [[deps.TimeseriesTools]]
 deps = ["Dates", "DelimitedFiles", "DimensionalData", "Distributions", "FFTW", "FileIO", "GeometryBasics", "IntervalSets", "JSON", "LaTeXStrings", "LinearAlgebra", "MakieCore", "Normalization", "Peaks", "Random", "Reexport", "Requires", "SparseArrays", "Statistics", "Unitful"]
-git-tree-sha1 = "6a6694d49d2da16db4d1a758466a72253e0bea32"
+git-tree-sha1 = "5c14e89dee3ffec7e8e4be72ec1e6090430ed178"
 repo-rev = "main"
 repo-url = "https://github.com/brendanjohnharris/TimeseriesTools.jl.git"
 uuid = "380cddd1-6ef2-46ca-b087-e7151fb095ff"

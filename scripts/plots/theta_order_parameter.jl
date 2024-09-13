@@ -252,7 +252,8 @@ if !isfile(datadir("hyperparameters", "theta_waves_task.jld2")) ||
     end
 
     begin # * Single-subject classifications, returning 5-fold balanced accuracy. Takes ages, about 1 hour
-        regcoefs = first.(hyperr)
+        # regcoefs = first.(hyperr)
+        regcoef = 0.5
         folds = 5
         repeats = 10
 
@@ -261,17 +262,17 @@ if !isfile(datadir("hyperparameters", "theta_waves_task.jld2")) ||
         #     bac = classify_kfold(h; regcoef, k = folds, repeats)
         # end
 
-        bac_pre = pmap(H, regcoefs) do h, regcoef
+        bac_pre = pmap(H) do h
             h = h[𝑡 = -0.25u"s" .. 0.25u"s"]
             bac = classify_kfold(h; regcoef, k = folds, repeats)
         end
 
-        bac_post = pmap(H, regcoefs) do h, regcoef
+        bac_post = pmap(H) do h
             h = h[𝑡 = 0.25u"s" .. 0.75u"s"]
             bac = classify_kfold(h; regcoef, k = folds, repeats)
         end
 
-        bac_sur = pmap(H, regcoefs) do h, regcoef
+        bac_sur = pmap(H) do h
             h = h[𝑡 = -0.25u"s" .. 0.25u"s"]
             idxs = randperm(size(h, Trial))
             h = set(h, Trial => lookup(h, Trial)[idxs])
@@ -279,7 +280,7 @@ if !isfile(datadir("hyperparameters", "theta_waves_task.jld2")) ||
         end
 
         bac_lfp = map(Hlfp) do H
-            pmap(H, regcoefs) do h, regcoef # * Mean LFP, pre-offset
+            pmap(H) do h # * Mean LFP, pre-offset
                 h = h[𝑡 = -0.25u"s" .. 0.25u"s"]
                 bac = classify_kfold(h; regcoef, k = folds, repeats)
             end
@@ -289,7 +290,7 @@ if !isfile(datadir("hyperparameters", "theta_waves_task.jld2")) ||
     end
 
     begin # * Map of region-wise weightings
-        W = map(H, regcoefs) do h, regcoef
+        W = map(H) do h
             h = h[𝑡 = -0.25u"s" .. 0.75u"s"] # !!!
             N, M = classifier(h; regcoef) # !!!
             W = projection(M)
@@ -315,14 +316,14 @@ begin # * Plot classification performance
     ax = Axis(gs[3][1, 1],
               xticks = (1:4, ["Post-offset", "Pre-offset", "Mean LFP", "Null"]),
               ylabel = "Balanced accuracy", title = "Hit/miss classification",
-              limits = (nothing, (0.35, 0.85)))
+              limits = (nothing, (0.35, 0.85)), xticklabelrotation = π / 6)
     boxargs = (; width = 0.75, strokewidth = 5, whiskerwidth = 0.2,
                strokecolor = (:gray, 0.0)) # !!!! Show outliers??
-    boxplot!(ax, fill(1, length(bac_post)), bac_post; boxargs...)
-    boxplot!(ax, fill(2, length(bac_pre)), bac_pre; boxargs...)
+    boxplot!(ax, fill(1, length(bac_post)), bac_post; boxargs..., color = cucumber)
+    boxplot!(ax, fill(2, length(bac_pre)), bac_pre; boxargs..., color = cornflowerblue)
     boxplot!(ax, vcat([fill(3 + i, length(bac_lfp[1])) for i in [-0.3, 0, 0.3]]...),
-             vcat(bac_lfp...); boxargs..., width = 0.3)
-    text!(ax, 3 .+ [-0.3, 0, 0.3], [0.8, 0.8, 0.8]; text = ["S", "M", "D"],
+             reverse(vcat(bac_lfp...)); boxargs..., width = 0.3, color = crimson)
+    text!(ax, 3 .+ [-0.3, 0, 0.3], [0.8, 0.8, 0.8]; text = reverse(["S", "M", "D"]),
           align = (:center, :center))
     boxplot!(ax, fill(4, length(bac_sur)), bac_sur; color = :gray, boxargs...)
 end
