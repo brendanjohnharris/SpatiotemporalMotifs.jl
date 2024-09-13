@@ -281,7 +281,7 @@ if !isfile(datadir("hyperparameters", "theta_waves_task.jld2")) ||
     if !isfile(datadir("hyperparameters", "theta_waves_task.jld2"))
         if haskey(ENV, "JULIA_DISTRIBUTED")
             using USydClusters
-            procs = USydClusters.Physics.addprocs(32; mem = 15, ncpus = 2,
+            procs = USydClusters.Physics.addprocs(16; mem = 15, ncpus = 2,
                                                   project = projectdir())
             @everywhere using SpatiotemporalMotifs
         else
