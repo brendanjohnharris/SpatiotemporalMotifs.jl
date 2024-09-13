@@ -19,7 +19,7 @@ outpath = datadir("calculations")
 rewrite = false
 
 if haskey(ENV, "JULIA_DISTRIBUTED") # ? Should take a night or so
-    procs = addprocs(3; ncpus = 14, mem = 72,
+    procs = addprocs(5; ncpus = 14, mem = 72,
                      walltime = 96, project) # ! If you have workers dying unexpectedly, try increasing the memory for each job
     @everywhere begin
         using Pkg
@@ -34,5 +34,6 @@ if haskey(ENV, "JULIA_DISTRIBUTED") # ? Should take a night or so
 end
 SM.send_calculations.(reverse(oursessions); outpath, rewrite) # ? This version will take a few days if the above calculations errored, otherwise a few minutes (checks all calcualtions are correct)
 Q = SM.calcquality(datadir("calculations"))
-@assert all(oursessions .∈ [lookup(Q, SessionID)])
+@assert all(oursessions .∈ [lookup(Q, 3)])
+@assert mean(Q) == 1
 # @sync selfdestruct()

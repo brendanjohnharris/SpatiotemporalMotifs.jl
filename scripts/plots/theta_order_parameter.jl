@@ -241,8 +241,8 @@ begin # * LDA input data and downsampling
 
     # * Make sure temporal dims same size
     ts = intersect([intersect(lookup.(h, 𝑡)...) for h in H]...)
-    H = [[_h[Ti = At(ts)] for _h in h] for h in H]
-    Hl = [[_h[Ti = At(ts)] for _h in h] for h in Hl]
+    H = [[_h[𝑡 = At(ts)] for _h in h] for h in H]
+    Hl = [[_h[𝑡 = At(ts)] for _h in h] for h in Hl]
     H = stack.([Structure(structures)], H, dims = 3)
     Hl = stack.([Structure(structures)], Hl, dims = 3)
     H = permutedims.(H, [(1, 3, 2)])
@@ -270,7 +270,7 @@ if !isfile(datadir("hyperparameters", "theta_waves_task.jld2")) ||
         begin # * Get a rough estimate for a good hyperparameter. Currently on pre-offset data. This gives us ~0.5 as a good estimate
             function tuneclassifier(H; r0 = 0.5, repeats = 1, kwargs...)
                 r0 = log10(r0)
-                objective = r -> -classify_kfold(H[Ti = -0.25u"s" .. 0.25u"s"];
+                objective = r -> -classify_kfold(H[𝑡 = -0.25u"s" .. 0.25u"s"];
                                                  regcoef = exp10(only(r)), repeats,
                                                  kwargs...)
                 o = optimize(objective, [r0], ParticleSwarm(),
@@ -299,29 +299,29 @@ if !isfile(datadir("hyperparameters", "theta_waves_task.jld2")) ||
         repeats = 10
 
         bac_pred = pmap(H) do h
-            h = h[Ti = -0.25u"s" .. 0.0u"s"]
+            h = h[𝑡 = -0.25u"s" .. 0.0u"s"]
             bac = classify_kfold(h; regcoef, k = folds, repeats)
         end
 
         bac_pre = pmap(H) do h
-            h = h[Ti = -0.25u"s" .. 0.25u"s"]
+            h = h[𝑡 = -0.25u"s" .. 0.25u"s"]
             bac = classify_kfold(h; regcoef, k = folds, repeats)
         end
 
         bac_post = pmap(H) do h
-            h = h[Ti = 0.25u"s" .. 0.75u"s"]
+            h = h[𝑡 = 0.25u"s" .. 0.75u"s"]
             bac = classify_kfold(h; regcoef, k = folds, repeats)
         end
 
         bac_sur = pmap(H) do h
-            h = h[Ti = -0.25u"s" .. 0.25u"s"]
+            h = h[𝑡 = -0.25u"s" .. 0.25u"s"]
             idxs = randperm(size(h, Trial))
             h = set(h, Trial => lookup(h, Trial)[idxs])
             bac = classify_kfold(h; regcoef, k = folds, repeats)
         end
 
         bac_lfp = pmap(Hl) do h # * Mean LFP, pre-offset
-            h = h[Ti = -0.25u"s" .. 0.25u"s"]
+            h = h[𝑡 = -0.25u"s" .. 0.25u"s"]
             bac = classify_kfold(h; regcoef, k = folds, repeats)
         end
 
@@ -330,7 +330,7 @@ if !isfile(datadir("hyperparameters", "theta_waves_task.jld2")) ||
 
     begin # * Map of region-wise weightings
         W = map(H) do h
-            h = h[Ti = -0.25u"s" .. 0.75u"s"] # !!!
+            h = h[𝑡 = -0.25u"s" .. 0.75u"s"] # !!!
             N, M = classifier(h; regcoef = 0.5) # !!!
             W = projection(M)
             W = reshape(W, size(h)[1:2])
@@ -401,11 +401,11 @@ end
 #         reaction_times = [o[:trials].lick_latency for o in first(out)]
 #         regcoef = 1e5
 #         bac = pmap(eachindex(H)) do i
-#             regress_kfold(H[i][Ti = -0.0u"s" .. 0.25u"s"], reaction_times[i]; regcoef,
+#             regress_kfold(H[i][𝑡 = -0.0u"s" .. 0.25u"s"], reaction_times[i]; regcoef,
 #                           k = 5)
 #         end
 #         bac_sur = pmap(eachindex(H)) do i
-#             regress_kfold(H[i][Ti = -0.0u"s" .. 0.25u"s"],
+#             regress_kfold(H[i][𝑡 = -0.0u"s" .. 0.25u"s"],
 #                           reaction_times[i][randperm(length(reaction_times[i]))]; regcoef,
 #                           k = 5)
 #         end
