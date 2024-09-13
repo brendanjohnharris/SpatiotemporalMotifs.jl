@@ -35,6 +35,7 @@ include("Calculations.jl")
 include("Plots.jl")
 
 export classifier,
+       tuneclassifier,
        classify_kfold,
        commondepths,
        crossvalidate,

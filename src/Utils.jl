@@ -5,6 +5,7 @@ using RobustModels
 using Distributed
 import Bootstrap
 using MultipleTesting
+using Optim
 # import LIBSVM
 
 if !haskey(ENV, "DRWATSON_STOREPATCH")
@@ -301,7 +302,7 @@ function classifier(h, labels; regcoef = 0.5)
     # * LDA
     M = fit(MulticlassLDA, collect(h), collect(labels);
             regcoef = convert(eltype(h), regcoef))
-    ŷ = (ptiredict(M, h) .> 0) |> vec |> collect # Predicted output classes
+    ŷ = (predict(M, h) .> 0) |> vec |> collect # Predicted output classes
 
     # # * SVM
     # M = LIBSVM.svmtrain(h, labels, cost = Float64(regcoef))
@@ -354,6 +355,16 @@ function classify_kfold(H, rng::AbstractRNG = Random.default_rng(); k = 5, dim =
         return mean(bac)
     end
     return mean(bacs)
+end
+
+function tuneclassifier(H; r0 = 0.5, repeats = 1, kwargs...)
+    r0 = log10(r0)
+    objective = r -> -classify_kfold(H[𝑡 = -0.25u"s" .. 0.25u"s"];
+                                     regcoef = exp10(only(r)), repeats,
+                                     kwargs...)
+    o = optimize(objective, [r0], ParticleSwarm(),
+                 Optim.Options(; iterations = 10))
+    return exp10(only(o.minimizer)), -o.minimum
 end
 
 # mutable struct Regressor{T}

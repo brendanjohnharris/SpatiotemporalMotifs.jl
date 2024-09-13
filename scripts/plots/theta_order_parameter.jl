@@ -260,7 +260,7 @@ if !isfile(datadir("hyperparameters", "theta_waves_task.jld2")) ||
    !isfile(datafile) # Run calculations; needs to be on a cluster
     if !isfile(datadir("hyperparameters", "theta_waves_task.jld2"))
         if haskey(ENV, "JULIA_DISTRIBUTED")
-            using USydPhysicsClusters
+            using USydClusters
             procs = USydClusters.Physics.addprocs(32; mem = 15, ncpus = 2,
                                                   project = projectdir())
             @everywhere using SpatiotemporalMotifs
@@ -268,17 +268,8 @@ if !isfile(datadir("hyperparameters", "theta_waves_task.jld2")) ||
             error("Calculations must be run on a cluster, set ENV[\"JULIA_DISTRIBUTED\"] to confirm this.")
         end
         begin # * Get a rough estimate for a good hyperparameter. Currently on pre-offset data. This gives us ~0.5 as a good estimate
-            function tuneclassifier(H; r0 = 0.5, repeats = 1, kwargs...)
-                r0 = log10(r0)
-                objective = r -> -classify_kfold(H[𝑡 = -0.25u"s" .. 0.25u"s"];
-                                                 regcoef = exp10(only(r)), repeats,
-                                                 kwargs...)
-                o = optimize(objective, [r0], ParticleSwarm(),
-                             Optim.Options(; iterations = 10))
-                return exp10(only(o.minimizer)), -o.minimum
-            end
             hfile = datadir("hyperparameters", "theta_waves_task.jld2")
-            hyperr = pmap(tuneclassifier, H)
+            hyperr = pmap(SpatiotemporalMotifs.tuneclassifier, H)
             tagsave(hfile, @strdict hyperr)
             if isfile(hfile)
                 hyperr = load(hfile, "hyperr")
