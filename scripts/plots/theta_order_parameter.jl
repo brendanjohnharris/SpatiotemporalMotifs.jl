@@ -312,16 +312,6 @@ else
 end
 
 begin # * Plot classification performance
-    # ax = Axis(gs[3]; xlabel = "Balanced accuracy", ylabel = "Density",
-    #   title = "Hit/miss classification")
-    # ziggurat!(ax, bac_sur; bins = 10, label = "Null", normalizaton = :pdf, color = crimson)
-    # ziggurat!(ax, bac_lfp; bins = 10, label = "Null", normalizaton = :pdf, color = crimson)
-    # ziggurat!(ax, bac_post; bins = 10, label = "Post-offset", normalizaton = :pdf,
-    #           color = cucumber)
-    # ziggurat!(ax, bac_pre; bins = 10, label = "Pre-offset", normalizaton = :pdf,
-    #           color = cornflowerblue)
-    # axislegend(ax, position = :lt, framevisible = true, labelsize = 12)
-    # tightlimits!(ax)
     ax = Axis(gs[3][1, 1],
               xticks = (1:4, ["Post-offset", "Pre-offset", "Mean LFP", "Null"]),
               ylabel = "Balanced accuracy", title = "Hit/miss classification",
@@ -329,8 +319,11 @@ begin # * Plot classification performance
     boxargs = (; width = 0.75, strokewidth = 5, whiskerwidth = 0.2,
                strokecolor = (:gray, 0.0)) # !!!! Show outliers??
     boxplot!(ax, fill(1, length(bac_post)), bac_post; boxargs...)
-    boxplot!(ax, fill(3, length(bac_lfp)), bac_lfp; boxargs...)
     boxplot!(ax, fill(2, length(bac_pre)), bac_pre; boxargs...)
+    boxplot!(ax, vcat([fill(3 + i, length(bac_lfp[1])) for i in [-0.3, 0, 0.3]]...),
+             vcat(bac_lfp...); boxargs..., width = 0.3)
+    text!(ax, 3 .+ [-0.3, 0, 0.3], [0.8, 0.8, 0.8]; text = ["S", "M", "D"],
+          align = (:center, :center))
     boxplot!(ax, fill(4, length(bac_sur)), bac_sur; color = :gray, boxargs...)
 end
 
@@ -354,35 +347,6 @@ begin # * Plot region-wise weightings
                    merge = true)
     reverselegend!(l)
 end
-
-# -------------------------------- Rection-time prediction ------------------------------- #
-# if false
-#     begin # * K-fold validation with Huber (outlier-robust) regression
-#         reaction_times = [o[:trials].lick_latency for o in first(out)]
-#         regcoef = 1e5
-#         bac = pmap(eachindex(H)) do i
-#             regress_kfold(H[i][𝑡 = -0.0u"s" .. 0.25u"s"], reaction_times[i]; regcoef,
-#                           k = 5)
-#         end
-#         bac_sur = pmap(eachindex(H)) do i
-#             regress_kfold(H[i][𝑡 = -0.0u"s" .. 0.25u"s"],
-#                           reaction_times[i][randperm(length(reaction_times[i]))]; regcoef,
-#                           k = 5)
-#         end
-#     end
-#     begin # * Plot regression scores
-#         ax = Axis(gs[4]; xlabel = "Spearman correlation", ylabel = "Density",
-#                   title = "Reaction time prediction")
-#         ziggurat!(ax, bac_sur; bins = 10, label = "Null", normalizaton = :pdf,
-#                   color = crimson)
-#         # ziggurat!(ax, bac_post; bins = 10, label = "Post-stimulus", normalizaton = :pdf,
-#         #           color = cucumber)
-#         ziggurat!(ax, bac; bins = 10, label = "Pre-offset", normalizaton = :pdf,
-#                   color = cornflowerblue)
-#         axislegend(ax, position = :lt, framevisible = true, labelsize = 12)
-#         tightlimits!(ax)
-#     end
-# end
 
 begin # * Save
     addlabels!(fig, ["(d)", "(e)", "(f)", "(g)"])
