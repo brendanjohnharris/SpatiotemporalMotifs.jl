@@ -6,6 +6,7 @@ using Distributed
 import Bootstrap
 using MultipleTesting
 using Optim
+using IntervalSets
 # import LIBSVM
 
 if !haskey(ENV, "DRWATSON_STOREPATCH")
