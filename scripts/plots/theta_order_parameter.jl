@@ -143,80 +143,28 @@ begin # * Plot the mean order parameter across time
     l = axislegend(ax, position = :lt, nbanks = 2, framevisible = true, labelsize = 12,
                    merge = true)
     reverselegend!(l)
-
-    # f = Figure()
-    # ax = Axis(f[1, 1]; xlabel = "Time (s)", ylabel = "Mean order parameter (hit - miss)",
-    #           xautolimitmargin = (0, 0), xminorticksvisible = true,
-    #           xminorticks = IntervalsBetween(5), yminorticksvisible = true,
-    #           yminorticks = IntervalsBetween(5))
-    # hlines!(ax, [0]; color = (:black, 0.5), linestyle = :dash, linewidth = 2)
-    # vlines!(ax, [0, 0.25]; color = (:black, 0.5), linestyle = :dash, linewidth = 2)
-    # for (i, (O_h, O_m)) in enumerate(zip(Ō_h, Ō_m))
-    #     structure = metadata(O_h)[:structure]
-    #     x = O_h .- O_m
-    #     μ = dropdims(mean(x, dims = SessionID), dims = SessionID)
-    #     σ = dropdims(std(x, dims = SessionID), dims = SessionID)
-    #     σ = σ ./ sqrt(size(O_h, 2)) # SEM
-    #     bargs = [times(μ), μ .- σ, μ .+ σ] .|> ustripall .|> collect
-    #     band!(ax, bargs..., color = (structurecolors[i], 0.3))
-    #     lines!(ax, μ |> ustripall, color = (structurecolors[i], 0.7), label = structure)
-    # end
-    # axislegend(ax, position = :rb, framevisible = true, labelsize = 12)
-    # display(f)
-    # wsave(plotdir("theta_waves_task", "regional_orderparameter.pdf"), f)
     fig
 end
 
 # ---------------------------------- Hit/miss prediction --------------------------------- #
-begin # * Filter out poor-performing mice and regenerate order parameters
-    """
-    f is a function applied to every element of the varaible var (e.g. `sign` for the
-    direction of the phase velocity var=:k). One of these will take about 1 minute over 64 cores
-    """
-    # function filter_out(out, newsessions, var = :k, f = sign)
-    #     out = [filter(x -> x.sessionid ∈ newsessions, o) for o in out]
-
-    #     Og = progressmap(out; parallel = true) do o
-    #         O = map(o) do p
-    #             k = p[var]
-    #             k = ZScore(k, dims = 1)(k)
-    #             ret = dropdims(mean(f.(k), dims = Depth), dims = Depth)
-    #             trials = p[:trials]
-    #             trialtimes = trials.change_time_with_display_delay
-    #             @assert all(isapprox.(ustripall(lookup(k, :changetime)), trialtimes,
-    #                                   atol = 0.05)) # These won't match exactly, because the data change times have been adjusted for rectification. This is OK.
-    #             ret = set(ret, Dim{:changetime} => Trial)
-    #             set(ret,
-    #                 DimensionalData.format(Trial(trials.hit), lookup(ret, Trial)))
-    #         end
-    #     end
-
-    #     Og_h = [[o[:, lookup(o, Trial) .== true] for o in O] for O in Og]
-    #     Og_m = [[o[:, lookup(o, Trial) .== false] for o in O] for O in Og]
-    #     sessionids = [o[:sessionid] for o in out[1]]
-
-    #     return Og, Og_h, Og_m, sessionids
-    # end
-    # Og, Og_h, Og_m, sessionids = filter_out(out, newsessions, :k, sign) # mean order parameter
-    # GC.gc()
-    # Ol, Ol_h, Ol_m, _ = filter_out(out, newsessions, :x, identity) # Mean theta LFP
-    # GC.gc()
-
-    Ol = map(out) do o
-        O = map(o) do p
-            k = p[:x]
-            k = ZScore(k, dims = 1)(k)
-            ret = dropdims(nansafe(mean; dims = Depth)(k), dims = Depth)
-            trials = p[:trials][1:size(k, :changetime), :]
-            trialtimes = trials.change_time_with_display_delay
-            @assert all(isapprox.(ustripall(lookup(k, :changetime)), trialtimes,
-                                  atol = 0.05)) # These won't match exactly, because the data change times have been adjusted for rectification. This is OK.
-            set(ret, Dim{:changetime} => Trial(trials.hit))
+begin # * Generate mean LFP responses
+    layergroups = [[1, 2], [3], [4, 5]] # Superficial, middle (L4), deep
+    Olfp = map(layergroups) do ls
+        map(out) do o
+            map(o) do p
+                k = p[:x]
+                idxs = parselayernum.(metadata(k)[:layernames]) .∈ [ls]
+                k = k[:, parent(idxs), :]
+                k = ZScore(k, dims = 1)(k)
+                ret = dropdims(nansafe(mean; dims = Depth)(k), dims = Depth)
+                trials = p[:trials][1:size(k, :changetime), :]
+                trialtimes = trials.change_time_with_display_delay
+                @assert all(isapprox.(ustripall(lookup(k, :changetime)), trialtimes,
+                                      atol = 0.05)) # These won't match exactly, because the data change times have been adjusted for rectification. This is OK.
+                set(ret, Dim{:changetime} => Trial(trials.hit))
+            end
         end
     end
-
-    Ol_h = [[o[:, lookup(o, Trial) .== true] for o in O] for O in Ol]
-    Ol_m = [[o[:, lookup(o, Trial) .== false] for o in O] for O in Ol]
 end
 
 # begin # Delete
@@ -237,42 +185,40 @@ end
 
 begin # * LDA input data and downsampling
     H = [getindex.(Og, s) for s in eachindex(Og[1])] # Order parameter
-    Hl = [getindex.(Ol, s) for s in eachindex(Ol[1])] # Mean LFP
+    Hlfp = map(Olfp) do O
+        [getindex.(O, s) for s in eachindex(O[1])]
+    end
 
     # * Make sure temporal dims same size
     ts = intersect([intersect(lookup.(h, 𝑡)...) for h in H]...)
     H = [[_h[𝑡 = At(ts)] for _h in h] for h in H]
-    Hl = [[_h[𝑡 = At(ts)] for _h in h] for h in Hl]
     H = stack.([Structure(structures)], H, dims = 3)
-    Hl = stack.([Structure(structures)], Hl, dims = 3)
     H = permutedims.(H, [(1, 3, 2)])
-    Hl = permutedims.(Hl, [(1, 3, 2)])
+    Hlfp = map(Hlfp) do H
+        H = [[_h[𝑡 = At(ts)] for _h in h] for h in H]
+        H = stack.([Structure(structures)], H, dims = 3)
+        H = permutedims.(H, [(1, 3, 2)])
+    end
 
     # H = [h[1:10:end, :, :] for h in H]
     # Hl = [h[1:10:end, :, :] for h in Hl]
     cg = h -> coarsegrain(h; dims = 1, newdim = 4)
-    H = [dropdims(nansafe(mean; dims = 4)((cg ∘ cg ∘ cg)(h)); dims = 4) for h in H]
-    @assert maximum(sum.([isnan.(x) for x in H])) .< 10
-    map(H) do h
-        for x in eachslice(h; dims = (Structure, Trial))
-            while !isempty(findall(isnan.(x)))
-                idxs = findall(isnan.(x))
-                x[idxs] .= x[idxs .- 1]
+    function consist(H)
+        H = [dropdims(nansafe(mean; dims = 4)((cg ∘ cg ∘ cg)(h)); dims = 4) for h in H]
+        @assert maximum(sum.([isnan.(x) for x in H])) .< 10
+        map(H) do h
+            for x in eachslice(h; dims = (Structure, Trial))
+                while !isempty(findall(isnan.(x)))
+                    idxs = findall(isnan.(x))
+                    x[idxs] .= x[idxs .- 1]
+                end
             end
         end
+        @assert maximum(sum.([isnan.(x) for x in H])) .== 0
+        return H
     end
-    @assert maximum(sum.([isnan.(x) for x in H])) .== 0
-    Hl = [dropdims(nansafe(mean; dims = 4)((cg ∘ cg ∘ cg)(h)); dims = 4) for h in Hl]
-    @assert maximum(sum.([isnan.(x) for x in Hl])) .< 10
-    map(Hl) do h
-        for x in eachslice(h; dims = (Structure, Trial))
-            while !isempty(findall(isnan.(x)))
-                idxs = findall(isnan.(x))
-                x[idxs] .= x[idxs .- 1]
-            end
-        end
-    end
-    @assert maximum(sum.([isnan.(x) for x in Hl])) .== 0
+    H = consist(H)
+    Hlfp = consist.(Hlfp)
     GC.gc()
 end
 
@@ -281,9 +227,10 @@ if !isfile(datadir("hyperparameters", "theta_waves_task.jld2")) ||
     if !isfile(datadir("hyperparameters", "theta_waves_task.jld2"))
         if haskey(ENV, "JULIA_DISTRIBUTED")
             using USydClusters
-            procs = USydClusters.Physics.addprocs(16; mem = 15, ncpus = 2,
-                                                  project = projectdir())
+            procs = USydClusters.Physics.addprocs(26; mem = 22, ncpus = 4,
+                                                  project = projectdir()) # ? Can reuse these for the following bac calculations
             @everywhere using SpatiotemporalMotifs
+            @everywhere SpatiotemporalMotifs.@preamble
         else
             error("Calculations must be run on a cluster, set ENV[\"JULIA_DISTRIBUTED\"] to confirm this.")
         end
@@ -305,50 +252,52 @@ if !isfile(datadir("hyperparameters", "theta_waves_task.jld2")) ||
     end
 
     begin # * Single-subject classifications, returning 5-fold balanced accuracy. Takes ages, about 1 hour
-        regcoef = 0.5
+        regcoefs = first.(hyperr)
         folds = 5
         repeats = 10
 
-        bac_pred = pmap(H) do h
-            h = h[𝑡 = -0.25u"s" .. 0.0u"s"]
-            bac = classify_kfold(h; regcoef, k = folds, repeats)
-        end
+        # bac_pred = pmap(H) do h
+        #     h = h[𝑡 = -0.25u"s" .. 0.0u"s"]
+        #     bac = classify_kfold(h; regcoef, k = folds, repeats)
+        # end
 
-        bac_pre = pmap(H) do h
+        bac_pre = pmap(H, regcoefs) do h, regcoef
             h = h[𝑡 = -0.25u"s" .. 0.25u"s"]
             bac = classify_kfold(h; regcoef, k = folds, repeats)
         end
 
-        bac_post = pmap(H) do h
+        bac_post = pmap(H, regcoefs) do h, regcoef
             h = h[𝑡 = 0.25u"s" .. 0.75u"s"]
             bac = classify_kfold(h; regcoef, k = folds, repeats)
         end
 
-        bac_sur = pmap(H) do h
+        bac_sur = pmap(H, regcoefs) do h, regcoef
             h = h[𝑡 = -0.25u"s" .. 0.25u"s"]
             idxs = randperm(size(h, Trial))
             h = set(h, Trial => lookup(h, Trial)[idxs])
             bac = classify_kfold(h; regcoef, k = folds, repeats)
         end
 
-        bac_lfp = pmap(Hl) do h # * Mean LFP, pre-offset
-            h = h[𝑡 = -0.25u"s" .. 0.25u"s"]
-            bac = classify_kfold(h; regcoef, k = folds, repeats)
+        bac_lfp = map(Hlfp) do H
+            pmap(H, regcoefs) do h, regcoef # * Mean LFP, pre-offset
+                h = h[𝑡 = -0.25u"s" .. 0.25u"s"]
+                bac = classify_kfold(h; regcoef, k = folds, repeats)
+            end
         end
 
-        D = @strdict bac_pred bac_lfp bac_pre bac_post bac_sur regcoef folds repeats
+        D = @strdict bac_lfp bac_pre bac_post bac_sur regcoefs folds repeats
     end
 
     begin # * Map of region-wise weightings
-        W = map(H) do h
+        W = map(H, regcoefs) do h, regcoef
             h = h[𝑡 = -0.25u"s" .. 0.75u"s"] # !!!
-            N, M = classifier(h; regcoef = 0.5) # !!!
+            N, M = classifier(h; regcoef) # !!!
             W = projection(M)
             W = reshape(W, size(h)[1:2])
             return ToolsArray(W, dims(h)[1:2])
         end
-        W = stack(SessionID(sessionids), W, dims = 3)
-        W = W ./ maximum(abs.(W))
+        W = stack(SessionID(oursessions), W, dims = 3)
+        W = W ./ maximum(abs.(W)) # ! Normalized
     end
     push!(D, "W" => W)
     tagsave(datafile, D)

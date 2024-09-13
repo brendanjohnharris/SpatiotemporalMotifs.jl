@@ -358,10 +358,10 @@ function classify_kfold(H, rng::AbstractRNG = Random.default_rng(); k = 5, dim =
     return mean(bacs)
 end
 
-function tuneclassifier(H; r0 = 0.5, repeats = 1, kwargs...)
+function tuneclassifier(H; r0 = 0.5, repeats = 10, k = 5, kwargs...)
     r0 = log10(r0)
-    objective = r -> -classify_kfold(H[𝑡 = -0.25u"s" .. 0.25u"s"];
-                                     regcoef = exp10(only(r)), repeats,
+    objective = r -> -classify_kfold(H[𝑡 = -0.25u"s" .. 0.25u"s"]; # Just pre-offset
+                                     regcoef = exp10(only(r)), repeats, k,
                                      kwargs...)
     o = optimize(objective, [r0], ParticleSwarm(),
                  Optim.Options(; iterations = 10))
