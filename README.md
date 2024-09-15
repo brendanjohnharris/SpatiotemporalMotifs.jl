@@ -115,6 +115,7 @@ The script will take about 2 hours to run without pre-computed `fooof.jld` files
 
 1. [Theta wavenumbers](scripts/plots/theta_wavenumbers.jl): produces panels A--C of Fig.3, heatmaps of the median wavenumber in `VISl` during hit, miss, and flash trials.
 2. [Order parameter](scripts/plots/theta_order_parameter.jl):.............
+3. [Inter-areal phase delays](scripts/plots/interareal_phasedelays.jl):.............
 
 #### Gamma bursts and nested oscillations
 

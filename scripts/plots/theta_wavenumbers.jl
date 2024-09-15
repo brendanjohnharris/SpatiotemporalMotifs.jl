@@ -16,7 +16,7 @@ using SpatiotemporalMotifs
 set_theme!(foresight(:physics))
 Random.seed!(32)
 
-vars = [:k, :ω]
+vars = [:V, :k, :ω]
 INTERVAL = SpatiotemporalMotifs.INTERVAL
 mainstructure = "VISl"
 maincolorrange = [-2.0, 2.0]
@@ -34,6 +34,15 @@ end
 
 stimulus = r"Natural_Images"
 uni = load_uni(; stimulus, vars)
+
+begin # * Current source density
+    S = map(uni) do u
+        V = u[:V]
+    end
+    csd = centralderiv(centralderiv(rectify(S[2]; dims = 𝑡); dims = Depth); dims=Depth)
+    csd = dropdims(mean(csd, dims = Trial); dims = Trial)
+    heatmap(decompose(csd)...)
+end
 
 begin # * Supplemental material: average wavenumbers in each region
     f = Figure(size = (720, 1440))

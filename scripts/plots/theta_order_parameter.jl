@@ -149,6 +149,23 @@ end
 # ---------------------------------- Hit/miss prediction --------------------------------- #
 begin # * Generate mean LFP responses
     layergroups = [[1, 2], [3], [4, 5]] # Superficial, middle (L4), deep
+    Og = map(layergroups) do ls
+        map(out) do o
+            O = map(o) do p
+                k = p[:k]
+                ω = p[:ω]
+                k[ustripall(ω) .< 0] .= NaN * unit(eltype(k))
+                idxs = parselayernum.(metadata(k)[:layernames]) .∈ [ls]
+                k = k[:, parent(idxs), :]
+                ret = dropdims(nansafe(mean, dims = Depth)(sign.(k)), dims = Depth)
+                trials = p[:trials][1:size(k, :changetime), :]
+                trialtimes = trials.change_time_with_display_delay
+                @assert all(isapprox.(ustripall(lookup(k, :changetime)), trialtimes,
+                                      atol = 0.05)) # These won't match exactly, because the data change times have been adjusted for rectification. This is OK.
+                set(ret, Dim{:changetime} => Trial(trials.hit))
+            end
+        end
+    end
     Olfp = map(layergroups) do ls
         map(out) do o
             map(o) do p
@@ -167,57 +184,52 @@ begin # * Generate mean LFP responses
     end
 end
 
-# begin # Delete
-#     f = Figure()
-#     ax = Axis(f[1, 1])
-#     a = 1
-#     b = 22
-#     m = mean(Og_h[a][b], dims = 2)[:]
-#     sigma = std(Og_h[a][b], dims = 2) ./ 2
-#     band!(1:length(m), m .- sigma[:], m .+ sigma[:]; color = (:cornflowerblue, 0.3))
-#     lines!(m)
-#     m = mean(Og_m[a][b], dims = 2)[:]
-#     sigma = std(Og_m[a][b], dims = 2) ./ 2
-#     band!(1:length(m), m .- sigma[:], m .+ sigma[:], color = (:crimson, 0.3))
-#     lines!(m)
-#     current_figure()
-# end
-
 begin # * LDA input data and downsampling
-    H = [getindex.(Og, s) for s in eachindex(Og[1])] # Order parameter
+    H = map(Og) do O
+        [getindex.(O, s) for s in eachindex(Og[1])] # Order parameter
+    end
     Hlfp = map(Olfp) do O
         [getindex.(O, s) for s in eachindex(O[1])]
     end
 
     # * Make sure temporal dims same size
-    ts = intersect([intersect(lookup.(h, 𝑡)...) for h in H]...)
-    H = [[_h[𝑡 = At(ts)] for _h in h] for h in H]
-    H = stack.([Structure(structures)], H, dims = 3)
-    H = permutedims.(H, [(1, 3, 2)])
+    ts = intersect([intersect(lookup.(h, 𝑡)...) for h in H[1]]...)
+    H = map(H) do _H
+        _H = [[_h[𝑡 = At(ts)] for _h in h] for h in _H]
+        _H = stack.([Structure(structures)], _H, dims = 3)
+        _H = permutedims.(_H, [(1, 3, 2)])
+    end
     Hlfp = map(Hlfp) do H
         H = [[_h[𝑡 = At(ts)] for _h in h] for h in H]
         H = stack.([Structure(structures)], H, dims = 3)
         H = permutedims.(H, [(1, 3, 2)])
     end
 
-    # H = [h[1:10:end, :, :] for h in H]
-    # Hl = [h[1:10:end, :, :] for h in Hl]
     cg = h -> coarsegrain(h; dims = 1, newdim = 4)
     function consist(H)
-        H = [dropdims(nansafe(mean; dims = 4)((cg ∘ cg ∘ cg)(h)); dims = 4) for h in H]
-        @assert maximum(sum.([isnan.(x) for x in H])) .< 10
-        map(H) do h
+        HH = [dropdims(nansafe(mean; dims = 4)((cg ∘ cg ∘ cg)(h)); dims = 4) for h in H]
+
+        @assert maximum(sum.([isnan.(x) for x in HH]) ./ length.([isnan.(x) for x in HH])) <
+                0.01
+
+        map(HH) do h
             for x in eachslice(h; dims = (Structure, Trial))
-                while !isempty(findall(isnan.(x)))
+                while !isempty(findall(isnan.(x))) # !! Fill in NaNs with most adjacent values. Need this to be done better.........
                     idxs = findall(isnan.(x))
-                    x[idxs] .= x[idxs .- 1]
+                    if first(idxs) == 1
+                        x[1] = x[2]
+                        idxs = idxs[2:end]
+                    end
+                    if !isempty(idxs)
+                        x[idxs] .= x[idxs .- 1]
+                    end
                 end
             end
         end
-        @assert maximum(sum.([isnan.(x) for x in H])) .== 0
-        return H
+        @assert maximum(sum.([isnan.(x) for x in HH])) .== 0
+        return HH
     end
-    H = consist(H)
+    H = consist.(H)
     Hlfp = consist.(Hlfp)
     GC.gc()
 end
@@ -262,9 +274,11 @@ if !isfile(datadir("hyperparameters", "theta_waves_task.jld2")) ||
         #     bac = classify_kfold(h; regcoef, k = folds, repeats)
         # end
 
-        bac_pre = pmap(H) do h
-            h = h[𝑡 = -0.25u"s" .. 0.25u"s"]
-            bac = classify_kfold(h; regcoef, k = folds, repeats)
+        bac_pre = map(H) do _H
+            pmap(_H) do h
+                h = h[𝑡 = -0.25u"s" .. 0.25u"s"]
+                bac = classify_kfold(h; regcoef, k = folds, repeats)
+            end
         end
 
         bac_post = pmap(H) do h

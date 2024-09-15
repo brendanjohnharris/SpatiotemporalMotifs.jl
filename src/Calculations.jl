@@ -224,6 +224,8 @@ function _calculations(LFP; pass_θ, pass_γ, ΔT, doupsample, starttimes)
     # vₚ = ωᵧ ./ kᵧ # Phase velocity
     # vᵧ = ∂ωᵧ ./ ∂kᵧ # Group velocity
 
+    csd = centralderiv(centralderiv(LFP, dims = Depth); dims = Depth)
+
     function alignmatchcat(x)
         x = align(x, starttimes, ΔT)[2:(end - 2)]
         x = matchdim(x; dims = 1)
@@ -231,13 +233,14 @@ function _calculations(LFP; pass_θ, pass_γ, ΔT, doupsample, starttimes)
     end
     # a, ϕ, ϕᵧ, ω, k, v, aᵧ, ωᵧ, kᵧ, vₚ, vᵧ = alignmatchcat.([a, ϕ, ϕᵧ, ω, k, v, aᵧ, ωᵧ, kᵧ,
     #                                                         vₚ, vᵧ])
-    V, x, y, a, ϕ, ϕᵧ, ω, k, v, aᵧ, ωᵧ, kᵧ = alignmatchcat.([LFP, θ, γ, a, ϕ, ϕᵧ, ω, k,
-                                                                v,
-                                                                aᵧ, ωᵧ,
-                                                                kᵧ])
+    V, csd, x, y, a, ϕ, ϕᵧ, ω, k, v, aᵧ, ωᵧ, kᵧ = alignmatchcat.([LFP, csd, θ, γ, a, ϕ, ϕᵧ,
+                                                                     ω, k,
+                                                                     v,
+                                                                     aᵧ, ωᵧ,
+                                                                     kᵧ])
     r = abs.(aᵧ) .* unit(eltype(V))
 
-    return V, x, y, a, ϕ, ϕᵧ, ω, k, v, r, ωᵧ, kᵧ
+    return V, csd, x, y, a, ϕ, ϕᵧ, ω, k, v, r, ωᵧ, kᵧ
 end
 
 function _calculations(session::AN.AbstractSession, structure, stimulus)
@@ -324,8 +327,8 @@ function send_calculations(D::Dict, session = AN.Session(D[:sessionid]);
                                                                                                    structure,
                                                                                                    stimulus)
     layerinfo = AN.Plots._layerplot(session, channels)
-    V, x, y, a, ϕ, ϕᵧ, ω, k, v, r, ωᵧ, kᵧ = _calculations(LFP; pass_θ, pass_γ, ΔT,
-                                                          doupsample, starttimes)
+    V, csd, x, y, a, ϕ, ϕᵧ, ω, k, v, r, ωᵧ, kᵧ = _calculations(LFP; pass_θ, pass_γ, ΔT,
+                                                               doupsample, starttimes)
 
     out = Dict("channels" => channels,
                "trials" => trials[2:(end - 2), :],
@@ -334,6 +337,7 @@ function send_calculations(D::Dict, session = AN.Session(D[:sessionid]);
                "pass_θ" => pass_θ,
                "pass_γ" => pass_γ,
                "V" => V,
+               "csd" => csd,
                "x" => x,
                "y" => y,
                "a" => a,
@@ -352,7 +356,7 @@ function send_calculations(D::Dict, session = AN.Session(D[:sessionid]);
                "performance_metrics" => performance_metrics)
     @tagsave outfile out
 
-    out = V = x = y = a = ϕ = ϕᵧ = ω = k = v = r = ωᵧ = kᵧ = spiketimes = []
+    out = V = csd = x = y = a = ϕ = ϕᵧ = ω = k = v = r = ωᵧ = kᵧ = spiketimes = units = []
     GC.gc()
     return true
 end
@@ -405,12 +409,14 @@ function send_thalamus_calculations(D::Dict, session = AN.Session(D[:sessionid])
     ϕ = angle.(a)
     ϕᵧ = angle.(aᵧ)
 
+    csd = centralderiv(centralderiv(LFP, dims = Depth); dims = Depth)
+
     function alignmatchcat(x)
         x = align(x, starttimes, ΔT)[2:(end - 2)]
         x = matchdim(x; dims = 1)
         x = stack(Dim{:changetime}(times(x)), x)
     end
-    V, x, y, a, ϕ, ϕᵧ, aᵧ = alignmatchcat.([LFP, θ, γ, a, ϕ, ϕᵧ, aᵧ])
+    V, csd, x, y, a, ϕ, ϕᵧ, aᵧ = alignmatchcat.([LFP, csd, θ, γ, a, ϕ, ϕᵧ, aᵧ])
     r = abs.(aᵧ) .* unit(eltype(V))
 
     out = Dict("channels" => channels,
@@ -418,6 +424,7 @@ function send_thalamus_calculations(D::Dict, session = AN.Session(D[:sessionid])
                "pass_θ" => pass_θ,
                "pass_γ" => pass_γ,
                "V" => V,
+               "csd" => csd,
                "x" => x,
                "y" => y,
                "a" => a,
@@ -428,7 +435,7 @@ function send_thalamus_calculations(D::Dict, session = AN.Session(D[:sessionid])
                "performance_metrics" => performance_metrics)
     @tagsave outfile out
 
-    out = V = x = y = a = ϕ = ϕᵧ = r = spiketimes = []
+    out = V = csd = x = y = a = ϕ = ϕᵧ = r = spiketimes = []
     GC.gc()
     return true
 end
@@ -535,7 +542,7 @@ end
 
 function collect_calculations(Q; path = datadir("calculations"), stimulus, rewrite = false)
     outfilepath = savepath("out", Dict("stimulus" => stimulus), "jld2", datadir())
-    subvars = sort([:x, :ϕ, :r, :k, :ω])
+    subvars = sort([:V, :csd, :x, :ϕ, :r, :k, :ω])
     if !isfile(outfilepath) || rewrite
         jldopen(outfilepath, "w") do outfile
             out = map(lookup(Q, Structure)) do structure
@@ -590,7 +597,8 @@ function collect_calculations(Q; path = datadir("calculations"), stimulus, rewri
     return outfilepath
 end
 
-function load_calculations(Q; vars = sort([:x, :ϕ, :r, :k, :ω]), stimulus, kwargs...)
+function load_calculations(Q; vars = sort([:V, :csd, :x, :ϕ, :r, :k, :ω]), stimulus,
+                           kwargs...)
     commonkeys = [
         :streamlinedepths, :layernames, :pass_γ, :pass_θ, :trials, :sessionid,
         :performance_metrics, :spiketimes
@@ -613,7 +621,7 @@ function load_calculations(Q; vars = sort([:x, :ϕ, :r, :k, :ω]), stimulus, kwa
     end
 end
 
-function unify_calculations(Q; stimulus, vars = sort([:x, :ϕ, :r, :k, :ω]),
+function unify_calculations(Q; stimulus, vars = sort([:V, :csd, :x, :ϕ, :r, :k, :ω]),
                             rewrite = false, kwargs...)
     unifilepath = savepath("uni", Dict("stimulus" => stimulus), "jld2", datadir())
     # * Filter to posthoc sessions
@@ -721,7 +729,7 @@ end
 #     Q = calcquality(path)[Structure = At(structures)]
 #     return produce_out(Q, config; path)
 # end
-function load_uni(; stimulus, vars = sort([:x, :ϕ, :r, :k, :ω]),
+function load_uni(; stimulus, vars = sort([:V, :csd, :x, :ϕ, :r, :k, :ω]),
                   path = datadir("calculations"),
                   structures = SpatiotemporalMotifs.structures,
                   kwargs...)
