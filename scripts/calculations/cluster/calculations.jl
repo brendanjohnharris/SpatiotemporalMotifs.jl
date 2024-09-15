@@ -10,6 +10,7 @@ project = Base.active_project()
 import AllenNeuropixels as AN
 import SpatiotemporalMotifs as SM
 import USydClusters.Physics: addprocs, selfdestruct
+using USydClusters
 SM.@preamble
 
 session_table = load(datadir("session_table.jld2"), "session_table")
@@ -19,21 +20,22 @@ outpath = datadir("calculations")
 rewrite = false
 
 if haskey(ENV, "JULIA_DISTRIBUTED") # ? Should take a night or so
-    procs = addprocs(3; ncpus = 14, mem = 112,
-                     walltime = 96, project) # ! If you have workers dying unexpectedly, try increasing the memory for each job
-    @everywhere begin
-        using Pkg
-        Pkg.instantiate()
-        import SpatiotemporalMotifs: send_calculations, on_error
-        outpath = $outpath
-        rewrite = $rewrite
+    exprs = map(oursessions) do sessionid
+        expr = quote
+            using Pkg
+            Pkg.instantiate()
+            import SpatiotemporalMotifs: send_calculations
+            send_calculations($sessionid; outpath = $outpath, rewrite = $rewrite)
+        end
     end
-    O = pmap(x -> send_calculations.(x; outpath, rewrite), oursessions; on_error)
-    # fetch.(O)
-    display("All workers completed")
+    USydClusters.Physics.runscripts(exprs; ncpus = 16, mem = 122, walltime = 8,
+                                    project = projectdir())
+
+    display("All workers submitted")
+else
+    SM.send_calculations.(reverse(oursessions); outpath, rewrite) # ? This version will take a few days if the above calculations errored, otherwise a few minutes (checks all calcualtions are correct)
+    Q = SM.calcquality(datadir("calculations"))
+    @assert all(oursessions .∈ [lookup(Q, 3)])
+    @assert mean(Q) == 1
 end
-SM.send_calculations.(reverse(oursessions); outpath, rewrite) # ? This version will take a few days if the above calculations errored, otherwise a few minutes (checks all calcualtions are correct)
-Q = SM.calcquality(datadir("calculations"))
-@assert all(oursessions .∈ [lookup(Q, 3)])
-@assert mean(Q) == 1
 # @sync selfdestruct()
