@@ -4,8 +4,6 @@ exec julia -t auto "${BASH_SOURCE[0]}" "$@"
 =#
 using DrWatson
 @quickactivate "SpatiotemporalMotifs"
-using Pkg
-Pkg.instantiate()
 project = Base.active_project()
 import AllenNeuropixels as AN
 import SpatiotemporalMotifs as SM
@@ -28,7 +26,7 @@ if haskey(ENV, "JULIA_DISTRIBUTED") # ? Should take a night or so
             send_calculations($sessionid; outpath = $outpath, rewrite = $rewrite)
         end
     end
-    USydClusters.Physics.runscripts(exprs; ncpus = 16, mem = 122, walltime = 8,
+    USydClusters.Physics.runscripts(exprs; ncpus = 21, mem = 80, walltime = 8,
                                     project = projectdir())
 
     display("All workers submitted")
