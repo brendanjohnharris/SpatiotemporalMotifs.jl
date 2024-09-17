@@ -415,7 +415,7 @@ begin # * Plot region-wise weightings
 end
 
 begin # * Save
-    addlabels!(fig, ["(d)", "(e)", "(f)", "(g)"])
+    addlabels!(fig, ["(d)", "(e)", "(f)"]) #, "(g)"])
     wsave(plotdir("theta_waves_task", "theta_waves_task.pdf"), fig)
     display(fig)
 end
