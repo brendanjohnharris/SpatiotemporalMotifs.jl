@@ -291,7 +291,7 @@ if !isfile(datadir("hyperparameters", "theta_waves_task.jld2")) ||
     begin # * Single-subject classifications, returning 5-fold balanced accuracy. Takes ages, about 1 hour
         # regcoefs = first.(hyperr)
         regcoef = 0.5
-        folds = 10
+        folds = 5
         repeats = 20
 
         bac_pre = pmap(H) do h
@@ -381,7 +381,7 @@ begin # * Plot classification performance
     reverse(vcat(bac_lfp_post[2:end]...)); boxargs..., width = 0.3, color = crimson, label="Compartmental LFP")
     text!(ax, 3 .+ [-0.3, 0, 0.3], [0.9, 0.9, 0.9]; text = reverse(["S", "M", "D"]),
     align = (:center, :center))
-    
+
     boxplot!(ax, fill(4, length(bac_pre)), bac_pre; boxargs..., color = cornflowerblue, label="Order parameter")
     boxplot!(ax, fill(5, length(bac_lfp_pre[1])), bac_lfp_pre[1]; boxargs..., color = juliapurple, label="Mean LFP")
     boxplot!(ax, vcat([fill(6 + i, length(bac_lfp_pre[1])) for i in [-0.3, 0, 0.3]]...),
