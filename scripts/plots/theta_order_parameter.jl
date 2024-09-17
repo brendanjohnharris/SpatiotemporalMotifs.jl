@@ -290,9 +290,9 @@ if !isfile(datadir("hyperparameters", "theta_waves_task.jld2")) ||
 
     begin # * Single-subject classifications, returning 5-fold balanced accuracy. Takes ages, about 1 hour
         # regcoefs = first.(hyperr)
-        regcoef = 1.0
-        folds = 5
-        repeats = 10
+        regcoef = 0.5
+        folds = 10
+        repeats = 20
 
         bac_pre = pmap(H) do h
             h = h[𝑡 = -0.25u"s" .. 0.25u"s"]
