@@ -17,10 +17,20 @@ set_theme!(foresight(:physics))
 Random.seed!(32)
 
 vars = [:x, :k, :ω]
-datafile = datadir("theta_waves_task.jld2")
+datafile = datadir("theta_order_parameter.jld2")
 session_table = load(datadir("posthoc_session_table.jld2"), "session_table")
 oursessions = session_table.ecephys_session_id
 path = datadir("calculations")
+
+begin # * Use extra workers if we can
+    if haskey(ENV, "JULIA_DISTRIBUTED")
+        using USydClusters
+        procs = USydClusters.Physics.addprocs(22; mem = 22, ncpus = 4,
+                                              project = projectdir()) # ? Can reuse these for the following bac calculations
+        @everywhere using SpatiotemporalMotifs
+        @everywhere SpatiotemporalMotifs.@preamble
+    end
+end
 
 begin # * Set up main figure
     fig = FourPanel()
@@ -36,6 +46,7 @@ begin # * Set up main figure
     end
 end
 
+if false
 # * Flash stimulus
 stimulus = "flash_250ms"
 Q = calcquality(path)[Structure = At(structures)]
@@ -86,6 +97,52 @@ begin # * Plot the mean order parameter across time
     reverselegend!(l)
 end
 
+begin # * Generate mean LFP responses
+    layergroups = [1:5]#, [1, 2], [3], [4, 5]] # Superficial, middle (L4), deep
+    Olfp = map(layergroups) do ls
+        map(out) do o
+            map(o) do p
+                k = deepcopy(p[:x])
+                idxs = parselayernum.(metadata(k)[:layernames]) .∈ [ls]
+                k = k[:, parent(idxs), :]
+                N = ZScore(k, dims = 1)
+                normalize!(k, N)
+                ret = dropdims(mean(k; dims = Depth), dims = Depth)
+            end
+        end
+    end
+end
+begin # * Plot mean LFP
+    Ō = mean.(Olfp[1])
+    f= Figure()
+    ax = Axis(f[1, 1]; xlabel = "Time (s)", ylabel = "Mean order parameter",
+    title = "Order parameter during flashes",
+    xautolimitmargin = (0, 0), xminorticksvisible = true,
+    xminorticks = IntervalsBetween(5), yminorticksvisible = true,
+    yminorticks = IntervalsBetween(5))
+    hlines!(ax, [0]; color = (:black, 0.5), linestyle = :dash, linewidth = 2)
+    vlines!(ax, [0, 0.25]; color = (:black, 0.5), linestyle = :dash, linewidth = 2)
+    for (i, O) in reverse(collect(enumerate(Ō)))
+        structure = metadata(O)[:structure]
+        O = O[𝑡(SpatiotemporalMotifs.INTERVAL)]
+        μ = dropdims(mean(O, dims = 2), dims = 2)
+        σ = dropdims(std(O, dims = 2), dims = 2)
+        σ = σ ./ 2
+        bargs = [times(μ), μ .- σ, μ .+ σ] .|> ustripall .|> collect
+        band!(ax, bargs..., color = (structurecolors[i], 0.3), label = structure)
+        lines!(ax, times(μ) |> ustripall, μ |> ustripall |> collect,
+            color = (structurecolors[i], 0.7),
+            label = structure)
+    end
+    l = axislegend(ax, position = :lt, nbanks = 2, framevisible = true, labelsize = 12,
+            merge = true)
+    reverselegend!(l)
+    f
+end
+
+
+end
+
 # * Task stimulus
 stimulus = r"Natural_Images"
 Q = calcquality(path)[Structure = At(structures)]
@@ -103,6 +160,8 @@ begin # * Calculate a global order parameter at each time point
             k = p[:k]
             ω = p[:ω]
             k[ustripall(ω) .< 0] .= NaN * unit(eltype(k))
+            # idxs = parselayernum.(metadata(k)[:layernames]) .∈ [[2, 3, 4]] # Just select middle layers
+            # k = k[:, parent(idxs), :]
             ret = dropdims(nansafe(mean, dims = Depth)(sign.(k)), dims = Depth)
             trials = p[:trials][1:size(k, :changetime), :]
             trialtimes = trials.change_time_with_display_delay
@@ -148,32 +207,16 @@ end
 
 # ---------------------------------- Hit/miss prediction --------------------------------- #
 begin # * Generate mean LFP responses
-    layergroups = [[1, 2], [3], [4, 5]] # Superficial, middle (L4), deep
-    Og = map(layergroups) do ls
-        map(out) do o
-            O = map(o) do p
-                k = p[:k]
-                ω = p[:ω]
-                k[ustripall(ω) .< 0] .= NaN * unit(eltype(k))
-                idxs = parselayernum.(metadata(k)[:layernames]) .∈ [ls]
-                k = k[:, parent(idxs), :]
-                ret = dropdims(nansafe(mean, dims = Depth)(sign.(k)), dims = Depth)
-                trials = p[:trials][1:size(k, :changetime), :]
-                trialtimes = trials.change_time_with_display_delay
-                @assert all(isapprox.(ustripall(lookup(k, :changetime)), trialtimes,
-                                      atol = 0.05)) # These won't match exactly, because the data change times have been adjusted for rectification. This is OK.
-                set(ret, Dim{:changetime} => Trial(trials.hit))
-            end
-        end
-    end
+    layergroups = [1:5, [1, 2], [3], [4, 5]] # Superficial, middle (L4), deep
     Olfp = map(layergroups) do ls
         map(out) do o
             map(o) do p
-                k = p[:x]
+                k = deepcopy(p[:x])
                 idxs = parselayernum.(metadata(k)[:layernames]) .∈ [ls]
                 k = k[:, parent(idxs), :]
-                k = ZScore(k, dims = 1)(k)
-                ret = dropdims(nansafe(mean; dims = Depth)(k), dims = Depth)
+                N = ZScore(k, dims = 1)
+                normalize!(k, N)
+                ret = dropdims(mean(k; dims = Depth), dims = Depth)
                 trials = p[:trials][1:size(k, :changetime), :]
                 trialtimes = trials.change_time_with_display_delay
                 @assert all(isapprox.(ustripall(lookup(k, :changetime)), trialtimes,
@@ -185,20 +228,17 @@ begin # * Generate mean LFP responses
 end
 
 begin # * LDA input data and downsampling
-    H = map(Og) do O
-        [getindex.(O, s) for s in eachindex(Og[1])] # Order parameter
-    end
+    H = [getindex.(Og, s) for s in eachindex(Og[1])] # Order parameter
     Hlfp = map(Olfp) do O
         [getindex.(O, s) for s in eachindex(O[1])]
     end
 
     # * Make sure temporal dims same size
-    ts = intersect([intersect(lookup.(h, 𝑡)...) for h in H[1]]...)
-    H = map(H) do _H
-        _H = [[_h[𝑡 = At(ts)] for _h in h] for h in _H]
-        _H = stack.([Structure(structures)], _H, dims = 3)
-        _H = permutedims.(_H, [(1, 3, 2)])
-    end
+    ts = intersect([intersect(lookup.(h, 𝑡)...) for h in H]...)
+    H = [[_h[𝑡 = At(ts)] for _h in h] for h in H]
+    H = stack.([Structure(structures)], H, dims = 3)
+    H = permutedims.(H, [(1, 3, 2)])
+
     Hlfp = map(Hlfp) do H
         H = [[_h[𝑡 = At(ts)] for _h in h] for h in H]
         H = stack.([Structure(structures)], H, dims = 3)
@@ -207,29 +247,20 @@ begin # * LDA input data and downsampling
 
     cg = h -> coarsegrain(h; dims = 1, newdim = 4)
     function consist(H)
-        HH = [dropdims(nansafe(mean; dims = 4)((cg ∘ cg ∘ cg)(h)); dims = 4) for h in H]
-
-        @assert maximum(sum.([isnan.(x) for x in HH]) ./ length.([isnan.(x) for x in HH])) <
-                0.01
+        HH = pmap(H) do h
+            dropdims(nansafe(mean; dims = 4)((cg ∘ cg ∘ cg)(h)); dims = 4)
+        end
+        nanprop = maximum(sum.([isnan.(x) for x in HH]) ./ length.([isnan.(x) for x in HH]))
+        @info "$(round(nanprop*100, sigdigits=2))% of order parameters are NaN"
+        @assert nanprop < 0.05
 
         map(HH) do h
-            for x in eachslice(h; dims = (Structure, Trial))
-                while !isempty(findall(isnan.(x))) # !! Fill in NaNs with most adjacent values. Need this to be done better.........
-                    idxs = findall(isnan.(x))
-                    if first(idxs) == 1
-                        x[1] = x[2]
-                        idxs = idxs[2:end]
-                    end
-                    if !isempty(idxs)
-                        x[idxs] .= x[idxs .- 1]
-                    end
-                end
-            end
+            h[isnan.(h)] .= 0.0 # Ok. Could be better.
         end
         @assert maximum(sum.([isnan.(x) for x in HH])) .== 0
         return HH
     end
-    H = consist.(H)
+    H = consist(H)
     Hlfp = consist.(Hlfp)
     GC.gc()
 end
@@ -237,13 +268,7 @@ end
 if !isfile(datadir("hyperparameters", "theta_waves_task.jld2")) ||
    !isfile(datafile) # Run calculations; needs to be on a cluster
     if !isfile(datadir("hyperparameters", "theta_waves_task.jld2"))
-        if haskey(ENV, "JULIA_DISTRIBUTED")
-            using USydClusters
-            procs = USydClusters.Physics.addprocs(26; mem = 22, ncpus = 4,
-                                                  project = projectdir()) # ? Can reuse these for the following bac calculations
-            @everywhere using SpatiotemporalMotifs
-            @everywhere SpatiotemporalMotifs.@preamble
-        else
+        if !haskey(ENV, "JULIA_DISTRIBUTED")
             error("Calculations must be run on a cluster, set ENV[\"JULIA_DISTRIBUTED\"] to confirm this.")
         end
         begin # * Get a rough estimate for a good hyperparameter. Currently on pre-offset data. This gives us ~0.5 as a good estimate
@@ -265,20 +290,13 @@ if !isfile(datadir("hyperparameters", "theta_waves_task.jld2")) ||
 
     begin # * Single-subject classifications, returning 5-fold balanced accuracy. Takes ages, about 1 hour
         # regcoefs = first.(hyperr)
-        regcoef = 0.5
+        regcoef = 1.0
         folds = 5
         repeats = 10
 
-        # bac_pred = pmap(H) do h
-        #     h = h[𝑡 = -0.25u"s" .. 0.0u"s"]
-        #     bac = classify_kfold(h; regcoef, k = folds, repeats)
-        # end
-
-        bac_pre = map(H) do _H
-            pmap(_H) do h
-                h = h[𝑡 = -0.25u"s" .. 0.25u"s"]
-                bac = classify_kfold(h; regcoef, k = folds, repeats)
-            end
+        bac_pre = pmap(H) do h
+            h = h[𝑡 = -0.25u"s" .. 0.25u"s"]
+            bac = classify_kfold(h; regcoef, k = folds, repeats)
         end
 
         bac_post = pmap(H) do h
@@ -293,18 +311,24 @@ if !isfile(datadir("hyperparameters", "theta_waves_task.jld2")) ||
             bac = classify_kfold(h; regcoef, k = folds, repeats)
         end
 
-        bac_lfp = map(Hlfp) do H
+        bac_lfp_pre = map(Hlfp) do H
             pmap(H) do h # * Mean LFP, pre-offset
                 h = h[𝑡 = -0.25u"s" .. 0.25u"s"]
                 bac = classify_kfold(h; regcoef, k = folds, repeats)
             end
         end
+        bac_lfp_post = map(Hlfp) do H
+            pmap(H) do h # * Mean LFP, pre-offset
+                h = h[𝑡 = 0.25u"s" .. 0.75u"s"]
+                bac = classify_kfold(h; regcoef, k = folds, repeats)
+            end
+        end
 
-        D = @strdict bac_lfp bac_pre bac_post bac_sur regcoefs folds repeats
+        D = @strdict bac_pre bac_post bac_sur bac_lfp_pre bac_lfp_post regcoef folds repeats
     end
 
     begin # * Map of region-wise weightings
-        W = map(H) do h
+        W = pmap(H) do h
             h = h[𝑡 = -0.25u"s" .. 0.75u"s"] # !!!
             N, M = classifier(h; regcoef) # !!!
             W = projection(M)
@@ -313,41 +337,68 @@ if !isfile(datadir("hyperparameters", "theta_waves_task.jld2")) ||
         end
         W = stack(SessionID(oursessions), W, dims = 3)
         W = W ./ maximum(abs.(W)) # ! Normalized
+
+        Wlfp = map(Hlfp) do H
+            W = pmap(H) do h
+                h = h[𝑡 = -0.25u"s" .. 0.75u"s"] # !!!
+                N, M = classifier(h; regcoef) # !!!
+                W = projection(M)
+                W = reshape(W, size(h)[1:2])
+                return ToolsArray(W, dims(h)[1:2])
+            end
+            W = stack(SessionID(oursessions), W, dims = 3)
+            W = W ./ maximum(abs.(W)) # ! Normalized
+        end
     end
     push!(D, "W" => W)
+    push!(D, "Wlfp" => Wlfp)
     tagsave(datafile, D)
 end
 
 if isfile(datafile)
     D = jldopen(datafile, "r")
-    @unpack bac_pre, bac_post, bac_sur, bac_lfp, W = D
+    @unpack bac_pre, bac_post, bac_sur, bac_lfp_pre, bac_lfp_post, regcoef, folds, repeats, W, Wlfp = D
     close(D)
 else
     error("Please download $datafile or produce it")
 end
 
 begin # * Plot classification performance
-    ax = Axis(gs[3][1, 1],
-              xticks = (1:4, ["Post-offset", "Pre-offset", "Mean LFP", "Null"]),
+    ax = Axis(fig[2, 1:2];
+              xticks = ([2, 5, 7], ["Post-offset", "Pre-offset", "Null"]),
               ylabel = "Balanced accuracy", title = "Hit/miss classification",
-              limits = (nothing, (0.35, 0.85)), xticklabelrotation = π / 6)
+              limits = ((0.5, 7.5), (0.35, 0.95)), xminorticksvisible=false)
     boxargs = (; width = 0.75, strokewidth = 5, whiskerwidth = 0.2,
                strokecolor = (:gray, 0.0)) # !!!! Show outliers??
-    boxplot!(ax, fill(1, length(bac_post)), bac_post; boxargs..., color = cucumber)
-    boxplot!(ax, fill(2, length(bac_pre)), bac_pre; boxargs..., color = cornflowerblue)
-    boxplot!(ax, vcat([fill(3 + i, length(bac_lfp[1])) for i in [-0.3, 0, 0.3]]...),
-             reverse(vcat(bac_lfp...)); boxargs..., width = 0.3, color = crimson)
-    text!(ax, 3 .+ [-0.3, 0, 0.3], [0.8, 0.8, 0.8]; text = reverse(["S", "M", "D"]),
+
+    vspan!(ax, 0.5, 3.5; color=(california, 0.2))
+    vspan!(ax, 3.5, 6.5; color=(cucumber, 0.2))
+    vspan!(ax, 6.5, 7.5; color=(:gray, 0.2))
+
+    boxplot!(ax, fill(1, length(bac_post)), bac_post; boxargs..., color = cornflowerblue, label="Order parameter")
+    boxplot!(ax, fill(2, length(bac_lfp_post[1])), bac_lfp_post[1]; boxargs..., color = juliapurple, label="Mean LFP")
+    boxplot!(ax, vcat([fill(3 + i, length(bac_lfp_post[1])) for i in [-0.3, 0, 0.3]]...),
+    reverse(vcat(bac_lfp_post[2:end]...)); boxargs..., width = 0.3, color = crimson, label="Compartmental LFP")
+    text!(ax, 3 .+ [-0.3, 0, 0.3], [0.9, 0.9, 0.9]; text = reverse(["S", "M", "D"]),
+    align = (:center, :center))
+    
+    boxplot!(ax, fill(4, length(bac_pre)), bac_pre; boxargs..., color = cornflowerblue, label="Order parameter")
+    boxplot!(ax, fill(5, length(bac_lfp_pre[1])), bac_lfp_pre[1]; boxargs..., color = juliapurple, label="Mean LFP")
+    boxplot!(ax, vcat([fill(6 + i, length(bac_lfp_pre[1])) for i in [-0.3, 0, 0.3]]...),
+             reverse(vcat(bac_lfp_pre[2:end]...)); boxargs..., width = 0.3, color = crimson, label="Compartmental LFP")
+    text!(ax, 6 .+ [-0.3, 0, 0.3], [0.8, 0.8, 0.8]; text = reverse(["S", "M", "D"]),
           align = (:center, :center))
-    boxplot!(ax, fill(4, length(bac_sur)), bac_sur; color = :gray, boxargs...)
+
+    boxplot!(ax, fill(7, length(bac_sur)), bac_sur; color = :gray, boxargs...)
+    axislegend(ax; merge=true)
 end
 
 begin # * Plot region-wise weightings
-    ax = Axis(gs[4]; xlabel = "Time (s)", ylabel = "Normalized LDA weight",
+    ax = Axis(gs[2]; xlabel = "Time (s)", ylabel = "Normalized LDA weight",
               title = "Regional classification weights")
     vlines!(ax, [0, 0.25], color = (:black, 0.2), linestyle = :dash)
     hlines!(ax, [0], color = (:black, 0.5), linewidth = 2)
-    for structure in reverse(collect(lookup(W, Structure)))
+    for structure in (collect(lookup(W, Structure)))
         ws = W[Structure = At(structure)]
         ws = upsample(ws, 5, 1)
         ts = ustripall(lookup(ws, 𝑡))
@@ -360,7 +411,7 @@ begin # * Plot region-wise weightings
     tightlimits!(ax)
     l = axislegend(ax, position = :lt, nbanks = 2, framevisible = true, labelsize = 12,
                    merge = true)
-    reverselegend!(l)
+    # reverselegend!(l)
 end
 
 begin # * Save

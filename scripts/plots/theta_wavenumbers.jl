@@ -16,7 +16,7 @@ using SpatiotemporalMotifs
 set_theme!(foresight(:physics))
 Random.seed!(32)
 
-vars = [:V, :k, :ω]
+vars = [:csd, :k, :ω]
 INTERVAL = SpatiotemporalMotifs.INTERVAL
 mainstructure = "VISl"
 maincolorrange = [-2.0, 2.0]
@@ -35,12 +35,18 @@ end
 stimulus = r"Natural_Images"
 uni = load_uni(; stimulus, vars)
 
-begin # * Current source density
-    csd = getindex.(uni, :csd)
-    csd = csd[2] # For VISl
-    csd = dropdims(mean(csd, dims = Trial); dims = Trial)
-    heatmap(decompose(csd)...)
-end
+# begin # * Current source density
+#     csd = getindex.(uni, :csd)[2][:, :, :]
+#     csd = dropdims(mean(csd, dims = Trial); dims = Trial)
+#     csd = upsample(ustripall(csd), 5, Depth) # For VISl
+#     # csd = set(csd, csd[:, end:-1:1])
+#     f = Figure()
+#     ax = Axis(f[1, 1]; yreversed = true)
+#     plotlayermap!(ax, csd)
+#     plotlayerints!(ax, uni[2][:layerints])
+#     # heatmap(decompose(csd)...; colormap = binarysunset, axis = (; yreversed = true))
+#     f
+# end
 
 begin # * Supplemental material: average wavenumbers in each region
     f = Figure(size = (720, 1440))
@@ -132,24 +138,25 @@ begin # * Supplemental material: csd in each region
         m = dropdims(m, dims = Trial)[𝑡(SpatiotemporalMotifs.INTERVAL)]
         colorrange = maximum(abs.(ustripall(m))) * [-1, 1]
         ints = uni[i][:layerints]
-        p = plotlayermap!(ax, m, ints; arrows = true, colorrange) |> first
+        p = plotlayermap!(ax, m, ints; arrows = false, colorrange,
+                          colormap = binarysunset) |> first
         if i > 5
             ax.xlabel = "Time (s)"
         end
 
-        if structure == mainstructure # * Plot into main figure
-            ax = Axis(mfs[1], yreversed = true)
-            ax.xlabel = "Time (s)"
-            ax.limits = (nothing, ylims)
-            ax.title = structure * ": hit"
-            m = nansafe(median, dims = Trial)(k[:, :, lookup(k, Trial) .== true])
-            m = dropdims(m, dims = Trial)[𝑡(SpatiotemporalMotifs.INTERVAL)]
-            ints = uni[i][:layerints]
-            p = plotlayermap!(ax, m, ints; arrows = true, colorrange) |> first
-            c = Colorbar(mfs[end]; colorrange = maincolorrange, colormap = defaultcolormap,
-                         highclip = defaultcolormap[end], lowclip = defaultcolormap[1])
-            c.label = "θ wavenumber ($(unit(eltype(k))))"
-        end
+        # if structure == mainstructure # * Plot into main figure
+        #     ax = Axis(mfs[1], yreversed = true)
+        #     ax.xlabel = "Time (s)"
+        #     ax.limits = (nothing, ylims)
+        #     ax.title = structure * ": hit"
+        #     m = nansafe(median, dims = Trial)(k[:, :, lookup(k, Trial) .== true])
+        #     m = dropdims(m, dims = Trial)[𝑡(SpatiotemporalMotifs.INTERVAL)]
+        #     ints = uni[i][:layerints]
+        #     p = plotlayermap!(ax, m, ints; arrows = true, colorrange) |> first
+        #     c = Colorbar(mfs[end]; colorrange = maincolorrange, colormap = defaultcolormap,
+        #                  highclip = defaultcolormap[end], lowclip = defaultcolormap[1])
+        #     c.label = "CSD ($(unit(eltype(k))))"
+        # end
 
         # * Miss
         ax = Axis(f[i, 2], yreversed = true)
@@ -158,21 +165,22 @@ begin # * Supplemental material: csd in each region
         m = nansafe(median, dims = Trial)(k[:, :, lookup(k, Trial) .== false])
         m = dropdims(m, dims = Trial)[𝑡(SpatiotemporalMotifs.INTERVAL)]
         ints = uni[i][:layerints]
-        p = plotlayermap!(ax, m, ints; arrows = true, colorrange) |> first
+        p = plotlayermap!(ax, m, ints; arrows = false, colorrange,
+                          colormap = binarysunset) |> first
         c = Colorbar(f[i, 3], p)
-        c.label = "θ wavenumber ($(unit(eltype(k))))"
+        c.label = "CSD ($(u"V"*unit(eltype(k))))" # Correct for dropped units by multiplying with V
 
-        if structure == mainstructure # * Plot into main figure
-            ax = Axis(mfs[2], yreversed = true)
-            ax.xlabel = "Time (s)"
-            ax.limits = (nothing, ylims)
-            ax.title = structure * ": miss"
-            m = nansafe(median; dims = Trial)(k[:, :, lookup(k, Trial) .== false])
-            m = dropdims(m, dims = Trial)[𝑡(SpatiotemporalMotifs.INTERVAL)]
-            ints = uni[i][:layerints]
-            p = plotlayermap!(ax, m, ints; arrows = true, colorrange = maincolorrange) |>
-                first
-        end
+        # if structure == mainstructure # * Plot into main figure
+        #     ax = Axis(mfs[2], yreversed = true)
+        #     ax.xlabel = "Time (s)"
+        #     ax.limits = (nothing, ylims)
+        #     ax.title = structure * ": miss"
+        #     m = nansafe(median; dims = Trial)(k[:, :, lookup(k, Trial) .== false])
+        #     m = dropdims(m, dims = Trial)[𝑡(SpatiotemporalMotifs.INTERVAL)]
+        #     ints = uni[i][:layerints]
+        #     p = plotlayermap!(ax, m, ints; arrows = true, colorrange = maincolorrange) |>
+        #         first
+        # end
     end
     addlabels!(f)
     display(f)
