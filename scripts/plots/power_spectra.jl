@@ -190,7 +190,7 @@ for stimulus in stimuli
             else
                 if haskey(ENV, "JULIA_DISTRIBUTED") && length(procs()) == 1 # We have no running workers, but we could
                     using USydClusters
-                    USydClusters.Physics.addprocs(12; mem = 32, ncpus = 4,
+                    USydClusters.Physics.addprocs(9; mem = 32, ncpus = 4,
                                                   project = projectdir()) # ? Can reuse these for the following bac calculations
                     @everywhere using SpatiotemporalMotifs
                     @everywhere SpatiotemporalMotifs.@preamble
@@ -584,7 +584,8 @@ for stimulus in stimuli
             ax = Axis(f[2, 1:2][1, 3]; #ylabel = "Cortical depth (%)",
                       xlabel = "Kendall's 𝜏",
                       ytickformat = depthticks,
-                      title = "1/f hierarchies", limits = ((-0.73, 0.73), (0, 1)))
+                      title = "1/f hierarchies", limits = ((-0.73, 0.73), (0, 1)),
+                      yreversed = true)
 
             vlines!(ax, 0; color = :gray, linewidth = 3)
 
@@ -625,7 +626,8 @@ for stimulus in stimuli
             ax = Axis(f[3, 1:2][1, 3]; # ylabel = "Cortical depth (%)",
                       xlabel = "Kendall's 𝜏",
                       ytickformat = depthticks,
-                      title = "Timescale hierarchies", limits = ((-0.73, 0.73), (0, 1)))
+                      title = "Timescale hierarchies", limits = ((-0.73, 0.73), (0, 1)),
+                      yreversed = true)
 
             vlines!(ax, 0; color = :gray, linewidth = 3)
 

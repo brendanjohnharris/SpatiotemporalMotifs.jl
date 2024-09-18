@@ -367,7 +367,7 @@ function plot_visual_cortex(; kwargs...)
     return f, ax, [p1, p2]
 end
 function fooof(x)
-    AN.aperiodicfit(x, [3, 300]; aperiodic_mode = "fixed", max_n_peaks = 5,
+    AN.aperiodicfit(x, [3, 300]; aperiodic_mode = "fixed", max_n_peaks = 8,
                     peak_threshold = 1, peak_width_limits = [1, 50])
 end
 function plotspectrum!(ax, s::AbstractToolsArray;
