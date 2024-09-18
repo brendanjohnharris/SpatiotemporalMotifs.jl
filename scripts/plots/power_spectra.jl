@@ -213,7 +213,9 @@ for stimulus in stimuli
 
             map(b) do _b
                 map(eachslice(_b, dims = SessionID)) do a
-                    a .= RobustZScore(a)(a)
+                    N = nansafe(RobustZScore)
+                    N = fit(N, a)
+                    normalize!(a, N)
                 end
             end
 
