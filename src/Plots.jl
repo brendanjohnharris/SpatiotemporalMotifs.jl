@@ -378,7 +378,8 @@ function plotspectrum!(ax, s::AbstractToolsArray;
     σ = std(s, dims = (SessionID, :layer)) ./ 2
     σ = dropdims(σ, dims = (SessionID, :layer)) |> ustripall
     p = lines!(ax, freqs(μ), collect(μ); color = (color, 0.8), label)
-    band!(ax, freqs(μ), collect.([max.(μ - σ, eps()), μ + σ])...; color = (color, 0.32))
+    band!(ax, freqs(μ), collect.([max.(μ - σ, eps()), μ + σ])...; color = (color, 0.32),
+          label)
 
     # * Find peaks
     if :peaks in annotations

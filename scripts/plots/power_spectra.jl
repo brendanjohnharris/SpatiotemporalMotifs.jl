@@ -116,7 +116,7 @@ for stimulus in stimuli
         end
 
         begin # * Mean power spectrum in VISp and VISam. Bands show 1 S.D.
-            ax = Axis(f[1, 1]; xscale = log10, yscale = log10,
+            axargs = (; xscale = log10, yscale = log10,
                       limits = ((3, 300), (10^(-5.5), 1.5)),
                       xlabel = "Frequency (Hz)",
                       xgridvisible = true,
@@ -127,47 +127,58 @@ for stimulus in stimuli
                       xticks = [3, 10, 30, 100],
                       ylabel = "Mean power spectral density (a.u.)",
                       title = "Power spectral density")
+            ax2 = Axis(f[1, 1]; axargs...) # For band annotations
+            hideyaxis!(ax2)
+            hidexaxis!(ax2)
+            hidespines!(ax2)
+            hidedecorations!(ax2)
+            ax = Axis(f[1, 1]; axargs...)
 
             # * Band annotations
-            vspan!(ax, extrema(theta)..., color = (crimson, 0.22),
+            vspan!(ax2, extrema(theta)..., color = (crimson, 0.22),
                    label = "𝛉 ($(theta.left) – $(theta.right) Hz)")
-            vlines!(ax, [7.0], color = (crimson, 0.42), linestyle = :dash, linewidth = 4)
-            vspan!(ax, extrema(gamma)..., color = (cornflowerblue, 0.22),
+            vlines!(ax2, [7.0], color = (crimson, 0.42), linestyle = :dash, linewidth = 4)
+            vspan!(ax2, extrema(gamma)..., color = (cornflowerblue, 0.22),
                    label = "𝛄 ($(gamma.left) – $(gamma.right) Hz)")
-            vlines!(ax, [54.4], color = (cornflowerblue, 0.42), linestyle = :dash,
+            vlines!(ax2, [54.4], color = (cornflowerblue, 0.42), linestyle = :dash,
                     linewidth = 4)
 
-            psa = map(enumerate(structures)) do (i, s)
-                s = S̄[Structure = At(s)][𝑓 = 3u"Hz" .. 300u"Hz"]
+            psa = map(enumerate(structures)) do (i, structure)
+                s = S̄[Structure = At(structure)][𝑓 = 3u"Hz" .. 300u"Hz"]
                 s = s ./ 10^((i - 1.5) / 2.5)
                 yc = only(mean(s[𝑓 = Near(3u"Hz")]))
                 if i == 1
                     plotspectrum!(ax, s; textposition = (3, yc),
-                                  color = structurecolors[i], annotations = [:peaks])
+                                  color = structurecolors[i], annotations = [:peaks],
+                                  label = structure)
                 else
                     plotspectrum!(ax, s; textposition = (14, yc),
-                                  color = structurecolors[i], annotations = [])
+                                  color = structurecolors[i], annotations = [],
+                                  label = structure)
                 end
             end
             ps, α = first.(psa), last.(psa)
             α = round.(α, sigdigits = 3)
-            axislegend(ax, position = :lb, labelsize = 12, backgroundcolor = :white,
+            axislegend(ax2, position = :lb, labelsize = 12, backgroundcolor = :white,
                        framevisible = true, padding = (5, 5, 5, 5))
-            leg = ["$s (α = $α)" for (s, α) in zip(structures, α)]
-            map(enumerate(leg)) do (i, s)
-                if i > 3
-                    text!(ax, 290, exp10(-1.1 - ((i - 3) / 3 - 1 - 0.1)); text = s,
-                          color = structurecolors[i],
-                          fontsize = 14,
-                          align = (:right, :bottom))
-                else
-                    text!(ax, 50, exp10(-1.1 - (i / 3 - 1 - 0.1)); text = s,
-                          color = structurecolors[i],
-                          fontsize = 14,
-                          align = (:right, :bottom))
-                end
-            end
-            # axislegend(ax, ps, leg, padding = 5, framevisible = true, labelsize = 12)
+            # leg = ["$s (α = $α)" for (s, α) in zip(structures, α)]
+            # map(enumerate(leg)) do (i, s)
+            #     if i > 3
+            #         text!(ax, 290, exp10(-1.1 - ((i - 3) / 3 - 1 - 0.1)); text = s,
+            #               color = structurecolors[i],
+            #               fontsize = 14,
+            #               align = (:right, :bottom))
+            #     else
+            #         text!(ax, 50, exp10(-1.1 - (i / 3 - 1 - 0.1)); text = s,
+            #               color = structurecolors[i],
+            #               fontsize = 14,
+            #               align = (:right, :bottom))
+            #     end
+            # end
+
+            axislegend(ax, position = :rt, nbanks = 3, labelsize = 12, merge = true,
+                       backgroundcolor = :white,
+                       framevisible = true, padding = (5, 5, 5, 5))
             f
         end
 
@@ -220,43 +231,43 @@ for stimulus in stimuli
         # end
 
         begin # * Plot the intercept
-            fff = Figure()
-            ax = Axis(f[2, 1:2][1, 1]; xlabel = "Cortical depth (%)",
-                      ylabel = "Normalized 1/f intercept",
-                      limits = ((0, 1), (-2.75, 2.75)), xtickformat = depthticks,
-                      title = "1/f intercept")
+            ax = Axis(f[2, 1:2][1, 2]; #ylabel = "Cortical depth (%)",
+                      xlabel = "Normalized 1/f intercept",
+                      limits = ((-2.75, 2.75), (0, 1)), ytickformat = depthticks,
+                      title = "1/f intercept", yreversed = true)
             for (i, _b) in b |> enumerate |> collect |> reverse
                 μ, (σl, σh) = bootstrapmedian(_b, dims = SessionID)
                 μ, σl, σh = upsample.((μ, σl, σh), 5)
 
-                band!(ax, lookup(μ, 1), collect(σl), collect(σh);
+                band!(ax, Point2f.(collect(σl), lookup(μ, 1)),
+                      Point2f.(collect(σh), lookup(μ, 1));
                       color = (structurecolors[i], 0.32), label = structures[i])
-                lines!(ax, lookup(μ, 1), collect(μ); color = (structurecolors[i], alpha),
+                lines!(ax, collect(μ), lookup(μ, 1); color = (structurecolors[i], alpha),
                        label = structures[i])
             end
-            l = axislegend(ax, position = :rb, nbanks = 2, labelsize = 12, merge = true)
-            reverselegend!(l)
-            plotlayerints!(ax, layerints; axis = :x, newticks = false, flipside = true)
-            fff
+            # l = axislegend(ax, position = :lb, nbanks = 2, labelsize = 12, merge = true)
+            # reverselegend!(l)
+            plotlayerints!(ax, layerints; axis = :y, newticks = false, flipside = true)
         end
 
         begin # * Plot the exponent
-            ax = Axis(f[2, 1:2][1, 2]; xlabel = "Cortical depth (%)",
-                      ylabel = "1/f exponent",
-                      limits = ((0, 1), (0.9, 2.1)), xtickformat = depthticks,
-                      title = "1/f exponent")
+            ax = Axis(f[2, 1:2][1, 1]; ylabel = "Cortical depth (%)",
+                      xlabel = "1/f exponent",
+                      limits = ((0.9, 2.1), (0, 1)), ytickformat = depthticks,
+                      title = "1/f exponent", yreversed = true)
             for (i, chi) in χ |> enumerate |> collect |> reverse
                 μ, (σl, σh) = bootstrapmedian(chi, dims = SessionID)
                 μ, σl, σh = upsample.((μ, σl, σh), 5)
 
-                band!(ax, lookup(μ, 1), collect(σl), collect(σh);
+                band!(ax, Point2f.(collect(σl), lookup(μ, 1)),
+                      Point2f.(collect(σh), lookup(μ, 1));
                       color = (structurecolors[i], 0.32), label = structures[i])
-                lines!(ax, lookup(μ, 1), collect(μ); color = (structurecolors[i], alpha),
+                lines!(ax, collect(μ), lookup(μ, 1); color = (structurecolors[i], alpha),
                        label = structures[i])
             end
-            l = axislegend(ax, position = :rb, nbanks = 2, labelsize = 12, merge = true)
-            reverselegend!(l)
-            plotlayerints!(ax, layerints; axis = :x, newticks = false, flipside = true)
+            # l = axislegend(ax, position = :lb, nbanks = 2, labelsize = 12, merge = true)
+            # reverselegend!(l)
+            plotlayerints!(ax, layerints; axis = :y, newticks = false, flipside = true)
         end
         begin # * Is the exponent correlated to depth?
             tps = [SpatiotemporalMotifs.mediankendallpvalue(lookup(x, Depth), x) for x in χ]
@@ -418,12 +429,12 @@ for stimulus in stimuli
         end
 
         begin # * Plot the total residual theta power across channels
-            ax = Axis(f[3, 1:2][1, 1]; xlabel = "Cortical depth (%)",
-                      yticks = WilkinsonTicks(4),
+            ax = Axis(f[3, 1:2][1, 1]; ylabel = "Cortical depth (%)",
+                      #   xticks = WilkinsonTicks(4),
                       xtickformat = depthticks,
                       ytickformat = depthticks,
-                      ylabel = "Residual 𝜽 power (%)",
-                      yticklabelrotation = π / 2,
+                      xlabel = "Residual θ power (%)",
+                      yreversed = true,
                       title = "Residual θ power") # [$(unit(eltype(S[1][1])))]
 
             θr = map(structures) do s
@@ -447,15 +458,16 @@ for stimulus in stimuli
                 μ, (σl, σh) = bootstrapmedian(x, dims = SessionID)
                 μ, σl, σh = upsample.((μ, σl, σh), 5)
 
-                band!(ax, lookup(μ, 1), collect(σl), collect(σh);
+                band!(ax, Point2f.(collect(σl), lookup(μ, 1)),
+                      Point2f.(collect(σh), lookup(μ, 1));
                       color = (structurecolors[i], 0.32), label = structures[i])
-                lines!(ax, lookup(μ, 1), collect(μ);
-                       color = (structurecolors[i], alpha), label = structures[i])
+                lines!(ax, collect(μ), lookup(μ, 1); color = (structurecolors[i], alpha),
+                       label = structures[i])
             end
-            leg = axislegend(ax, position = :lt, nbanks = 3, labelsize = 12, merge = true)
-            reverselegend!(leg)
-            plotlayerints!(ax, layerints; axis = :x, newticks = false, flipside = false)
-            ax.limits = ((0, 1), (-0.075, 0.65))
+            # leg = axislegend(ax, position = :lt, nbanks = 3, labelsize = 12, merge = true)
+            # reverselegend!(leg)
+            plotlayerints!(ax, layerints; axis = :y, newticks = false, flipside = true)
+            ax.limits = ((-0.14, 0.55), (0, 1))
             display(f)
         end
         begin # * Does residual theta increase along layers
@@ -472,12 +484,12 @@ for stimulus in stimuli
 
         begin # * Residual gamma power across channels
             # f = Figure()
-            ax = Axis(f[3, 1:2][1, 2]; xlabel = "Cortical depth (%)",
-                      yticks = WilkinsonTicks(4),
+            ax = Axis(f[3, 1:2][1, 2]; #ylabel = "Cortical depth (%)",
+                      #   xticks = WilkinsonTicks(4),
                       xtickformat = depthticks,
                       ytickformat = depthticks,
-                      ylabel = "Residual 𝜸 power (%)",
-                      yticklabelrotation = π / 2,
+                      xlabel = "Residual γ power (%)",
+                      yreversed = true,
                       title = "Residual γ power") # [$(unit(eltype(S[1][1])))]
 
             γr = map(structures) do s
@@ -494,17 +506,17 @@ for stimulus in stimuli
                 ss = γr[Structure = At(s)]
                 μ, (σl, σh) = bootstrapmedian(ss, dims = SessionID)
                 μ, σl, σh = upsample.((μ, σl, σh), 5)
-                band!(ax, lookup(μ, 1), collect(σl), collect(σh);
-                      color = (structurecolors[i], bandalpha), label = structures[i])
-
-                lines!(ax, lookup(μ, 1), collect(μ);
-                       color = (structurecolors[i], alpha), label = structures[i])
+                band!(ax, Point2f.(collect(σl), lookup(μ, 1)),
+                      Point2f.(collect(σh), lookup(μ, 1));
+                      color = (structurecolors[i], 0.32), label = structures[i])
+                lines!(ax, collect(μ), lookup(μ, 1); color = (structurecolors[i], alpha),
+                       label = structures[i])
             end
 
-            l = axislegend(ax, position = :rt, nbanks = 2, labelsize = 12, merge = true)
-            reverselegend!(l)
-            plotlayerints!(ax, layerints; axis = :x, newticks = false, flipside = false)
-            ax.limits = ((0, 1), (nothing, nothing))
+            # l = axislegend(ax, position = :rt, nbanks = 2, labelsize = 12, merge = true)
+            # reverselegend!(l)
+            plotlayerints!(ax, layerints; axis = :y, newticks = false, flipside = true)
+            ax.limits = ((nothing, nothing), (0, 1))
             display(f)
         end
 
@@ -567,74 +579,82 @@ for stimulus in stimuli
             # μt[𝑝t .> PTHR] .= NaN
             # μg[𝑝g .> PTHR] .= NaN
 
-            ax = Axis(f[2, 1:2][1, 3]; xlabel = "Cortical depth (%)",
-                      ylabel = "Kendall's 𝜏",
-                      xtickformat = depthticks,
-                      title = "Correlation to hierarchy", limits = ((0, 1), (-0.55, 0.76)))
+            ax = Axis(f[2, 1:2][1, 3]; #ylabel = "Cortical depth (%)",
+                      xlabel = "Kendall's 𝜏",
+                      ytickformat = depthticks,
+                      title = "1/f hierarchies", limits = ((-0.73, 0.73), (0, 1)))
 
-            band!(ax, unidepths, collect(first.(σ)), collect(last.(σ));
+            vlines!(ax, 0; color = :gray, linewidth = 3)
+
+            band!(ax, Point2f.(collect(first.(σ)), unidepths),
+                  Point2f.(collect(last.(σ)), unidepths);
                   color = (cucumber, bandalpha),
                   label = "1/f exponent")
             # lines!(ax, unidepths, collect(μ); alpha = bandalpha,
             #        label = "1/f exponent", color = cucumber)
-            scatter!(ax, unidepths[𝑝 .< PTHR], collect(μ[𝑝 .< PTHR]);
+            scatter!(ax, collect(μ[𝑝 .< PTHR]), unidepths[𝑝 .< PTHR];
                      label = "1/f exponent", color = cucumber)
-            scatter!(ax, unidepths[𝑝 .≥ PTHR], collect(μ[𝑝 .≥ PTHR]); color = :transparent,
+            scatter!(ax, collect(μ[𝑝 .≥ PTHR]), unidepths[𝑝 .≥ PTHR]; color = :transparent,
                      strokecolor = cucumber,
                      strokewidth = 1)
 
-            band!(ax, unidepths, collect(first.(σb)), collect(last.(σb));
+            band!(ax, Point2f.(collect(first.(σb)), unidepths),
+                  Point2f.(collect(last.(σb)), unidepths);
                   color = (juliapurple, bandalpha),
                   label = "1/f intercept")
             # lines!(ax, unidepths, collect(μ); alpha = bandalpha,
             #        label = "1/f exponent", color = cucumber)
-            scatter!(ax, unidepths[𝑝b .< PTHR], collect(μb[𝑝b .< PTHR]);
+            scatter!(ax, collect(μb[𝑝b .< PTHR]), unidepths[𝑝b .< PTHR];
                      label = "1/f intercept", color = juliapurple)
-            scatter!(ax, unidepths[𝑝b .≥ PTHR], collect(μb[𝑝b .≥ PTHR]);
+            scatter!(ax, collect(μb[𝑝b .≥ PTHR]), unidepths[𝑝b .≥ PTHR];
                      color = :transparent,
                      strokecolor = juliapurple,
                      strokewidth = 1)
 
-            axislegend(ax, position = :rt, merge = true, labelsize = 12, nbanks = 3)
+            axislegend(ax, position = :lt, merge = true, labelsize = 12, nbanks = 1)
 
-            plotlayerints!(ax, layerints; axis = :x, newticks = false, flipside = false)
+            plotlayerints!(ax, layerints; axis = :y, newticks = false, flipside = true)
         end
         begin
             # μ[𝑝 .> PTHR] .= NaN
             # μt[𝑝t .> PTHR] .= NaN
             # μg[𝑝g .> PTHR] .= NaN
 
-            ax = Axis(f[3, 1:2][1, 3]; xlabel = "Cortical depth (%)",
-                      ylabel = "Kendall's 𝜏",
-                      xtickformat = depthticks,
-                      title = "Correlation to hierarchy", limits = ((0, 1), (-0.55, 0.76)))
+            ax = Axis(f[3, 1:2][1, 3]; # ylabel = "Cortical depth (%)",
+                      xlabel = "Kendall's 𝜏",
+                      ytickformat = depthticks,
+                      title = "Timescale hierarchies", limits = ((-0.73, 0.73), (0, 1)))
 
-            band!(ax, unidepths, collect(first.(σt)), collect(last.(σt));
+            vlines!(ax, 0; color = :gray, linewidth = 3)
+
+            band!(ax, Point2f.(collect(first.(σt)), unidepths),
+                  Point2f.(collect(last.(σt)), unidepths);
                   color = (crimson, bandalpha), label = "Residual θ")
             # lines!(ax, unidepths, collect(μt); alpha = bandalpha, label = "Residual θ power",
             #        color = crimson)
-            scatter!(ax, unidepths[𝑝t .< PTHR], collect(μt[𝑝t .< PTHR]);
+            scatter!(ax, collect(μt[𝑝t .< PTHR]), unidepths[𝑝t .< PTHR];
                      label = "Residual θ", color = crimson)
-            scatter!(ax, unidepths[𝑝t .≥ PTHR], collect(μt[𝑝t .≥ PTHR]);
+            scatter!(ax, collect(μt[𝑝t .≥ PTHR]), unidepths[𝑝t .≥ PTHR];
                      color = :transparent, strokecolor = crimson,
                      strokewidth = 1)
 
-            band!(ax, unidepths, collect(first.(σg)), collect(last.(σg));
+            band!(ax, Point2f.(collect(first.(σg)), unidepths),
+                  Point2f.(collect(last.(σg)), unidepths);
                   color = (cornflowerblue, bandalpha),
                   label = "Residual γ")
             # lines!(ax, unidepths, collect(μg); alpha = bandalpha, label = "Residual γ power",
             #    color = cornflowerblue)
-            scatter!(ax, unidepths[𝑝g .< PTHR], collect(μg[𝑝g .< PTHR]);
+            scatter!(ax, collect(μg[𝑝g .< PTHR]), unidepths[𝑝g .< PTHR];
                      label = "Residual γ", color = cornflowerblue)
-            scatter!(ax, unidepths[𝑝g .≥ PTHR], collect(μg[𝑝g .≥ PTHR]);
+            scatter!(ax, collect(μg[𝑝g .≥ PTHR]), unidepths[𝑝g .≥ PTHR];
                      color = :transparent, strokecolor = cornflowerblue,
                      strokewidth = 1)
 
-            axislegend(ax, position = :rt, merge = true, labelsize = 12, nbanks = 3)
+            axislegend(ax, position = :lt, merge = true, labelsize = 12, nbanks = 1)
 
-            plotlayerints!(ax, layerints; axis = :x, newticks = false, flipside = false)
+            plotlayerints!(ax, layerints; axis = :y, newticks = false, flipside = true)
         end
-        addlabels!(f)
+        addlabels!(f, ["(a)", "(d)", "(f)", "(e)", "(c)", "(b)", "(g)", "(h)"])
         f |> display
     end
     wsave(plotdir("power_spectra", "power_spectra$filebase.pdf"), f)
