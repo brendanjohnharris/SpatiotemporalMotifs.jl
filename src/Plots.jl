@@ -46,7 +46,7 @@ function depthticks(x)
     return string.(round.(Int, x))
 end
 function plotlayerints!(ax, ints; dx = 0.03, width = dx, axis = :y, newticks = true,
-                        flipside = false, bgcolor = :white)
+                        flipside = false, bgcolor = :transparent)
     acronyms = "L" .* layers
     ticks = mean.(ints)
     # freeze!(ax)
@@ -59,12 +59,12 @@ function plotlayerints!(ax, ints; dx = 0.03, width = dx, axis = :y, newticks = t
     end
     xmins = [!Bool(mod(i, 2)) * dx for i in 1:length(acronyms)]
     xmaxs = xmins .+ width
-    bmin = minimum([xmins xmaxs])
-    bmax = maximum([xmins xmaxs])
     if flipside
         xmins = 1 .- xmins
         xmaxs = 1 .- xmaxs
     end
+    bmin = minimum([xmins xmaxs])
+    bmax = maximum([xmins xmaxs])
     if axis === :y
         hspan!(ax, extrema(vcat(collect.(extrema.(ints))...))...;
                xmin = bmin,

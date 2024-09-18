@@ -175,42 +175,74 @@ for stimulus in stimuli
             file = datadir("fooof", "fooof$filebase.jld2")
 
             if isfile(file)
-                χ, L = load(file, "χ", "L")
+                χ, b, L = load(file, "χ", "b", "L")
             else
                 if haskey(ENV, "JULIA_DISTRIBUTED") && length(procs()) == 1 # We have no running workers, but we could
                     using USydClusters
-                    procs = USydClusters.Physics.addprocs(22; mem = 22, ncpus = 4,
-                                                          project = projectdir()) # ? Can reuse these for the following bac calculations
+                    USydClusters.Physics.addprocs(12; mem = 32, ncpus = 4,
+                                                  project = projectdir()) # ? Can reuse these for the following bac calculations
                     @everywhere using SpatiotemporalMotifs
                     @everywhere SpatiotemporalMotifs.@preamble
                 end
-                L = pmap(S) do s
-                    map(fooof, eachslice(ustripall(s), dims = (2, 3)))
+                L = map(S) do s # If you can set up the cluster workers as above, should take about 5 minutes. Otherwise, 30 minutes
+                    pmap(fooof, eachslice(ustripall(s), dims = (2, 3)))
                 end
                 χ = [getindex.(last.(l), :χ) for l in L]
                 b = [getindex.(last.(l), :b) for l in L]
                 L = [first.(l) for l in L]
-                tagsave(file, Dict("χ" => χ, "L" => L))
+                χ, b, L = ToolsArray.([χ, b, L], [(Structure(structures),)])
+                tagsave(file, Dict("χ" => χ, "b" => b, "L" => L))
             end
             L = getindex.(L, [SessionID(At(oursessions))])
             L = L[Structure = At(structures)]
             χ = getindex.(χ, [SessionID(At(oursessions))])
             χ = χ[Structure = At(structures)]
+            b = getindex.(b, [SessionID(At(oursessions))])
+            b = b[Structure = At(structures)]
+
+            map(b) do _b
+                map(eachslice(_b, dims = SessionID)) do a
+                    a .= RobustZScore(a)(a)
+                end
+            end
+
             @assert all(last.(size.(L)) .≥ last.(size.(S))) # Check we have residuals for all sessions we have spectra for
         end
 
-        begin # * Plot the exponent for each subject in VISl (as a check)
-            chi = χ[2] # VISl
-            chi = chi[:, sortperm(eachcol(chi))][3:end, 1:5:end]
-            chi = chi ./ maximum(chi, dims = 1)
-            ff = Figure()
-            ax = Axis(ff[1, 1])
-            scatter!.([ax], eachcol(chi))
-            ff
+        # begin # * Plot the exponent for each subject in VISl (as a check)
+        #     chi = b[2] # VISl
+        #     chi = chi[:, sortperm(eachcol(chi))][3:end, 1:5:end]
+        #     chi = chi ./ median(chi, dims = Depth)
+        #     ff = Figure()
+        #     ax = Axis(ff[1, 1])
+        #     scatter!.([ax], eachcol(chi))
+        #     ff
+        # end
+
+        begin # * Plot the intercept
+            fff = Figure()
+            ax = Axis(f[2, 1:2][1, 1]; xlabel = "Cortical depth (%)",
+                      ylabel = "Normalized 1/f intercept",
+                      limits = ((0, 1), (-2.75, 2.75)), xtickformat = depthticks,
+                      title = "1/f intercept")
+            for (i, _b) in b |> enumerate |> collect |> reverse
+                μ, (σl, σh) = bootstrapmedian(_b, dims = SessionID)
+                μ, σl, σh = upsample.((μ, σl, σh), 5)
+
+                band!(ax, lookup(μ, 1), collect(σl), collect(σh);
+                      color = (structurecolors[i], 0.32), label = structures[i])
+                lines!(ax, lookup(μ, 1), collect(μ); color = (structurecolors[i], alpha),
+                       label = structures[i])
+            end
+            l = axislegend(ax, position = :rb, nbanks = 2, labelsize = 12, merge = true)
+            reverselegend!(l)
+            plotlayerints!(ax, layerints; axis = :x, newticks = false, flipside = true)
+            fff
         end
 
         begin # * Plot the exponent
-            ax = Axis(f[2, 1]; xlabel = "Cortical depth (%)", ylabel = "1/f exponent",
+            ax = Axis(f[2, 1:2][1, 2]; xlabel = "Cortical depth (%)",
+                      ylabel = "1/f exponent",
                       limits = ((0, 1), (0.9, 2.1)), xtickformat = depthticks,
                       title = "1/f exponent")
             for (i, chi) in χ |> enumerate |> collect |> reverse
@@ -386,7 +418,8 @@ for stimulus in stimuli
         end
 
         begin # * Plot the total residual theta power across channels
-            ax = Axis(f[2, 2]; xlabel = "Cortical depth (%)", yticks = WilkinsonTicks(4),
+            ax = Axis(f[3, 1:2][1, 1]; xlabel = "Cortical depth (%)",
+                      yticks = WilkinsonTicks(4),
                       xtickformat = depthticks,
                       ytickformat = depthticks,
                       ylabel = "Residual 𝜽 power (%)",
@@ -439,7 +472,8 @@ for stimulus in stimuli
 
         begin # * Residual gamma power across channels
             # f = Figure()
-            ax = Axis(f[3, 1]; xlabel = "Cortical depth (%)", yticks = WilkinsonTicks(4),
+            ax = Axis(f[3, 1:2][1, 2]; xlabel = "Cortical depth (%)",
+                      yticks = WilkinsonTicks(4),
                       xtickformat = depthticks,
                       ytickformat = depthticks,
                       ylabel = "Residual 𝜸 power (%)",
@@ -507,27 +541,36 @@ for stimulus in stimuli
 
         begin # * Plot the hierarchical correlation across layers
             N = 10001
-            mode = :group
+            method = :group
             unidepths = commondepths(lookup.(χ, [Depth]))
+            x = getindex.([SpatiotemporalMotifs.hierarchy_scores], structures)
+
             unichi = getindex.(χ, [Depth(Near(unidepths))])
             unichi = set.(unichi, [Depth => unidepths])
-            x = getindex.([SpatiotemporalMotifs.hierarchy_scores], structures)
             y = stack(Structure(structures), unichi)
+
+            unib = getindex.(b, [Depth(Near(unidepths))])
+            unib = set.(unib, [Depth => unidepths])
+            z = stack(Structure(structures), unib)
+
             @assert all(dims(y, Structure) .== structures)
             thet = getindex.(θr, [Depth(Near(unidepths))]) |> stack
             gamm = getindex.(γr, [Depth(Near(unidepths))]) |> stack
-            μ, σ, 𝑝 = hierarchicalkendall(x, y, mode; N)
-            μt, σt, 𝑝t = hierarchicalkendall(x, thet, mode; N)
-            μg, σg, 𝑝g = hierarchicalkendall(x, gamm, mode; N)
+
+            μ, σ, 𝑝 = hierarchicalkendall(x, y, method; N)
+            μb, σb, 𝑝b = hierarchicalkendall(x, z, method; N)
+            μt, σt, 𝑝t = hierarchicalkendall(x, thet, method; N)
+            μg, σg, 𝑝g = hierarchicalkendall(x, gamm, method; N)
         end
         begin
             # μ[𝑝 .> PTHR] .= NaN
             # μt[𝑝t .> PTHR] .= NaN
             # μg[𝑝g .> PTHR] .= NaN
 
-            ax = Axis(f[3, 2]; xlabel = "Cortical depth (%)", ylabel = "Kendall's 𝜏",
+            ax = Axis(f[2, 1:2][1, 3]; xlabel = "Cortical depth (%)",
+                      ylabel = "Kendall's 𝜏",
                       xtickformat = depthticks,
-                      title = "Correlation to hierarchy", limits = (nothing, (-0.55, 0.76)))
+                      title = "Correlation to hierarchy", limits = ((0, 1), (-0.55, 0.76)))
 
             band!(ax, unidepths, collect(first.(σ)), collect(last.(σ));
                   color = (cucumber, bandalpha),
@@ -539,6 +582,32 @@ for stimulus in stimuli
             scatter!(ax, unidepths[𝑝 .≥ PTHR], collect(μ[𝑝 .≥ PTHR]); color = :transparent,
                      strokecolor = cucumber,
                      strokewidth = 1)
+
+            band!(ax, unidepths, collect(first.(σb)), collect(last.(σb));
+                  color = (juliapurple, bandalpha),
+                  label = "1/f intercept")
+            # lines!(ax, unidepths, collect(μ); alpha = bandalpha,
+            #        label = "1/f exponent", color = cucumber)
+            scatter!(ax, unidepths[𝑝b .< PTHR], collect(μb[𝑝b .< PTHR]);
+                     label = "1/f intercept", color = juliapurple)
+            scatter!(ax, unidepths[𝑝b .≥ PTHR], collect(μb[𝑝b .≥ PTHR]);
+                     color = :transparent,
+                     strokecolor = juliapurple,
+                     strokewidth = 1)
+
+            axislegend(ax, position = :rt, merge = true, labelsize = 12, nbanks = 3)
+
+            plotlayerints!(ax, layerints; axis = :x, newticks = false, flipside = false)
+        end
+        begin
+            # μ[𝑝 .> PTHR] .= NaN
+            # μt[𝑝t .> PTHR] .= NaN
+            # μg[𝑝g .> PTHR] .= NaN
+
+            ax = Axis(f[3, 1:2][1, 3]; xlabel = "Cortical depth (%)",
+                      ylabel = "Kendall's 𝜏",
+                      xtickformat = depthticks,
+                      title = "Correlation to hierarchy", limits = ((0, 1), (-0.55, 0.76)))
 
             band!(ax, unidepths, collect(first.(σt)), collect(last.(σt));
                   color = (crimson, bandalpha), label = "Residual θ")
