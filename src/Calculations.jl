@@ -142,7 +142,7 @@ function send_powerspectra(sessionid, stimulus; outpath = datadir("power_spectra
                 f = Figure()
                 ax = Axis(f[1, 1]; xlabel = "Phase frequency (Hz)",
                           ylabel = "Phase frequency (HZ)")
-                mc = dropdims(mean(C, dims = 3); dims = 3) # Modulation strengh relative to surrogate
+                mc = dropdims(mean(C, dims = 3); dims = 3)
                 colorrange = (0, maximum(mc))
                 p = heatmap!(ax, lookup(C, 1), lookup(C, 2), collect(ustripall(mc));
                              colorrange,

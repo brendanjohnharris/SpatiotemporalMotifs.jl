@@ -14,6 +14,7 @@ using SpatiotemporalMotifs
 import SpatiotemporalMotifs.layers
 import SpatiotemporalMotifs.PTHR
 using Random
+using Distributed
 @preamble
 set_theme!(foresight(:physics))
 
@@ -176,10 +177,18 @@ for stimulus in stimuli
             if isfile(file)
                 χ, L = load(file, "χ", "L")
             else
-                L = map(S) do s
+                if haskey(ENV, "JULIA_DISTRIBUTED") && length(procs()) == 1 # We have no running workers, but we could
+                    using USydClusters
+                    procs = USydClusters.Physics.addprocs(22; mem = 22, ncpus = 4,
+                                                          project = projectdir()) # ? Can reuse these for the following bac calculations
+                    @everywhere using SpatiotemporalMotifs
+                    @everywhere SpatiotemporalMotifs.@preamble
+                end
+                L = pmap(S) do s
                     map(fooof, eachslice(ustripall(s), dims = (2, 3)))
                 end
                 χ = [getindex.(last.(l), :χ) for l in L]
+                b = [getindex.(last.(l), :b) for l in L]
                 L = [first.(l) for l in L]
                 tagsave(file, Dict("χ" => χ, "L" => L))
             end

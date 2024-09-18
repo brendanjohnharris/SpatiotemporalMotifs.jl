@@ -47,100 +47,98 @@ begin # * Set up main figure
 end
 
 if false
-# * Flash stimulus
-stimulus = "flash_250ms"
-Q = calcquality(path)[Structure = At(structures)]
-quality = mean(Q[stimulus = At(stimulus)])
-out = load_calculations(Q; stimulus, vars)
+    # * Flash stimulus
+    stimulus = "flash_250ms"
+    Q = calcquality(path)[Structure = At(structures)]
+    quality = mean(Q[stimulus = At(stimulus)])
+    out = load_calculations(Q; stimulus, vars)
 
-begin # * Calculate a global order parameter at each time point
-    out = map(out) do o
-        filter(o) do _o
-            _o[:sessionid] ∈ oursessions
+    begin # * Calculate a global order parameter at each time point
+        out = map(out) do o
+            filter(o) do _o
+                _o[:sessionid] ∈ oursessions
+            end
         end
-    end
-    Og = map(out) do o
-        O = map(o) do p
-            k = p[:k]
-            ω = p[:ω]
-            k[ustripall(ω) .< 0] .= NaN * unit(eltype(k))
-            ret = dropdims(nansafe(mean; dims = Depth)(sign.(k)), dims = Depth) # Ignore negative frequencies
-            set(ret, Dim{:changetime} => Trial)
-        end
-    end
-end
-
-begin # * Plot the mean order parameter across time
-    Ō = orderparameter(Og)
-
-    ax = Axis(gs[2]; xlabel = "Time (s)", ylabel = "Mean order parameter",
-              title = "Order parameter during flashes",
-              xautolimitmargin = (0, 0), xminorticksvisible = true,
-              xminorticks = IntervalsBetween(5), yminorticksvisible = true,
-              yminorticks = IntervalsBetween(5))
-    hlines!(ax, [0]; color = (:black, 0.5), linestyle = :dash, linewidth = 2)
-    vlines!(ax, [0, 0.25]; color = (:black, 0.5), linestyle = :dash, linewidth = 2)
-    for (i, O) in reverse(collect(enumerate(Ō)))
-        structure = metadata(O)[:structure]
-        O = O[𝑡(SpatiotemporalMotifs.INTERVAL)]
-        μ = dropdims(mean(O, dims = SessionID), dims = SessionID)
-        σ = dropdims(std(O, dims = SessionID), dims = SessionID)
-        σ = σ ./ 2
-        bargs = [times(μ), μ .- σ, μ .+ σ] .|> ustripall .|> collect
-        band!(ax, bargs..., color = (structurecolors[i], 0.3), label = structure)
-        lines!(ax, times(μ) |> ustripall, μ |> ustripall |> collect,
-               color = (structurecolors[i], 0.7),
-               label = structure)
-    end
-    l = axislegend(ax, position = :lt, nbanks = 2, framevisible = true, labelsize = 12,
-                   merge = true)
-    reverselegend!(l)
-end
-
-begin # * Generate mean LFP responses
-    layergroups = [1:5]#, [1, 2], [3], [4, 5]] # Superficial, middle (L4), deep
-    Olfp = map(layergroups) do ls
-        map(out) do o
-            map(o) do p
-                k = deepcopy(p[:x])
-                idxs = parselayernum.(metadata(k)[:layernames]) .∈ [ls]
-                k = k[:, parent(idxs), :]
-                N = ZScore(k, dims = 1)
-                normalize!(k, N)
-                ret = dropdims(mean(k; dims = Depth), dims = Depth)
+        Og = map(out) do o
+            O = map(o) do p
+                k = p[:k]
+                ω = p[:ω]
+                k[ustripall(ω) .< 0] .= NaN * unit(eltype(k))
+                ret = dropdims(nansafe(mean; dims = Depth)(sign.(k)), dims = Depth) # Ignore negative frequencies
+                set(ret, Dim{:changetime} => Trial)
             end
         end
     end
-end
-begin # * Plot mean LFP
-    Ō = mean.(Olfp[1])
-    f= Figure()
-    ax = Axis(f[1, 1]; xlabel = "Time (s)", ylabel = "Mean order parameter",
-    title = "Order parameter during flashes",
-    xautolimitmargin = (0, 0), xminorticksvisible = true,
-    xminorticks = IntervalsBetween(5), yminorticksvisible = true,
-    yminorticks = IntervalsBetween(5))
-    hlines!(ax, [0]; color = (:black, 0.5), linestyle = :dash, linewidth = 2)
-    vlines!(ax, [0, 0.25]; color = (:black, 0.5), linestyle = :dash, linewidth = 2)
-    for (i, O) in reverse(collect(enumerate(Ō)))
-        structure = metadata(O)[:structure]
-        O = O[𝑡(SpatiotemporalMotifs.INTERVAL)]
-        μ = dropdims(mean(O, dims = 2), dims = 2)
-        σ = dropdims(std(O, dims = 2), dims = 2)
-        σ = σ ./ 2
-        bargs = [times(μ), μ .- σ, μ .+ σ] .|> ustripall .|> collect
-        band!(ax, bargs..., color = (structurecolors[i], 0.3), label = structure)
-        lines!(ax, times(μ) |> ustripall, μ |> ustripall |> collect,
-            color = (structurecolors[i], 0.7),
-            label = structure)
+
+    begin # * Plot the mean order parameter across time
+        Ō = orderparameter(Og)
+
+        ax = Axis(gs[2]; xlabel = "Time (s)", ylabel = "Mean order parameter",
+                  title = "Order parameter during flashes",
+                  xautolimitmargin = (0, 0), xminorticksvisible = true,
+                  xminorticks = IntervalsBetween(5), yminorticksvisible = true,
+                  yminorticks = IntervalsBetween(5))
+        hlines!(ax, [0]; color = (:black, 0.5), linestyle = :dash, linewidth = 2)
+        vlines!(ax, [0, 0.25]; color = (:black, 0.5), linestyle = :dash, linewidth = 2)
+        for (i, O) in reverse(collect(enumerate(Ō)))
+            structure = metadata(O)[:structure]
+            O = O[𝑡(SpatiotemporalMotifs.INTERVAL)]
+            μ = dropdims(mean(O, dims = SessionID), dims = SessionID)
+            σ = dropdims(std(O, dims = SessionID), dims = SessionID)
+            σ = σ ./ 2
+            bargs = [times(μ), μ .- σ, μ .+ σ] .|> ustripall .|> collect
+            band!(ax, bargs..., color = (structurecolors[i], 0.3), label = structure)
+            lines!(ax, times(μ) |> ustripall, μ |> ustripall |> collect,
+                   color = (structurecolors[i], 0.7),
+                   label = structure)
+        end
+        l = axislegend(ax, position = :lt, nbanks = 2, framevisible = true, labelsize = 12,
+                       merge = true)
+        reverselegend!(l)
     end
-    l = axislegend(ax, position = :lt, nbanks = 2, framevisible = true, labelsize = 12,
-            merge = true)
-    reverselegend!(l)
-    f
-end
 
-
+    begin # * Generate mean LFP responses
+        layergroups = [1:5]#, [1, 2], [3], [4, 5]] # Superficial, middle (L4), deep
+        Olfp = map(layergroups) do ls
+            map(out) do o
+                map(o) do p
+                    k = deepcopy(p[:x])
+                    idxs = parselayernum.(metadata(k)[:layernames]) .∈ [ls]
+                    k = k[:, parent(idxs), :]
+                    N = ZScore(k, dims = 1)
+                    normalize!(k, N)
+                    ret = dropdims(mean(k; dims = Depth), dims = Depth)
+                end
+            end
+        end
+    end
+    begin # * Plot mean LFP
+        Ō = mean.(Olfp[1])
+        f = Figure()
+        ax = Axis(f[1, 1]; xlabel = "Time (s)", ylabel = "Mean order parameter",
+                  title = "Order parameter during flashes",
+                  xautolimitmargin = (0, 0), xminorticksvisible = true,
+                  xminorticks = IntervalsBetween(5), yminorticksvisible = true,
+                  yminorticks = IntervalsBetween(5))
+        hlines!(ax, [0]; color = (:black, 0.5), linestyle = :dash, linewidth = 2)
+        vlines!(ax, [0, 0.25]; color = (:black, 0.5), linestyle = :dash, linewidth = 2)
+        for (i, O) in reverse(collect(enumerate(Ō)))
+            structure = metadata(O)[:structure]
+            O = O[𝑡(SpatiotemporalMotifs.INTERVAL)]
+            μ = dropdims(mean(O, dims = 2), dims = 2)
+            σ = dropdims(std(O, dims = 2), dims = 2)
+            σ = σ ./ 2
+            bargs = [times(μ), μ .- σ, μ .+ σ] .|> ustripall .|> collect
+            band!(ax, bargs..., color = (structurecolors[i], 0.3), label = structure)
+            lines!(ax, times(μ) |> ustripall, μ |> ustripall |> collect,
+                   color = (structurecolors[i], 0.7),
+                   label = structure)
+        end
+        l = axislegend(ax, position = :lt, nbanks = 2, framevisible = true, labelsize = 12,
+                       merge = true)
+        reverselegend!(l)
+        f
+    end
 end
 
 # * Task stimulus
@@ -367,30 +365,36 @@ begin # * Plot classification performance
     ax = Axis(fig[2, 1:2];
               xticks = ([2, 5, 7], ["Post-offset", "Pre-offset", "Null"]),
               ylabel = "Balanced accuracy", title = "Hit/miss classification",
-              limits = ((0.5, 7.5), (0.35, 0.95)), xminorticksvisible=false)
+              limits = ((0.5, 7.5), (0.35, 0.95)), xminorticksvisible = false)
     boxargs = (; width = 0.75, strokewidth = 5, whiskerwidth = 0.2,
                strokecolor = (:gray, 0.0)) # !!!! Show outliers??
 
-    vspan!(ax, 0.5, 3.5; color=(california, 0.2))
-    vspan!(ax, 3.5, 6.5; color=(cucumber, 0.2))
-    vspan!(ax, 6.5, 7.5; color=(:gray, 0.2))
+    vspan!(ax, 0.5, 3.5; color = (california, 0.2))
+    vspan!(ax, 3.5, 6.5; color = (cucumber, 0.2))
+    vspan!(ax, 6.5, 7.5; color = (:gray, 0.2))
 
-    boxplot!(ax, fill(1, length(bac_post)), bac_post; boxargs..., color = cornflowerblue, label="Order parameter")
-    boxplot!(ax, fill(2, length(bac_lfp_post[1])), bac_lfp_post[1]; boxargs..., color = juliapurple, label="Mean LFP")
+    boxplot!(ax, fill(1, length(bac_post)), bac_post; boxargs..., color = cornflowerblue,
+             label = "Order parameter")
+    boxplot!(ax, fill(2, length(bac_lfp_post[1])), bac_lfp_post[1]; boxargs...,
+             color = juliapurple, label = "Mean LFP")
     boxplot!(ax, vcat([fill(3 + i, length(bac_lfp_post[1])) for i in [-0.3, 0, 0.3]]...),
-    reverse(vcat(bac_lfp_post[2:end]...)); boxargs..., width = 0.3, color = crimson, label="Compartmental LFP")
+             reverse(vcat(bac_lfp_post[2:end]...)); boxargs..., width = 0.3,
+             color = crimson, label = "Compartmental LFP")
     text!(ax, 3 .+ [-0.3, 0, 0.3], [0.9, 0.9, 0.9]; text = reverse(["S", "M", "D"]),
-    align = (:center, :center))
+          align = (:center, :center))
 
-    boxplot!(ax, fill(4, length(bac_pre)), bac_pre; boxargs..., color = cornflowerblue, label="Order parameter")
-    boxplot!(ax, fill(5, length(bac_lfp_pre[1])), bac_lfp_pre[1]; boxargs..., color = juliapurple, label="Mean LFP")
+    boxplot!(ax, fill(4, length(bac_pre)), bac_pre; boxargs..., color = cornflowerblue,
+             label = "Order parameter")
+    boxplot!(ax, fill(5, length(bac_lfp_pre[1])), bac_lfp_pre[1]; boxargs...,
+             color = juliapurple, label = "Mean LFP")
     boxplot!(ax, vcat([fill(6 + i, length(bac_lfp_pre[1])) for i in [-0.3, 0, 0.3]]...),
-             reverse(vcat(bac_lfp_pre[2:end]...)); boxargs..., width = 0.3, color = crimson, label="Compartmental LFP")
+             reverse(vcat(bac_lfp_pre[2:end]...)); boxargs..., width = 0.3, color = crimson,
+             label = "Compartmental LFP")
     text!(ax, 6 .+ [-0.3, 0, 0.3], [0.8, 0.8, 0.8]; text = reverse(["S", "M", "D"]),
           align = (:center, :center))
 
     boxplot!(ax, fill(7, length(bac_sur)), bac_sur; color = :gray, boxargs...)
-    axislegend(ax; merge=true)
+    axislegend(ax; merge = true)
 end
 
 begin # * Plot region-wise weightings
@@ -416,6 +420,6 @@ end
 
 begin # * Save
     addlabels!(fig, ["(d)", "(e)", "(f)"]) #, "(g)"])
-    wsave(plotdir("theta_waves_task", "theta_waves_task.pdf"), fig)
+    wsave(plotdir("theta_order_parameter", "theta_order_parameter.pdf"), fig)
     display(fig)
 end
