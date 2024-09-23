@@ -158,38 +158,83 @@ function send_powerspectra(sessionid, stimulus; outpath = datadir("power_spectra
             # * Format data for saving
             streamlinedepths = AN.getchanneldepths(session, LFP; method = :streamlines)
             layerinfo = AN.Plots._layerplot(session, channels)
-            begin # * Spontaneous order parameter
+
+            begin # * Spontaneous order parameter. Need to rectify for this
                 LFP = set(LFP, Chan => Depth(depths))
+                origts = deepcopy(times(LFP))
                 LFP = rectify(LFP; dims = Depth)
                 θ = bandpass(LFP, SpatiotemporalMotifs.THETA .* u"Hz")
                 ϕ = analyticphase(θ)
+                ω = centralderiv(ϕ, dims = 𝑡, grad = phasegrad)
+
                 k = -centralderiv(ϕ, dims = Depth, grad = phasegrad)
-                R = dropdims(mean(sign.(k), dims = Depth); dims = Depth)
+
+                k[ω .< 0u"Hz"] .= NaN * unit(eltype(k))
+                R = dropdims(nansafe(mean, dims = Depth)(sign.(k)); dims = Depth)
 
                 # * Surrogates
                 idxs = randperm(size(ϕ, Depth))
-                ϕ = set(ϕ, ϕ[:, idxs]) # Spatially shuffle channels
-                k = -centralderiv(ϕ, dims = Depth, grad = phasegrad)
-                sR = dropdims(mean(sign.(k), dims = Depth); dims = Depth)
+                ϕs = set(ϕ, ϕ[:, idxs]) # Spatially shuffle channels
+                ωs = centralderiv(ϕs, dims = 𝑡, grad = phasegrad)
+                ks = -centralderiv(ϕs, dims = Depth, grad = phasegrad)
+                ks[ωs .< 0u"Hz"] .= NaN * unit(eltype(ks))
+                sR = dropdims(nansafe(mean, dims = Depth)(sign.(k)); dims = Depth)
+            end
+
+            begin # * Spontaneous spike-LFP coupling. We set the LFP time indices back to their original, non-rectified values
+                unitdepths = produce_unitdepths(session)
+                unitdepths[!, :stimulus] .= stimulus
+
+                spiketimes = AN.getspiketimes(session, structure)
+                units = AN.getunitmetrics(session)
+                units = units[units.ecephys_unit_id .∈ [keys(spiketimes)], :]
+                unitdepths = unitdepths[unitdepths.ecephys_unit_id .∈ [units.id], :]
+
+                γ = bandpass(LFP, SpatiotemporalMotifs.GAMMA .* u"Hz")
+                r = abs.(hilbert(γ))
+                r[ω .< 0u"Hz"] .= NaN * unit(eltype(r))
+                ϕ[ω .< 0u"Hz"] .= NaN * unit(eltype(ϕ))
+
+                LFP = set(LFP, 𝑡 => origts)
+                ϕ = set(ϕ, 𝑡 => origts)
+                r = set(r, 𝑡 => origts)
+
+                unitdepths[:, :spc] .= NaN
+                unitdepths[:, :spc_angle] .= NaN
+                unitdepths[:, :spc_pvalue] .= NaN
+                unitdepths[:, :sac] .= NaN
+
+                for u in 1:size(unitdepths, 1)
+                    # Main.@infiltrate
+                    unitid = unitdepths[u, :].ecephys_unit_id
+                    depth = unitdepths[u, :].probedepth
+                    _ϕ = ϕ[Depth(Near(depth))]
+                    _r = r[Depth(Near(depth))]
+                    spikes = spiketimes[unitid]
+
+                    pγ, p, 𝑝 = ppc(ustripall(_ϕ), spikes)
+                    rγ = sac(ustripall(_r), spikes)
+                    unitdepths[u, :].spc = pγ
+                    unitdepths[u, :].spc_angle = p
+                    unitdepths[u, :].spc_pvalue = 𝑝
+                    unitdepths[u, :].sac = rγ
+                end
             end
 
             D = Dict(DimensionalData.metadata(LFP))
             @pack! D = channels, streamlinedepths, layerinfo
             S = rebuild(S; metadata = D)
-            outD = @strdict S C sC R sR
+            outD = @strdict S C sC R sR unitdepths
             tagsave(outfile, outD)
 
-            LFP = D = streamlinedepths = layerinfo = S = sC = mc = sLFP = C = s = f = p = ax = c = depths = outD = θ = ϕ = k = R = sR = []
             GC.safepoint()
             GC.gc()
         catch e
-            LFP = D = streamlinedepths = layerinfo = S = sC = mc = sLFP = C = s = f = p = ax = c = depths = outD = θ = ϕ = k = R = sR = []
             GC.safepoint()
             GC.gc()
             @warn e
             tagsave(outfile, Dict("error" => sprint(showerror, e)))
         end
-        LFP = D = streamlinedepths = layerinfo = S = sC = mc = sLFP = C = s = f = p = ax = c = depths = outD = θ = ϕ = k = R = sR = []
         GC.safepoint()
         GC.gc()
     end
@@ -753,59 +798,66 @@ function load_uni(; stimulus, vars = sort([:V, :csd, :x, :ϕ, :r, :k, :ω]),
     end
 end
 
+function produce_unitdepths(session::AN.AbstractSession)
+    sessionid = AN.getid(session)
+    @info "Computing depths for session $sessionid"
+    # * Want to get a dataframe mapping all units to a probe depth and a streamline
+    #   depth.
+    probes = AN.getprobes(session)
+    unitmetrics = AN.getunitmetrics(session)
+    cdf = AN.getchannels(session)
+    probedepths = Dict{Any, Any}()
+    streamlinedepths = Dict{Any, Any}()
+    for probe in probes.id
+        _cdf = cdf[cdf.probe_id .== probe, :]
+        channels = _cdf.id
+        _probedepths = Dict(channels .=>
+                                AN.AllenNeuropixelsBase._getchanneldepths(_cdf,
+                                                                          channels;
+                                                                          method = :probe))
+        _streamlinedepths = Dict(channels .=>
+                                     AN.AllenNeuropixelsBase._getchanneldepths(_cdf,
+                                                                               channels;
+                                                                               method = :streamlines))
+
+        p = Dict(channels .=> getindex.([_probedepths], channels))
+        s = Dict(channels .=> getindex.([_streamlinedepths], channels))
+        merge!(probedepths, p)
+        merge!(streamlinedepths, s)
+    end
+    D = DataFrame([keys(probedepths) |> collect, values(probedepths) |> collect,
+                      getindex.([streamlinedepths], keys(probedepths))
+                  ],
+                  [
+                      :peak_channel_id,
+                      :probedepth,
+                      :streamlinedepth
+                  ])
+    D = innerjoin(D, unitmetrics, on = :peak_channel_id)
+    D = innerjoin(D, cdf, on = :peak_channel_id => :id)
+    D.ecephys_session_id .= sessionid
+    return D
+end
+
 function produce_unitdepths(sessionids)
     Ds = map(sessionids) do sessionid
-        @info "Computing depths for session $sessionid"
-        # * Want to get a dataframe mapping all untis to a probe depth and a streamline
-        #   depth.
         session = AN.Session(sessionid)
-        probes = AN.getprobes(session)
-        unitmetrics = AN.getunitmetrics(session)
-        cdf = AN.getchannels(session)
-        probedepths = Dict{Any, Any}()
-        streamlinedepths = Dict{Any, Any}()
-        for probe in probes.id
-            _cdf = cdf[cdf.probe_id .== probe, :]
-            channels = _cdf.id
-            _probedepths = Dict(channels .=>
-                                    AN.AllenNeuropixelsBase._getchanneldepths(_cdf,
-                                                                              channels;
-                                                                              method = :probe))
-            _streamlinedepths = Dict(channels .=>
-                                         AN.AllenNeuropixelsBase._getchanneldepths(_cdf,
-                                                                                   channels;
-                                                                                   method = :streamlines))
-
-            p = Dict(channels .=> getindex.([_probedepths], channels))
-            s = Dict(channels .=> getindex.([_streamlinedepths], channels))
-            merge!(probedepths, p)
-            merge!(streamlinedepths, s)
-        end
-        D = DataFrame([keys(probedepths) |> collect, values(probedepths) |> collect,
-                          getindex.([streamlinedepths], keys(probedepths))
-                      ],
-                      [
-                          :peak_channel_id,
-                          :probedepth,
-                          :streamlinedepth
-                      ])
-        D = innerjoin(D, unitmetrics, on = :peak_channel_id)
-        D = innerjoin(D, cdf, on = :peak_channel_id => :id)
-        D.ecephys_session_id .= sessionid
-        return D
+        produce_unitdepths(session)
     end
     return vcat(Ds...)
 end
 
-function load_unitdepths(oursessions; filepath = datadir("unitdepths.jld2"),
-                         rewrite = false)
-    if isfile(filepath) && !rewrite
-        D = load(filepath, "unitdepths")
-        sessionids = load(filepath, "sessionids")
+function load_unitdepths(oursessions; path = datadir("power_spectra"))
+    Q = calcquality(path)
+    D = map(lookup(Q, Dim{:stimulus})) do stimulus
+        map(lookup(Q, SessionID)) do sessionid
+            map(lookup(Q, Structure)) do
+                filename = savepath((@strdict sessionid structure stimulus), "jld2",
+                                    path)
+                unitdepths = load(filename, "unitdepths")
+            end
+        end
     end
-    if !isfile(filepath) || rewrite || !all(oursessions .∈ [sessionids])
-        D = produce_unitdepths(oursessions)
-        tagsave(filepath, Dict("unitdepths" => D, "sessionids" => oursessions))
-    end
+    D = vcat(D...)
     return D
 end

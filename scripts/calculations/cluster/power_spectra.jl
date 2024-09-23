@@ -31,7 +31,7 @@ if haskey(ENV, "JULIA_DISTRIBUTED")
                                  retry_errors = $retry_errors)
         end
     end
-    USydClusters.Physics.runscripts(exprs; ncpus = 16, mem = 90, walltime = 4,
+    USydClusters.Physics.runscripts(exprs; ncpus = 16, mem = 122, walltime = 4,
                                     project = projectdir())
 else
     for o in reverse(oursessions)

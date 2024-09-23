@@ -448,6 +448,9 @@ function ppc(ϕ::UnivariateTimeSeries{T}, spikes::AbstractVector)::NTuple{3, T} 
     spikes = spikes[spikes .∈ [Interval(ϕ)]]
     isempty(spikes) && return (NaN, NaN, NaN)
     phis = ϕ[𝑡(Near(spikes))] |> parent
+    idxs = .!isnan.(phis)
+    sum(idxs) == 0 && return (NaN, NaN, NaN)
+    phis = phis[idxs]
     γ = ppc(phis)
     𝑝 = isempty(phis) ? 1.0 : HypothesisTests.pvalue(RayleighTest(phis))
     p = phis |> resultant |> angle
@@ -542,7 +545,8 @@ end
 function sac(r::UnivariateTimeSeries{T}, spikes::AbstractVector)::T where {T}
     spikes = spikes[spikes .∈ [Interval(r)]]
     isempty(spikes) && return NaN
-    return r[𝑡(Near(spikes))] |> parent |> mean
+    x = r[𝑡(Near(spikes))] |> parent
+    return mean(x[.!isnan.(x)])
 end
 sac(r::AbstractVector{<:UnivariateTimeSeries}, spikes::AbstractVector) = sac.(r, [spikes])
 
