@@ -28,12 +28,12 @@ if haskey(ENV, "JULIA_DISTRIBUTED")
     idxs = map(xy -> SM.powerspectra_quality(xy...; rewrite,
                                              retry_errors), params)
     params = params[.!idxs]
-    exprs = map(params) do (o, stimulus)
+    exprs = map(params) do (o, stimulus, structure)
         expr = quote
             using Pkg
             Pkg.instantiate()
             import SpatiotemporalMotifs as SM
-            SM.send_powerspectra($o, $stimulus; rewrite = $rewrite,
+            SM.send_powerspectra($o, $stimulus, $structure; rewrite = $rewrite,
                                  retry_errors = $retry_errors)
         end
     end
