@@ -7,11 +7,6 @@ import Bootstrap
 using MultipleTesting
 using Optim
 using IntervalSets
-# import LIBSVM
-
-if !haskey(ENV, "DRWATSON_STOREPATCH")
-    ENV["DRWATSON_STOREPATCH"] = "true"
-end
 
 function _preamble()
     quote

@@ -17,8 +17,14 @@ oursessions = session_table.ecephys_session_id
 rewrite = false
 retry_errors = true
 
+structures = deepcopy(SM.structures)
+# Add thalamic regions
+push!(structures, "LGd")
+push!(structures, "LGd-sh")
+push!(structures, "LGd-co")
+params = Iterators.product(oursessions, stimuli, structures) |> collect
+
 if haskey(ENV, "JULIA_DISTRIBUTED")
-    params = Iterators.product(oursessions, stimuli) |> collect
     idxs = map(xy -> SM.powerspectra_quality(xy...; rewrite,
                                              retry_errors), params)
     params = params[.!idxs]
@@ -31,13 +37,10 @@ if haskey(ENV, "JULIA_DISTRIBUTED")
                                  retry_errors = $retry_errors)
         end
     end
-    USydClusters.Physics.runscripts(exprs; ncpus = 16, mem = 122, walltime = 4,
-                                    project = projectdir())
+    USydClusters.Physics.runscripts(exprs; ncpus = 16, mem = 122, walltime = 1,
+                                    project = projectdir(), qsub_flags = "-q yossarian")
 else
-    for o in reverse(oursessions)
-        for stimulus in stimuli
-            SM.send_powerspectra(o, stimulus; rewrite, retry_errors)
-            GC.gc()
-        end
+    for param in params
+        SM.send_powerspectra(param...; rewrite, retry_errors)
     end
 end
