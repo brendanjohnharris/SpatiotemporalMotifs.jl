@@ -1,23 +1,16 @@
 using DataFrames
 using TimeseriesTools
 
-function powerspectra_quality(sessionid, stimulus; outpath = datadir("power_spectra"),
+function powerspectra_quality(sessionid, stimulus, structure;
+                              outpath = datadir("power_spectra"),
                               plotpath = datadir("power_spectra_plots"),
                               rewrite = false, retry_errors = true)
-    structures = deepcopy(SM.structures)
-    # Add thalamic regions
-    push!(structures, "LGd")
-    push!(structures, "LGd-sh")
-    push!(structures, "LGd-co")
-    badis = map(structures) do structure
-        plotfile = joinpath(plotpath, "$(sessionid)",
-                            "$(stimulus)_$(structure)_pac.pdf")
-        outfile = savepath(Dict("sessionid" => sessionid,
-                                "stimulus" => string(stimulus),
-                                "structure" => structure), "jld2", outpath)
-        badis = rewrite || isbad(outfile; retry_errors, check_other_file = plotfile)
-    end
-    badis = any(badis)
+    plotfile = joinpath(plotpath, "$(sessionid)",
+                        "$(stimulus)_$(structure)_pac.pdf")
+    outfile = savepath(Dict("sessionid" => sessionid,
+                            "stimulus" => string(stimulus),
+                            "structure" => structure), "jld2", outpath)
+    badis = rewrite || isbad(outfile; retry_errors, check_other_file = plotfile)
     return !badis
 end
 
