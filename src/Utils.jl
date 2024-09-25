@@ -212,11 +212,11 @@ allowedtypes = (Real, String, Regex, Symbol, TimeType, Vector, Tuple)
 
 symextrema(x) = (m = maximum(abs.(extrema(x))); (-m, m))
 
-function savepath(D::Dict, ext = "", args...)
+function savepath(D::Union{Dict, NamedTuple}, ext = "", args...)
     filename = savename(D, ext; connector, val_to_string, allowedtypes)
     return joinpath(args..., filename)
 end
-function savepath(prefix::String, D::Dict, ext = "", args...)
+function savepath(prefix::String, D::Union{Dict, NamedTuple}, ext = "", args...)
     filename = savename(prefix, D, ext; connector, val_to_string, allowedtypes)
     return joinpath(args..., filename)
 end

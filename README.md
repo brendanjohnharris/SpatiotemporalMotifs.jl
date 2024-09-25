@@ -101,9 +101,9 @@ At times it will be useful to have precomputed unified layer annotations for all
 
 #### Schematics
 
-.......
-
-To produce the supplemental 'glass brain' movie, you will need to manually install and configure RPR makie on a machine with a sizeable GPU. The script `scripts/plots/glass_brain.jl` will produce jpeg images for each frame of the animation, which you can stitch together with e.g. the `magick` command-line tool.
+The wave illustration in Fig. 1 is produced by [nested_oscillations.jl](scripts/plots/nested_oscillations.jl).
+[single_trial_schematic.jl](scripts/plots/single_trial_schematic.jl) generates a version of the methdos schematic in Fig. 1 for each visaul cortical region.
+To produce the supplemental 'glass brain' movie, you will need to manually install and configure RPR makie on a machine with a sizeable GPU. The script [glass_brain.jl](`scripts/plots/glass_brain.jl`) will produce jpeg images for each frame of the animation, which you can stitch together with e.g. the `magick` command-line tool.
 
 #### [Power spectra](scripts/plots/power_spectra.jl)
 

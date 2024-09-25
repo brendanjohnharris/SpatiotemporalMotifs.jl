@@ -831,17 +831,33 @@ function produce_unitdepths(sessionids)
     return vcat(Ds...)
 end
 
-function load_unitdepths(oursessions; path = datadir("power_spectra"))
-    Q = calcquality(path)
+function load_unitdepths(Q::AbstractDimArray; path = datadir("power_spectra"))
+    if !all(Q)
+        @warn "The quality matrix indicates missing values. Please be cautious."
+    end
     D = map(lookup(Q, Dim{:stimulus})) do stimulus
-        map(lookup(Q, SessionID)) do sessionid
-            map(lookup(Q, Structure)) do
+        d = map(lookup(Q, SessionID)) do sessionid
+            map(lookup(Q, Structure)) do structure
                 filename = savepath((@strdict sessionid structure stimulus), "jld2",
                                     path)
-                unitdepths = load(filename, "unitdepths")
+                f = jldopen(filename, "r")
+                if haskey(f, "error")
+                    return nothing
+                else
+                    return f["unitdepths"]
+                end
             end
         end
+        d = filter(!isnothing, d)
+        d = vcat(d...)
     end
+    D = filter(!isempty, D)
+    D = vcat(D...)
+    D = filter(!isnothing, D)
     D = vcat(D...)
     return D
+end
+function load_unitdepths(; path = datadir("power_spectra"), kwargs...)
+    Q = calcquality(path)
+    load_unitdepths(Q; path, kwargs...)
 end
