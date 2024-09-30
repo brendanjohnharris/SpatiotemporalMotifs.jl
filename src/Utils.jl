@@ -701,6 +701,7 @@ function bootstrapaverage(average, X::AbstractToolsArray; dims = 1, kwargs...)
     return μ, (σl, σh)
 end
 bootstrapmedian(args...; kwargs...) = bootstrapaverage(median, args...; kwargs...)
+bootstrapmean(args...; kwargs...) = bootstrapaverage(mean, args...; kwargs...)
 
 """
 hierarchicalkendall(x::AbstractVector{<:Real}, y::AbstractDimArray,
