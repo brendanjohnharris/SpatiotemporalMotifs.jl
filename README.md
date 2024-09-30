@@ -87,11 +87,11 @@ This script must be run on a high-performance computing cluster, and will need t
 
 #### [Calculations](scripts/calculations/cluster/calculations.jl)
 
-This script performs the bulk of the wave-based calcualtions, and must be run on a high-performance computing cluster. If you have configured a custom [ClusterManager](https://github.com/JuliaParallel/ClusterManagers.jl), you can set the `ENV["JULIA_DISTRIBUTED"]=true` to have this file distribute calculations across multiple processes. Otherwise, the script will take about 2 days to run on a single high-memory (>64GB) machine.
+This script performs the bulk of the wave-based calculations, and must be run on a high-performance computing cluster. If you have configured a custom [ClusterManager](https://github.com/JuliaParallel/ClusterManagers.jl), you can set the `ENV["JULIA_DISTRIBUTED"]=true` to have this file distribute calculations across multiple processes. Otherwise, the script will take about 2 days to run on a single high-memory (>64GB) machine.
 
 #### [Post-hoc session filtering](scripts/calculations/posthoc_session_filter.jl)
 
-There are some session quality metrics---the layer assignment consistency, and subject performance---that we can only calculate after collecting and formatting the data. This script filters out sessions that do not meet our post-hoc quality criteria, and saves the results in `data/posthoc_session_table.jld2` and `data/posthoc_session_table.json`.
+There are some session quality metrics---the layer assignment consistency, and subject performance---that we can only calculate after collecting and formatting the data. This script filters out sessions that do not meet our post-hoc quality criteria, and saves the results in `data/posthoc_session_table.jld2` and `data/posthoc_session_table.json`. Lastly, this script produces the `experimental model details` table included in the star methods (`data/experimental_model_table.csv`).
 
 #### [Storing unified layer annotations](scripts/calculations/grand_unified_layers.jl)
 

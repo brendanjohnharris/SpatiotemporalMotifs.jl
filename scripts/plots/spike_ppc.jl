@@ -12,15 +12,32 @@ set_theme!(foresight(:physics))
 Random.seed!(42)
 
 stimulus = r"Natural_Images"
-vars = [:ϕ, :r, :ω]
+vars = [:ϕ, :r]
 
 session_table = load(datadir("posthoc_session_table.jld2"), "session_table")
 oursessions = session_table.ecephys_session_id
 
 path = datadir("calculations")
-Q = calcquality(path)[Structure = At(structures)]
+Q = calcquality(path)[Structure = At(structures)][SessionID = At(oursessions)]
 out = load_calculations(Q; stimulus, vars)
-unitdepths = load_unitdepths(oursessions; rewrite = false) # Can take some time if the data file is not present; 1 hour?
+Qs = calcquality(datadir("power_spectra"))[Structure = At(structures)][SessionID = At(oursessions)]
+unitdepths = load_unitdepths(Qs)
+
+begin # * Plot spontaneous PPC
+    D = subset(unitdepths, :stimulus => ByRow(==(r"Natural_Images")))
+    D = subset(unitdepths, :spc => ByRow(!isnan))
+    D = subset(unitdepths, :spc_pvalue => ByRow(<(1e-100)))
+    x = ToolsArray(D.spc, Depth(D.streamlinedepth))
+    bins = range(0, 1, length = 11)
+    bins = [b[1] .. b[2] for b in zip(bins[1:(end - 1)], bins[2:end])]
+    xs = DimensionalData.groupby(x, Depth => Bins(bins))
+    xs = mean.(xs)
+    xs = rectify(set(xs, Depth => mean.(lookup(xs, Depth))); dims = Depth)
+    lines(decompose(xs)...)
+    # ps = D.spc_pvalue
+    # ps[ps .≤ 0] .= eps()
+    # MultipleTesting.adjust(collect(ps), BenjaminiHochberg())
+end
 
 begin # * Format spikes to depth dataframe. These have already been rectified
     spikes = map(out) do o
@@ -46,20 +63,11 @@ begin # * Calculate spike--phase and spike--amplitude coupling across layers. Ta
         :pairwise_phase_consistency_angle, :pairwise_phase_consistency_angle,
         :spike_amplitude_coupling, :trial_spike_amplitude_coupling]
     if !all(hasproperty.([pspikes], requiredcols))
-        pbar = ProgressBar(; refresh_rate = 5)
-        job = addjob!(pbar; N = length(structures), description = "Structures")
-        pjobs = [addjob!(pbar; N = length(o), description = "Session (phase)")
-                 for o in out]
-        rjobs = [addjob!(pbar; N = length(o), description = "Session (amplitude)")
-                 for o in out]
-        with(pbar) do
-            for s in eachindex(structures)
-                ϕ = getindex.(out[s], :ϕ)
-                r = getindex.(out[s], :r)
-                spc!(pspikes, ustripall.(ϕ); job = pjobs[s]) # * PPC spike--phase coupling
-                sac!(pspikes, ustripall.(r); job = rjobs[s]) # * Mean normalized amplitude spike--amplitude coupling
-                update!(job)
-            end
+        for s in eachindex(structures)
+            ϕ = getindex.(out[s], :ϕ)
+            r = getindex.(out[s], :r)
+            spc!(pspikes, ustripall.(ϕ)) # * PPC spike--phase coupling
+            sac!(pspikes, ustripall.(r)) # * Mean normalized amplitude spike--amplitude coupling
         end
         save(datadir("spike_lfp.jld2"), "pspikes", pspikes)
     end

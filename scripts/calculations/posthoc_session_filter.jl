@@ -87,22 +87,61 @@ begin
     tagsave(datadir("posthoc_session_table.jld2"), Dict("session_table" => newsessions))
     write(datadir("posthoc_session_table.json"), JSON.json(newsessions))
 end
-# Read the dataframe as read("$(@__DIR__)/../session_table.json", String) |> JSON.parse |>
-# DataFrame
+# Read the dataframe as read("$(@__DIR__)/../session_table.json", String) |> JSON.parse |> DataFrame
 
-# begin
-#     folder = "/headnode2/bhar9988/code/DDC/SpatiotemporalMotifs/data/calculations"
-#     files = readdir(folder)
+begin # * Formatted subject table
+    using Dates
+    file = datadir("posthoc_session_table.jld2")
+    newsessions = load(file, "session_table")
+    experimental_model_table = newsessions[:,
+                                           [:mouse_id,
+                                               :ecephys_session_id,
+                                               :date_of_acquisition,
+                                               :equipment_name,
+                                               :genotype,
+                                               :sex,
+                                               :age_in_days,
+                                               :session_number
+                                           ]]
 
-#     file = files[1]
-#     jldopen(joinpath(folder, file), "a+") do f
-#         for k in keys(f)
-#             if f[k] isa AbstractDimArray
-#                 print(dims(f[k]))
-#                 if "structure" ∈ dimname.(dims(f[k]))
-#                     println(k)
-#                 end
-#             end
-#         end
-#     end
-# end
+    # * Add number of LFP channels
+    D = map(out, structures) do O, structure
+        d = map(O) do o
+            r = o[:r]
+            num_units = length(o[:spiketimes])
+            m = DimensionalData.metadata(r)
+            DataFrame(; structure, ecephys_session_id = m[:sessionid],
+                      num_channels = size(r, Depth), num_units)
+        end
+        vcat(d...)
+    end
+    D = vcat(D...)
+
+    D = leftjoin(experimental_model_table, D, on = :ecephys_session_id)
+    D.date_of_acquisition = map(D.date_of_acquisition) do x
+        x = split(x, " ") |> first
+        x = DateTime(x, "yyyy-mm-dd")
+    end
+    D = DataFrames.groupby(D, :genotype)
+
+    meanstd(x) = "$(round(mean(x), sigdigits=2)) ± $(round(std(x), sigdigits=2))"
+    D = DataFrames.combine(D, :genotype => :genotype,
+                           :num_channels => meanstd => "Num. channels",
+                           :num_units => meanstd => "Num. units",
+                           :date_of_acquisition => extrema => "Dates of acquisition",
+                           :age_in_days => meanstd => "Age (days)",
+                           [:mouse_id, :sex] => ((x, y) -> length(unique(x[y .== "M"]))) => "Num. male",
+                           [:mouse_id, :sex] => ((x, y) -> length(unique(x[y .== "F"]))) => "Num. female") |>
+        unique
+    D.var"Dates of acquisition" .= [Dates.format.(d, ["yyyy-mm-dd"])
+                                    for d in D.var"Dates of acquisition"]
+    D.var"Dates of acquisition" .= join.(D.var"Dates of acquisition", [" to "])
+    open(datadir("experimental_model_table.csv"), "w") do io
+        write(io, join(names(D), ","))
+        write(io, "\n")
+        for d in eachrow(D)
+            write(io, join(string.(collect(d)), ","))
+            write(io, "\n")
+        end
+    end
+end
