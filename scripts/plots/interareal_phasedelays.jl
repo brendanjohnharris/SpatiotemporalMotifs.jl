@@ -29,22 +29,7 @@ out = load_calculations(Q; stimulus, vars)
 out = map(out) do O
     filter(o -> (o[:sessionid] in oursessions), O)
 end
-# data, file = produce_or_load(produce_uni, config, datadir(); filename = savepath)
-# uni = data["uni"]
-
-begin # * Functional hierarchy scores
-    # ? See https://github.com/AllenInstitute/neuropixels_platform_paper/blob/master/Figure2/comparison_anatomical_functional_connectivity_final.ipynb
-    dir = tempdir()
-    baseurl = "https://github.com/AllenInstitute/neuropixels_platform_paper/raw/master/data/processed_data"
-    f = "FFscore_grating_10.npy"
-    Downloads.download(joinpath(baseurl, f), joinpath(dir, f))
-    @assert SpatiotemporalMotifs.structures ==
-            ["VISp", "VISl", "VISrl", "VISal", "VISpm", "VISam"] # The order of this FC matrix
-    FF_score, FF_score_b, FF_score_std = eachslice(load(joinpath(dir, f)), dims = 1)
-    FF_score = ToolsArray(FF_score', # Original matrix has higher-order structures on rows
-                          (Dim{:structure_1}(SpatiotemporalMotifs.structures),
-                           Dim{:structure_2}(SpatiotemporalMotifs.structures)))
-end
+datafile = datadir("interareal_phasedelays.jld2")
 
 function cylindricalcor(alpha, x)
     # Compute correlation coefficients for sin and cos independently
@@ -58,101 +43,123 @@ function cylindricalcor(alpha, x)
     return rho
 end
 
-begin # * Approximate 2D channel coordinates
-    channels = AN.VisualBehavior.getchannels()
-    idxs = .!ismissing.(channels.structure_acronym) .&
-           (channels.structure_acronym .∈ [structures]) # All the probes are in one hemisphere
-    channels = channels[idxs, :]
-    idxs = .!isnan.(channels.left_right_ccf_coordinate) .&
-           .!isnan.(channels.anterior_posterior_ccf_coordinate) .&
-           .!isnan.(channels.dorsal_ventral_ccf_coordinate)
-    channels = channels[idxs, :]
-    # @assert all(channels.left_right_ccf_coordinate .> 5000)# All channels are in right hemisphere
+if !isfile(datafile)
+    begin # * Functional hierarchy scores
+        # ? See https://github.com/AllenInstitute/neuropixels_platform_paper/blob/master/Figure2/comparison_anatomical_functional_connectivity_final.ipynb
+        dir = tempdir()
+        baseurl = "https://github.com/AllenInstitute/neuropixels_platform_paper/raw/master/data/processed_data"
+        f = "FFscore_grating_10.npy"
+        Downloads.download(joinpath(baseurl, f), joinpath(dir, f))
+        @assert SpatiotemporalMotifs.structures ==
+                ["VISp", "VISl", "VISrl", "VISal", "VISpm", "VISam"] # The order of this FC matrix
+        FF_score, FF_score_b, FF_score_std = eachslice(load(joinpath(dir, f)), dims = 1)
+        FF_score = ToolsArray(FF_score', # Original matrix has higher-order structures on rows
+                              (Dim{:structure_1}(SpatiotemporalMotifs.structures),
+                               Dim{:structure_2}(SpatiotemporalMotifs.structures)))
+    end
+    begin # * Approximate 2D channel coordinates
+        channels = AN.VisualBehavior.getchannels()
+        idxs = .!ismissing.(channels.structure_acronym) .&
+               (channels.structure_acronym .∈ [structures]) # All the probes are in one hemisphere
+        channels = channels[idxs, :]
+        idxs = .!isnan.(channels.left_right_ccf_coordinate) .&
+               .!isnan.(channels.anterior_posterior_ccf_coordinate) .&
+               .!isnan.(channels.dorsal_ventral_ccf_coordinate)
+        channels = channels[idxs, :]
+        # @assert all(channels.left_right_ccf_coordinate .> 5000)# All channels are in right hemisphere
 
-    channels = DataFrames.groupby(channels, :ecephys_session_id)
-    channels = [c for c in channels if length(unique(c.structure_acronym)) == 6]
-    channels = [c for c in channels if only(unique(c.ecephys_session_id)) ∈ oursessions]
+        channels = DataFrames.groupby(channels, :ecephys_session_id)
+        channels = [c for c in channels if length(unique(c.structure_acronym)) == 6]
+        channels = [c for c in channels if only(unique(c.ecephys_session_id)) ∈ oursessions]
 
-    for c in channels
-        if mean(c.left_right_ccf_coordinate) .< 5000 # Left hemisphere, so reflect
-            c.left_right_ccf_coordinate = .-c.left_right_ccf_coordinate
+        for c in channels
+            if mean(c.left_right_ccf_coordinate) .< 5000 # Left hemisphere, so reflect
+                c.left_right_ccf_coordinate = .-c.left_right_ccf_coordinate
+            end
+            xs = hcat(c.left_right_ccf_coordinate,
+                      c.anterior_posterior_ccf_coordinate,
+                      c.dorsal_ventral_ccf_coordinate)
+            xs = xs .- mean(xs, dims = 1)
+            U, S, V = svd(xs)
+            S[end] = 0.0
+            ys = U * Diagonal(S) * V'
+
+            begin # * Check the projection
+                as = hcat(ys[:, 1], ys[:, 2], ones(size(ys, 1)))
+                bs = ys[:, 3]
+                pl = inv(as' * as) * as' * bs
+                @assert all(pl[1] .* ys[:, 1] .+ pl[2] .* ys[:, 2] .+ pl[3] .≈ ys[:, 3])
+            end
+
+            P = V[:, 1:2]
+            zs = xs * P
+            lr_cor = cor(zs[:, 1], c.left_right_ccf_coordinate)
+            @assert lr_cor > 0.7
+
+            ap_cor = cor(zs[:, 2], c.anterior_posterior_ccf_coordinate)
+            @assert ap_cor < -0.7
+            @assert eigvals(cov(zs)) ≈ eigvals(cov(xs))[2:end]
+            c.x = zs[:, 1]
+            c.y = zs[:, 2]
         end
-        xs = hcat(c.left_right_ccf_coordinate,
-                  c.anterior_posterior_ccf_coordinate,
-                  c.dorsal_ventral_ccf_coordinate)
-        xs = xs .- mean(xs, dims = 1)
-        U, S, V = svd(xs)
-        S[end] = 0.0
-        ys = U * Diagonal(S) * V'
 
-        begin # * Check the projection
-            as = hcat(ys[:, 1], ys[:, 2], ones(size(ys, 1)))
-            bs = ys[:, 3]
-            pl = inv(as' * as) * as' * bs
-            @assert all(pl[1] .* ys[:, 1] .+ pl[2] .* ys[:, 2] .+ pl[3] .≈ ys[:, 3])
-        end
-
-        P = V[:, 1:2]
-        zs = xs * P
-        lr_cor = cor(zs[:, 1], c.left_right_ccf_coordinate)
-        @assert lr_cor > 0.7
-
-        ap_cor = cor(zs[:, 2], c.anterior_posterior_ccf_coordinate)
-        @assert ap_cor < -0.7
-        @assert eigvals(cov(zs)) ≈ eigvals(cov(xs))[2:end]
-        c.x = zs[:, 1]
-        c.y = zs[:, 2]
+        # cpositions = map(eachrow(channels)) do c
+        #     c.id => [
+        #         c.left_right_ccf_coordinate,
+        #         c.anterior_posterior_ccf_coordinate,
+        #         c.dorsal_ventral_ccf_coordinate
+        #     ]
+        # end |> Dict
+        channels = vcat(channels...)
     end
 
-    # cpositions = map(eachrow(channels)) do c
-    #     c.id => [
-    #         c.left_right_ccf_coordinate,
-    #         c.anterior_posterior_ccf_coordinate,
-    #         c.dorsal_ventral_ccf_coordinate
-    #     ]
-    # end |> Dict
-    channels = vcat(channels...)
-end
+    begin # * Subject-by-subject phasedelays
+        unidepths = range(0.05, 0.95, length = 19)
+        pxy = map(out...) do o...
+            ϕs = map(o) do _o
+                ϕ = _o[:ϕ]
+                ω = _o[:ω]
+                odepths = lookup(ϕ, Depth)
+                ϕ = ϕ[Depth(Near(unidepths))]
+                ω = ω[Depth(Near(unidepths))]
+                idxs = indexin(lookup(ϕ, Depth), odepths)
+                cs = DimensionalData.metadata(ϕ)[:depths]
+                sortidxs = sortperm(collect(values(cs))) # Assume perfect monotonic correlation to streamline depths. The depths in 'cs' are depths along the probe, smaller = more superficial
+                cs = collect(keys(cs))[sortidxs][idxs]
+                idxs = [channels.ecephys_channel_id .== c for c in cs]
+                idxs = findfirst.(idxs)
+                xs = channels[idxs, :x] .|> Float32
+                ys = channels[idxs, :y] .|> Float32
+                (ϕ, xs, ys, ω)
+            end
+            [getindex.(ϕs, i) for i in 1:4]
+        end
+        xs = getindex.(pxy, 2) # ! Maybe set this to a single mean value??
+        xs = map(xs) do x
+            map(x) do _x
+                _x .= mean(_x)
+            end
+        end
+        ys = getindex.(pxy, 3)
+        ys = map(ys) do y
+            map(y) do _y
+                _y .= mean(_y)
+            end
+        end
+        ϕs = getindex.(pxy, 1)
+        ωs = getindex.(pxy, 4)
+    end
 
-begin # * Subject-by-subject phasedelays
-    unidepths = range(0.05, 0.95, length = 19)
-    pxy = map(out...) do o...
-        ϕs = map(o) do _o
-            ϕ = _o[:ϕ]
-            ω = _o[:ω]
-            odepths = lookup(ϕ, Depth)
-            ϕ = ϕ[Depth(Near(unidepths))]
-            ω = ω[Depth(Near(unidepths))]
-            idxs = indexin(lookup(ϕ, Depth), odepths)
-            cs = DimensionalData.metadata(ϕ)[:depths]
-            sortidxs = sortperm(collect(values(cs))) # Assume perfect monotonic correlation to streamline depths. The depths in 'cs' are depths along the probe, smaller = more superficial
-            cs = collect(keys(cs))[sortidxs][idxs]
-            idxs = [channels.ecephys_channel_id .== c for c in cs]
-            idxs = findfirst.(idxs)
-            xs = channels[idxs, :x] .|> Float32
-            ys = channels[idxs, :y] .|> Float32
-            (ϕ, xs, ys, ω)
-        end
-        [getindex.(ϕs, i) for i in 1:4]
-    end
-    xs = getindex.(pxy, 2) # ! Maybe set this to a single mean value??
-    xs = map(xs) do x
-        map(x) do _x
-            _x .= mean(_x)
+    begin # * Use extra workers if we can
+        if haskey(ENV, "JULIA_DISTRIBUTED") && length(procs()) == 1
+            using USydClusters
+            USydClusters.Physics.addprocs(12; mem = 16, ncpus = 4,
+                                          project = projectdir())
+            @everywhere using SpatiotemporalMotifs
+            @everywhere SpatiotemporalMotifs.@preamble
         end
     end
-    ys = getindex.(pxy, 3)
-    ys = map(ys) do y
-        map(y) do _y
-            _y .= mean(_y)
-        end
-    end
-    ϕs = getindex.(pxy, 1)
-    ωs = getindex.(pxy, 4)
-end
-
-begin # * Analyze phase delays
-    Δs = progressmap(ϕs, ωs; parallel = true) do ϕ, ω # Takes about 5 mins over 32 cores, 180 Gb
+    Δϕ = pmap(ϕs, ωs) do ϕ, ω # Takes about 5 mins over 32 cores, 180 Gb
         changetimes = lookup.(ϕ, :changetime)
         latency = [maximum(abs.(a .- b))
                    for (a, b) in zip(changetimes[2:end], changetimes[1:(end - 1)])]
@@ -176,7 +183,7 @@ begin # * Analyze phase delays
         Δ = stack(Dim{:pair}(eachindex(Δ)), Δ, dims = 4)
         Δ = permutedims(Δ, (4, 1, 2, 3))
     end
-    Δxs = map(xs) do X
+    Δxs = pmap(xs) do X
         X = map(X...) do x...
             Δx = [b - a for a in x, b in x]
             Δx = Δx[filter(!=(0), triu(LinearIndices(Δx), 1))]
@@ -184,7 +191,7 @@ begin # * Analyze phase delays
         end
         stack(Depth(unidepths), X)
     end
-    Δys = map(ys) do Y
+    Δys = pmap(ys) do Y
         Y = map(Y...) do y...
             Δy = [b - a for a in y, b in y]
             Δy = Δy[filter(!=(0), triu(LinearIndices(Δy), 1))]
@@ -192,10 +199,10 @@ begin # * Analyze phase delays
         end
         stack(Depth(unidepths), Y)
     end
-    Δxys = map(Δys, Δxs) do Δy, Δx
+    Δxys = pmap(Δys, Δxs) do Δy, Δx
         maxs = maximum(sqrt.(Δy .^ 2 .+ Δx .^ 2); dims = Depth) # Normalize so all these measures are comparable
-        Δy = Δy ./ maxs
-        Δx = Δx ./ maxs
+        Δy ./= maxs
+        Δx ./= maxs
         return Δx, Δy
     end
     Δxs = first.(Δxys)
@@ -224,57 +231,61 @@ begin # * Analyze phase delays
         return f
     end
 
-    ∂x = progressmap(Δs, Δxs; parallel = true) do Δ, Δx
+    ∂x = progressmap(Δϕ, Δxs; parallel = true) do Δ, Δx
         mapslices(Δ; dims = (:pair, Depth)) do Δ
             .-Δ ./ Δx # Minus because phase increases over time
         end
     end
-    ∂y = progressmap(Δs, Δys; parallel = true) do Δ, Δy
+    ∂y = progressmap(Δϕ, Δys; parallel = true) do Δ, Δy
         mapslices(Δ; dims = (:pair, Depth)) do Δ
             .-Δ ./ Δy # Minus because phase increases over time
         end
     end
-    ∂h = progressmap(Δs, Δs; parallel = true) do Δ, Δh
+    ∂h = progressmap(Δϕ, Δs; parallel = true) do Δ, Δh
         mapslices(Δ; dims = (:pair, Depth)) do Δ
             .-Δ ./ Δh # Minus because phase increases over time
         end
     end
-    ∂f = progressmap(Δs, Δfs; parallel = true) do Δ, Δf
+    ∂f = progressmap(Δϕ, Δfs; parallel = true) do Δ, Δf
         mapslices(Δ; dims = (:pair, Depth)) do Δ
-            Main.@infiltrate # !!!!
             .-Δ ./ Δf # Minus because phase increases over time
         end
     end
 
-    ∂ = map(∂x, ∂y) do dx, dy
-        m = set(dx, collect(zip(dx, dy))) # All vectors
-        m = mean(collect.(m); dims = :pair) # Mean propagation vector (each scaled by separation remember)
-        norm.(m)
+    ∂ = progressmap(∂x, ∂y; parallel = true) do dx, dy # * Quite slow
+        dx = nansafe(mean, dims = :pair)(dx)
+        dy = nansafe(mean, dims = :pair)(dy)
+        m = sqrt.(dx .^ 2 .+ dy .^ 2)
+        m = dropdims(m, dims = :pair)
     end
-    ∂x = map(∂x) do ∂x
-        dropdims(mean(∂x, dims = :pair), dims = :pair) # x component of mean vector
+    ∂x = progressmap(∂x; parallel = true) do ∂x
+        dropdims(nansafe(mean, dims = :pair)(∂x), dims = :pair) # x component of mean vector
     end
     ∂y = map(∂y) do ∂y
-        dropdims(mean(∂y, dims = :pair), dims = :pair) # y component of mean vector
+        dropdims(nansafe(mean, dims = :pair)(∂y), dims = :pair) # y component of mean vector
     end
     # ψ = map(∂x, ∂y) do ∂x, ∂y
     #     atan.(∂y ./ ∂x) # Angle of mean vector. Not so meaningful when the spatial coordinates are normalized
     # end
     ∂h = map(∂h) do ∂h
-        dropdims(mean(∂h, dims = :pair), dims = :pair)
+        dropdims(nansafe(mean, dims = :pair)(∂h), dims = :pair)
     end
     ∂f = map(∂f) do ∂f
-        dropdims(mean(∂f, dims = :pair), dims = :pair)
+        dropdims(nansafe(mean, dims = :pair)(∂f), dims = :pair)
     end
-end
 
-begin # * Average quantities
-    ∂x̄ = mean(dropdims.(mean.(∂x; dims = :changetime); dims = :changetime))
-    ∂ȳ = mean(dropdims.(mean.(∂y; dims = :changetime); dims = :changetime))
-    ∂̄ = mean(dropdims.(mean.(∂; dims = :changetime); dims = :changetime))
-    # ψ̄ = mean(dropdims.(circularmean.(ψ; dims = :changetime); dims = :changetime))
-    ∂h̄ = mean(dropdims.(mean.(∂h; dims = :changetime); dims = :changetime))
-    ∂f̄ = mean(dropdims.(mean.(∂f; dims = :changetime); dims = :changetime))
+    begin # * Average quantities
+        ∂x̄ = mean(dropdims.(mean.(∂x; dims = :changetime); dims = :changetime))
+        ∂ȳ = mean(dropdims.(mean.(∂y; dims = :changetime); dims = :changetime))
+        ∂̄ = mean(dropdims.(mean.(∂; dims = :changetime); dims = :changetime))
+        # ψ̄ = mean(dropdims.(circularmean.(ψ; dims = :changetime); dims = :changetime))
+        ∂h̄ = mean(dropdims.(mean.(∂h; dims = :changetime); dims = :changetime))
+        ∂f̄ = mean(dropdims.(mean.(∂f; dims = :changetime); dims = :changetime))
+    end
+
+    begin
+        tagsave(datafile, @strdict unidepths FF_score ∂x̄ ∂ȳ ∂̄ ∂h̄ ∂f̄)
+    end
 end
 
 begin # * Plots

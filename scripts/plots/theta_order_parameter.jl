@@ -23,7 +23,7 @@ oursessions = session_table.ecephys_session_id
 path = datadir("calculations")
 
 begin # * Use extra workers if we can
-    if haskey(ENV, "JULIA_DISTRIBUTED")
+    if haskey(ENV, "JULIA_DISTRIBUTED") && length(procs()) == 1
         using USydClusters
         procs = USydClusters.Physics.addprocs(22; mem = 22, ncpus = 4,
                                               project = projectdir()) # ? Can reuse these for the following bac calculations

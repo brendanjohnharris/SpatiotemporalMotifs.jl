@@ -123,6 +123,5 @@ The script will take about 2 hours to run without pre-computed `fooof.jld` files
 2. [Nested oscillations](scripts/plots/pac_task.jl)
 3. [Gamma bursts and nested oscillations](scripts/plots/classical_pac_task.jl.jl)
 
-#### Spike-time coordination
-1. [Spike..](scripts/plots/spike_ppc.jl)
-
+#### [Spike-LFP coupling](scripts/plots/spike_ppc.jl)
+This script produces the final figure of the main text, plotting the spike-phase and spike-amplitude coupling across cortical layers and regions.
