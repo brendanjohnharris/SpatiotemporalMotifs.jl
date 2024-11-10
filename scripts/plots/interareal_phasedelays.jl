@@ -153,7 +153,7 @@ if !isfile(datafile)
     begin # * Use extra workers if we can
         if haskey(ENV, "JULIA_DISTRIBUTED") && length(procs()) == 1
             using USydClusters
-            USydClusters.Physics.addprocs(12; mem = 16, ncpus = 4,
+            USydClusters.Physics.addprocs(8; mem = 16, ncpus = 4,
                                           project = projectdir())
             @everywhere using SpatiotemporalMotifs
             @everywhere SpatiotemporalMotifs.@preamble
@@ -200,26 +200,29 @@ if !isfile(datafile)
         stack(Depth(unidepths), Y)
     end
     Δxys = pmap(Δys, Δxs) do Δy, Δx
-        maxs = maximum(sqrt.(Δy .^ 2 .+ Δx .^ 2); dims = Depth) # Normalize so all these measures are comparable
+        maxs = maximum(sqrt.(Δy .^ 2 .+ Δx .^ 2); dims = :pair) # Normalize so all these measures are comparable. Note that this is constant across depths, due to our projection above
         Δy ./= maxs
         Δx ./= maxs
         return Δx, Δy
     end
     Δxs = first.(Δxys)
     Δys = last.(Δxys)
+    @assert maximum(maximum.(Δxs)) ≤ 1
+    @assert maximum(maximum.(Δys)) ≤ 1
 
     @assert structures == [DimensionalData.metadata(phi)[:structure] for phi in ϕs[1]]
     hs = getindex.([hierarchy_scores], structures) .|> Float32
-    Δs = [b - a for a in hs, b in hs] # Make a distance matrix
-    Δs = Δs[filter(!=(0), triu(LinearIndices(Δs), 1))]
-    Δs = Δs ./ maximum(abs.(Δs))
-    Δs = map(Δxs) do Δx # Copy onto shape of Δxs
+    Δhs = [b - a for a in hs, b in hs] # Make a distance matrix
+    Δhs = Δhs[filter(!=(0), triu(LinearIndices(Δhs), 1))]
+    Δhs = Δhs ./ maximum(abs.(Δhs)) # Normalize to that the maximum distance between hierarchichal schores is 1
+    Δhs = map(Δxs) do Δx # Copy onto shape of Δxs
         h = deepcopy(Δx)
         for _h in eachslice(h, dims = Depth)
-            _h .= Δs
+            _h .= Δhs
         end
         return h
     end
+    @assert maximum(maximum.(Δhs)) ≤ 1
 
     Δfs = FF_score[filter(!=(0), triu(LinearIndices(FF_score), 1))] # ? Δhs and Δfs match data used for siegle2021 figure 2f, without same-region FC. FF_score is already a 'distance' matrix.
     Δfs = Δfs ./ maximum(abs.(Δfs))
@@ -230,6 +233,7 @@ if !isfile(datafile)
         end
         return f
     end
+    @assert maximum(maximum.(Δfs)) ≤ 1
 
     ∂x = progressmap(Δϕ, Δxs; parallel = true) do Δ, Δx
         mapslices(Δ; dims = (:pair, Depth)) do Δ
@@ -241,18 +245,21 @@ if !isfile(datafile)
             .-Δ ./ Δy # Minus because phase increases over time
         end
     end
-    ∂h = progressmap(Δϕ, Δs; parallel = true) do Δ, Δh
+    ∂h = progressmap(Δϕ, Δhs; parallel = true) do Δ, Δh
         mapslices(Δ; dims = (:pair, Depth)) do Δ
-            .-Δ ./ Δh # Minus because phase increases over time
+            .-sign.(Δ) ./ sign.(Δh) # Minus because phase increases over time
         end
     end
     ∂f = progressmap(Δϕ, Δfs; parallel = true) do Δ, Δf
         mapslices(Δ; dims = (:pair, Depth)) do Δ
-            .-Δ ./ Δf # Minus because phase increases over time
+            .-sign.(Δ) ./ sign.(Δf) # Minus because phase increases over time
         end
     end
 
     ∂ = progressmap(∂x, ∂y; parallel = true) do dx, dy # * Quite slow
+        N = sqrt.(dx .^ 2 .+ dy .^ 2)
+        dx = dx ./ N # Normalize x and y components to give a unit vector
+        dy = dy ./ N
         dx = nansafe(mean, dims = :pair)(dx)
         dy = nansafe(mean, dims = :pair)(dy)
         m = sqrt.(dx .^ 2 .+ dy .^ 2)
@@ -275,17 +282,18 @@ if !isfile(datafile)
     end
 
     begin # * Average quantities
-        ∂x̄ = mean(dropdims.(mean.(∂x; dims = :changetime); dims = :changetime))
-        ∂ȳ = mean(dropdims.(mean.(∂y; dims = :changetime); dims = :changetime))
-        ∂̄ = mean(dropdims.(mean.(∂; dims = :changetime); dims = :changetime))
-        # ψ̄ = mean(dropdims.(circularmean.(ψ; dims = :changetime); dims = :changetime))
-        ∂h̄ = mean(dropdims.(mean.(∂h; dims = :changetime); dims = :changetime))
-        ∂f̄ = mean(dropdims.(mean.(∂f; dims = :changetime); dims = :changetime))
+        ∂x̄ = dropdims(mean(nansafe(mean, dims = :changetime).(∂x)); dims = :changetime)
+        ∂ȳ = dropdims(mean(nansafe(mean, dims = :changetime).(∂y)); dims = :changetime)
+        ∂̄ = dropdims(mean(nansafe(mean, dims = :changetime).(∂)); dims = :changetime)
+        ∂h̄ = dropdims(mean(nansafe(mean, dims = :changetime).(∂h)); dims = :changetime)
+        ∂f̄ = dropdims(mean(nansafe(mean, dims = :changetime).(∂f)); dims = :changetime)
     end
 
     begin
         tagsave(datafile, @strdict unidepths FF_score ∂x̄ ∂ȳ ∂̄ ∂h̄ ∂f̄)
     end
+else
+    @unpack unidepths, FF_score, ∂x̄, ∂ȳ, ∂̄, ∂h̄, ∂f̄, = load(datafile)
 end
 
 begin # * Plots
@@ -317,6 +325,20 @@ begin # * Plots
         ax.limits = (nothing, (0.05, 0.95))
         f
     end
+    begin # * Correlation to functional hierarchy score
+        ax = Axis(gs[4][1, 1], yreversed = true,
+                  title = "θ propagation (hierarchy)", xlabel = "Time (s)",
+                  ylabel = "Cortical depth (%)")
+        # ∂̄ = dropdims(mean(∂h, dims = Trial), dims = Trial)
+        p, _ = plotlayermap!(ax, ∂f̄[𝑡(SpatiotemporalMotifs.INTERVAL)] |> ustripall,
+                             colormap = darksunset,
+                             colorrange = symextrema(∂f̄))
+        Colorbar(gs[4][1, 2], p; label = "Mean hierarchical ∇ (a.u.)")
+        plotlayerints!(ax, layerints; flipside = true, newticks = false,
+                       bgcolor = Makie.RGBA(0, 0, 0, 0))
+        ax.limits = (nothing, (0.05, 0.95))
+        f
+    end
     begin # * Correlation to position
         ax = Axis(gs[3][1, 1], yreversed = true, ytickformat = depthticks,
                   title = "θ propagation (position)", xlabel = "Time (s)",
@@ -324,7 +346,7 @@ begin # * Plots
         # ∂̄ = dropdims(mean(∂[:, :, lookup(∂, Trial) .== true],
         #                    dims = Trial),
         #               dims = Trial)
-        p, _ = plotlayermap!(ax, ∂̄[𝑡(SpatiotemporalMotifs.INTERVAL)] |> ustripall,
+        p, _ = plotlayermap!(ax, ∂ȳ[𝑡(SpatiotemporalMotifs.INTERVAL)] |> ustripall,
                              colormap = :inferno)
         Colorbar(gs[3][1, 2], p; label = "Mean positional ∇ (a.u.)")
         plotlayerints!(ax, layerints; flipside = true, newticks = false,
@@ -354,68 +376,70 @@ begin # * Plots
     f
 end
 
-begin # * Animate the phase at any given moment, interpolating the background,
-    mphi = progressmap(ϕs; parallel = true) do ϕ
-        ϕ = map(ϕ) do p
-            set(set(dropdims(circularmean(p[1:1562, :, :]; dims = :changetime);
-                             dims = :changetime), 𝑡 => times(ϕs[1][1])[1:1562]),
+if false
+    begin # * Animate the phase at any given moment, interpolating the background,
+        mphi = progressmap(ϕs; parallel = true) do ϕ
+            ϕ = map(ϕ) do p
+                set(set(dropdims(circularmean(p[1:1562, :, :]; dims = :changetime);
+                                 dims = :changetime), 𝑡 => times(ϕs[1][1])[1:1562]),
+                    Depth => Depth(unidepths))
+            end
+            stack(Structure(structures), ϕ |> collect)
+        end
+        mphi = cat(mphi...; dims = SessionID(oursessions))
+        mphi = dropdims(circularmean(mphi; dims = SessionID); dims = SessionID)
+    end
+    begin
+        set_theme!(foresight(:dark))
+        d = 19
+        # subphi = mphi[:, d, :]
+        # subpar = ∂̄[:, d]
+        # subh = ∂h̄[:, d]
+        # subpsi = ψ̄[:, d]
+
+        n = SpatiotemporalMotifs.DEFAULT_TRIAL_NUM
+        subphi = map(ϕs[end]) do p
+            set(set(p[1:1562, :, n], 𝑡 => times(ϕs[1][1])[1:1562]),
                 Depth => Depth(unidepths))
         end
-        stack(Structure(structures), ϕ |> collect)
+        subphi = cat(subphi...; dims = Structure(structures))
+        subphi = subphi[:, d, :]
+        subpar = ∂[end][:, d, n]
+        subh = ∂h[end][:, d, n]
+        subpsi = ψ[end][:, d, n]
+
+        t = Observable(first(times(mphi)))
+        c = lift(t -> subphi[𝑡(At(t))] |> collect, t)
+        psi = lift(t -> subpsi[𝑡(At(t))] |> collect, t)
+        layout = Point2f[(-350, 350), # VISp
+                         (-170, 310), # VISl
+                         (-300, 130), # VISrl
+                         (-180, 195), # VISal
+                         (-475, 240), # VISpm
+                         (-450, 140)] # VISam
+        o = mean(layout)
+        psi1 = lift(psi -> [100.0 .* sin.(psi)], psi)
+        psi2 = lift(psi -> [100.0 .* cos.(psi)], psi)
+        f = Figure(; size = (600, 600))
+        ax = Axis(f[1, 1]; yreversed = true)
+        hidedecorations!(ax)
+        hidespines!(ax)
+
+        p1, p2, l = plot_visual_cortex!(ax, colors = c, colorrange = (-pi, pi),
+                                        colormap = phasecolormap)
+        delete!(l)
+
+        scatter!(ax, layout; color = c, colormap = phasecolormap,
+                 markersize = 80,
+                 colorrange = (-pi, pi))
+        text!(ax, layout; text = structures, align = (:center, :center),
+              fontsize = 16, color = :black)
+        f
     end
-    mphi = cat(mphi...; dims = SessionID(oursessions))
-    mphi = dropdims(circularmean(mphi; dims = SessionID); dims = SessionID)
-end
-begin
-    set_theme!(foresight(:dark))
-    d = 19
-    # subphi = mphi[:, d, :]
-    # subpar = ∂̄[:, d]
-    # subh = ∂h̄[:, d]
-    # subpsi = ψ̄[:, d]
-
-    n = SpatiotemporalMotifs.DEFAULT_TRIAL_NUM
-    subphi = map(ϕs[end]) do p
-        set(set(p[1:1562, :, n], 𝑡 => times(ϕs[1][1])[1:1562]),
-            Depth => Depth(unidepths))
-    end
-    subphi = cat(subphi...; dims = Structure(structures))
-    subphi = subphi[:, d, :]
-    subpar = ∂[end][:, d, n]
-    subh = ∂h[end][:, d, n]
-    subpsi = ψ[end][:, d, n]
-
-    t = Observable(first(times(mphi)))
-    c = lift(t -> subphi[𝑡(At(t))] |> collect, t)
-    psi = lift(t -> subpsi[𝑡(At(t))] |> collect, t)
-    layout = Point2f[(-350, 350), # VISp
-                     (-170, 310), # VISl
-                     (-300, 130), # VISrl
-                     (-180, 195), # VISal
-                     (-475, 240), # VISpm
-                     (-450, 140)] # VISam
-    o = mean(layout)
-    psi1 = lift(psi -> [100.0 .* sin.(psi)], psi)
-    psi2 = lift(psi -> [100.0 .* cos.(psi)], psi)
-    f = Figure(; size = (600, 600))
-    ax = Axis(f[1, 1]; yreversed = true)
-    hidedecorations!(ax)
-    hidespines!(ax)
-
-    p1, p2, l = plot_visual_cortex!(ax, colors = c, colorrange = (-pi, pi),
-                                    colormap = phasecolormap)
-    delete!(l)
-
-    scatter!(ax, layout; color = c, colormap = phasecolormap,
-             markersize = 80,
-             colorrange = (-pi, pi))
-    text!(ax, layout; text = structures, align = (:center, :center),
-          fontsize = 16, color = :black)
-    f
-end
-begin # * Animate
-    record(f, plotdir("interareal_phasedelays", "interareal_phasedelays.mp4"),
-           times(mphi)[1:2:end]) do _t
-        t[] = _t
+    begin # * Animate
+        record(f, plotdir("interareal_phasedelays", "interareal_phasedelays.mp4"),
+               times(mphi)[1:2:end]) do _t
+            t[] = _t
+        end
     end
 end

@@ -230,8 +230,10 @@ function plotstructurecenters!(ax,
                                structures = structures, arrow_size = 10,
                                arrow_shift = :end, curve_distance = 20,
                                curve_distance_usage = true,
+                               scale = [-1.8, 2],
+                               offset = [32, 0],
                                kwargs...)
-    function offset(x, y, p)
+    function woffset(x, y, p)
         d = norm(x - y)
         x = (x + y) ./ 2
         u = reverse(x - y) |> collect
@@ -240,17 +242,38 @@ function plotstructurecenters!(ax,
         x = x .+ u .* p .* d
     end
 
-    layout = Point2f[(-350, 350), # VISp
-                     (-170, 310), # VISl
-                     (-300, 130), # VISrl
-                     (-180, 195), # VISal
-                     (-475, 240), # VISpm
-                     (-450, 140)] # VISam
-    fwaypoints = Dict(1 => [offset(layout[2], layout[3], 0.4)],
-                      2 => [offset(layout[4], layout[3], 0.1)],
-                      6 => [offset(layout[4], layout[6], 0.3)],
-                      3 => [offset(layout[1], layout[5], -0.1)],
-                      4 => [offset(layout[4], layout[5], -0.1)])
+    function polygon_centroid(vertices)
+        n = length(vertices)
+        area = 0.0
+        Cx = 0.0
+        Cy = 0.0
+
+        for i in 1:n
+            x0, y0 = vertices[i]
+            x1, y1 = vertices[mod1(i + 1, n)]
+            cross = x0 * y1 - x1 * y0
+            area += cross
+            Cx += (x0 + x1) * cross
+            Cy += (y0 + y1) * cross
+        end
+
+        area /= 2.0
+        Cx /= (6.0 * area)
+        Cy /= (6.0 * area)
+
+        return (Cx, Cy)
+    end
+
+    outlines = load_visual_cortex(; scale, offset)[1]
+    outlines = getindex.([outlines], structures)
+    outlines = Makie.GeometryBasics.coordinates.(outlines)
+    layout = outlines .|> polygon_centroid .|>
+             Point2f
+    fwaypoints = Dict(1 => [woffset(layout[2], layout[3], 0.4)],
+                      2 => [woffset(layout[4], layout[3], 0.1)],
+                      6 => [woffset(layout[4], layout[6], 0.3)],
+                      3 => [woffset(layout[1], layout[5], -0.1)],
+                      4 => [woffset(layout[4], layout[5], -0.1)])
 
     if !(ag isa Observable)
         ag = Observable(ag)
@@ -280,7 +303,7 @@ function plotstructurecenters!(ax,
                    edge_color = (colorant"#0072BD", 0.7), kwargs...)
 end
 
-const visual_cortex_file = datadir("visual_cortex.json")
+const visual_cortex_file = projectdir("scripts/plots/visual_cortex/visual_cortex.json")
 const _visdraworder = ["VISpm", "VISam", "VISrl", "VISal", "VISl", "VISp"]
 const _vishierarchyorder = ["VISp", "VISl", "VISrl", "VISal", "VISpm", "VISam"]
 function load_visual_cortex(file = visual_cortex_file; scale = [1.8, 2], offset = [-32, 0])
