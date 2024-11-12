@@ -22,6 +22,16 @@ session_table = load(datadir("posthoc_session_table.jld2"), "session_table")
 oursessions = session_table.ecephys_session_id
 path = datadir("calculations")
 
+begin # * Use extra workers if we can
+    if haskey(ENV, "JULIA_DISTRIBUTED") && length(procs()) == 1
+        using USydClusters
+        ourprocs = USydClusters.Physics.addprocs(10; mem = 22, ncpus = 4,
+                                                 project = projectdir()) # ? Lower this for a smaller cluster
+        @everywhere using SpatiotemporalMotifs
+        @everywhere SpatiotemporalMotifs.@preamble
+    end
+end
+
 begin # * Set up main figure
     fig = FourPanel()
     gs = subdivide(fig, 2, 2)
@@ -304,15 +314,6 @@ end
 
 if !isfile(datadir("hyperparameters", "theta_waves_task.jld2")) ||
    !isfile(datafile) # Run calculations; needs to be on a cluster
-    begin # * Use extra workers if we can
-        if haskey(ENV, "JULIA_DISTRIBUTED") && length(procs()) == 1
-            using USydClusters
-            procs = USydClusters.Physics.addprocs(22; mem = 22, ncpus = 4,
-                                                  project = projectdir()) # ? Can reuse these for the following bac calculations
-            @everywhere using SpatiotemporalMotifs
-            @everywhere SpatiotemporalMotifs.@preamble
-        end
-    end
     if !isfile(datadir("hyperparameters", "theta_waves_task.jld2"))
         if !haskey(ENV, "JULIA_DISTRIBUTED")
             error("Calculations must be run on a cluster, set ENV[\"JULIA_DISTRIBUTED\"] to confirm this.")
@@ -467,7 +468,7 @@ begin # * Plot region-wise weightings
 end
 
 begin # * Save
-    addlabels!(fig, ["(d)", "(e)", "(f)"]) #, "(g)"])
+    addlabels!(fig, ["(d)", "(e)", "(f)", "(g)"])
     wsave(plotdir("theta_order_parameter", "theta_order_parameter.pdf"), fig)
     display(fig)
 end
