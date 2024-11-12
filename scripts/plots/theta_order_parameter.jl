@@ -22,16 +22,6 @@ session_table = load(datadir("posthoc_session_table.jld2"), "session_table")
 oursessions = session_table.ecephys_session_id
 path = datadir("calculations")
 
-begin # * Use extra workers if we can
-    if haskey(ENV, "JULIA_DISTRIBUTED") && length(procs()) == 1
-        using USydClusters
-        procs = USydClusters.Physics.addprocs(22; mem = 22, ncpus = 4,
-                                              project = projectdir()) # ? Can reuse these for the following bac calculations
-        @everywhere using SpatiotemporalMotifs
-        @everywhere SpatiotemporalMotifs.@preamble
-    end
-end
-
 begin # * Set up main figure
     fig = FourPanel()
     gs = subdivide(fig, 2, 2)
@@ -46,7 +36,7 @@ begin # * Set up main figure
     end
 end
 
-if false
+begin
     # * Flash stimulus
     stimulus = "flash_250ms"
     Q = calcquality(path)[Structure = At(structures)]
@@ -148,8 +138,18 @@ quality = mean(Q[stimulus = At(stimulus)])
 out = load_calculations(Q; stimulus, vars)
 
 begin # * Calculate a global order parameter at each time point
-    out = map(out) do o
-        filter(o) do _o
+    map(out) do o
+        filter!(o) do _o
+            begin # * Remove trials with a reaciton time < 0.25s (so we can reliably divide trial periods into 'pre-reaction' and 'post-reaction' based on the timestamps. There are typically only a few of these per session.
+                reaction_times = _o[:trials].lick_latency
+                idxs = (reaction_times .> 0.25) .| isnan.(reaction_times) # NaN means a miss trial
+
+                @assert issorted(lookup(_o[:k], :changetime))
+                _o[:x] = _o[:x][:, :, idxs] # Remove trials with low reaction time
+                _o[:k] = _o[:k][:, :, idxs]
+                _o[:ω] = _o[:ω][:, :, idxs]
+                _o[:trials] = _o[:trials][idxs, :]
+            end
             _o[:sessionid] ∈ oursessions
         end
     end
@@ -201,6 +201,45 @@ begin # * Plot the mean order parameter across time
                    merge = true)
     reverselegend!(l)
     fig
+end
+
+begin # * Order parameter correlation to hierarchy
+    N = 1e6
+    statsfile = plotdir("theta_order_parameter", "theta_order_parameter.txt")
+    close(open(statsfile, "w")) # Create the file or clear it
+
+    x = getindex.([SpatiotemporalMotifs.hierarchy_scores], structures)
+    _y = stack(Structure(structures), Ō)
+    _y = stack(Depth([0]), [_y])
+
+    for T in [0.0u"s" .. 0.15u"s", 0.25u"s" .. 0.4u"s"]
+        y = _y[𝑡 = T]
+        y = dropdims(mean(y; dims = 𝑡); dims = 𝑡)
+        open(statsfile, "a+") do file
+            write(file, "\n# $T\n")
+        end
+
+        # * Group level
+        μ, σ, 𝑝 = hierarchicalkendall(x, y, :group; N) .|> first
+        open(statsfile, "a+") do file
+            write(file, "\n## Group level")
+            write(file, "\nmedian τ = $μ")
+            write(file, "\n95\\% conf. = $σ")
+            write(file, "\n𝑝 = $𝑝")
+            write(file, "\nN = $N")
+            write(file, "\n")
+        end
+
+        # * Individual level
+        μ, σ, 𝑝 = hierarchicalkendall(x, y, :individual; N) .|> first
+        open(statsfile, "a+") do file
+            write(file, "\n## Individual level")
+            write(file, "\nmedian τ = $μ")
+            write(file, "\nIQR = $(σ[2] - σ[1])")
+            write(file, "\n𝑝 = $𝑝")
+            write(file, "\n")
+        end
+    end
 end
 
 # ---------------------------------- Hit/miss prediction --------------------------------- #
@@ -265,6 +304,15 @@ end
 
 if !isfile(datadir("hyperparameters", "theta_waves_task.jld2")) ||
    !isfile(datafile) # Run calculations; needs to be on a cluster
+    begin # * Use extra workers if we can
+        if haskey(ENV, "JULIA_DISTRIBUTED") && length(procs()) == 1
+            using USydClusters
+            procs = USydClusters.Physics.addprocs(22; mem = 22, ncpus = 4,
+                                                  project = projectdir()) # ? Can reuse these for the following bac calculations
+            @everywhere using SpatiotemporalMotifs
+            @everywhere SpatiotemporalMotifs.@preamble
+        end
+    end
     if !isfile(datadir("hyperparameters", "theta_waves_task.jld2"))
         if !haskey(ENV, "JULIA_DISTRIBUTED")
             error("Calculations must be run on a cluster, set ENV[\"JULIA_DISTRIBUTED\"] to confirm this.")
@@ -398,7 +446,7 @@ begin # * Plot classification performance
 end
 
 begin # * Plot region-wise weightings
-    ax = Axis(gs[2]; xlabel = "Time (s)", ylabel = "Normalized LDA weight",
+    ax = Axis(fig[2, 3]; xlabel = "Time (s)", ylabel = "Normalized LDA weight",
               title = "Regional classification weights")
     vlines!(ax, [0, 0.25], color = (:black, 0.2), linestyle = :dash)
     hlines!(ax, [0], color = (:black, 0.5), linewidth = 2)

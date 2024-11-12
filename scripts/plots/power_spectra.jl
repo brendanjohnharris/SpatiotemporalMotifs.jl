@@ -554,7 +554,7 @@ for stimulus in stimuli
         # end
 
         begin # * Plot the hierarchical correlation across layers
-            N = 10001
+            N = 10000
             method = :group
             unidepths = commondepths(lookup.(χ, [Depth]))
             x = getindex.([SpatiotemporalMotifs.hierarchy_scores], structures)
