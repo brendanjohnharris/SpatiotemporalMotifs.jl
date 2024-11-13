@@ -105,7 +105,7 @@ if !isfile(datafile)
         hs = getindex.([hierarchy_scores], structures) .|> Float32
         Δhs = [b - a for a in hs, b in hs] # Make a distance matrix
         Δhs = Δhs[filter(!=(0), triu(LinearIndices(Δhs), 1))]
-        Δhs = Δhs ./ maximum(abs.(Δhs)) # Normalize to that the maximum distance between hierarchichal schores is 1
+        Δhs = Δhs ./ maximum(abs.(Δhs)) # Normalize to that the maximum distance between hierarchichal scores is 1
         Δhs = map(plate) do Δx # Copy onto shape of Δxs
             h = deepcopy(Δx)
             for _h in eachslice(h, dims = Depth)
@@ -304,11 +304,14 @@ begin # * Plots
                              colorrange = symextrema(∂h̄))
         contour!(ax, H[𝑡(SpatiotemporalMotifs.INTERVAL)] |> ustripall,
                  colormap = levelmap, levels = plevels, linewidth = 1.5, linestyle = :dash)
-        Colorbar(gs[2][1, 2], p; label = "Mean hierarchical ∇ (a.u.)")
+        Colorbar(gs[2][1, 2], p;
+                 label = rich("Mean order parameter ",
+                              rich("A", subscript("θ"), font = "Times Italic")))
         Colorbar(gs[2][1, 1]; colormap = levelmap, ticks = plevels,
                  colorrange = extrema(plevels) .+
                               [mean(diff(plevels)), -mean(diff(plevels))] ./ 2,
-                 tickformat = X -> [L"<10^{%$x}" for x in X], vertical = false,
+                 tickformat = X -> [L"<10^{%$(round(Int, x))}" for x in X],
+                 vertical = false,
                  flipaxis = true, label = "Corrected 𝑝-value", tellheight = false,
                  valign = :top)
         plotlayerints!(ax, layerints; flipside = false, newticks = false,
@@ -328,11 +331,14 @@ begin # * Plots
                              colorrange = symextrema(∂f̄))
         contour!(ax, H[𝑡(SpatiotemporalMotifs.INTERVAL)] |> ustripall,
                  colormap = levelmap, levels = plevels, linewidth = 1.5, linestyle = :dash)
-        Colorbar(gs[4][1, 2], p; label = "Mean hierarchical ∇ (a.u.)")
+        Colorbar(gs[4][1, 2], p;
+                 label = rich("Mean order parameter ",
+                              rich("F", subscript("θ"), font = "Times Italic")))
         Colorbar(gs[4][1, 1]; colormap = levelmap, ticks = plevels,
                  colorrange = extrema(plevels) .+
                               [mean(diff(plevels)), -mean(diff(plevels))] ./ 2,
-                 tickformat = X -> [L"<10^{%$x}" for x in X], vertical = false,
+                 tickformat = X -> [L"<10^{%$(round(Int, x))}" for x in X],
+                 vertical = false,
                  flipaxis = true, label = "Corrected 𝑝-value", tellheight = false,
                  valign = :top)
         plotlayerints!(ax, layerints; flipside = false, newticks = false,

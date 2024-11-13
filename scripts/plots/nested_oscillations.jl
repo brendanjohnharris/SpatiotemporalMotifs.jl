@@ -280,6 +280,55 @@ begin
         addlabels!(f)
         wsave(plotdir("nested_oscillations", "supplemental_durations.pdf"), f)
     end # !! Also compare to surrogate durations?
+
+    begin # * Write out stats
+        statsfile = plotdir("nested_oscillations", "nested_oscillations.txt")
+        close(open(statsfile, "w")) # Create the file or clear it
+        open(statsfile, "a+") do file
+            write(file, "\n# Burst durations\n")
+            write(file, "Mean duration (s) = $(mean(vcat(tbins...)))\n")
+            write(file, "Duration std (s) = $(std(vcat(tbins...)))\n")
+        end
+        open(statsfile, "a+") do file
+            write(file, "\n# Burst widths\n")
+            write(file, "Mean width (μm) = $(mean(vcat(xbins...)))\n")
+            write(file, "Width std (s) = $(std(vcat(xbins...)))\n")
+        end
+        for T in [0u"s" .. 0.25u"s", 0.25u"s" .. 0.5u"s"]
+            N = 1e6
+            open(statsfile, "a+") do file
+                write(file, "\n# Burst widths $T\n")
+                subxbins = getindex.(xbins, [T], [:])
+                x = getindex.([SpatiotemporalMotifs.hierarchy_scores], structures)
+                _y = stack(Structure(structures), subxbins)
+                ds = dims(_y) |> collect
+                ds[2] = SessionID(oursessions)
+                _y = rebuild(_y; dims = Tuple(ds))
+                _y = dropdims(mean(_y, dims = :bin); dims = :bin)
+                y = stack(Depth([0]), [_y])
+
+                write(file, "Mean width (μm) = $(mean(vcat(subxbins...)))\n")
+                write(file, "Width std (s) = $(std(vcat(subxbins...)))\n")
+
+                # * Group level
+                μ, σ, 𝑝 = hierarchicalkendall(x, ustrip.(y), :group; N) .|> first
+                write(file, "\n## Group level")
+                write(file, "\nmedian τ = $μ")
+                write(file, "\n95\\% conf. = $σ")
+                write(file, "\n𝑝 = $𝑝")
+                write(file, "\nN = $N")
+                write(file, "\n")
+
+                # * Individual level
+                μ, σ, 𝑝 = hierarchicalkendall(x, ustrip.(y), :individual; N) .|> first
+                write(file, "\n## Individual level")
+                write(file, "\nmedian τ = $μ")
+                write(file, "\nIQR = $(σ[2] - σ[1])")
+                write(file, "\n𝑝 = $𝑝")
+                write(file, "\n")
+            end
+        end
+    end
 end
 
 begin # * Global and spatiotemporal PAC

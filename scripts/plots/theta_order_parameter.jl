@@ -73,7 +73,9 @@ begin
     begin # * Plot the mean order parameter across time
         Ō = orderparameter(Og)
 
-        ax = Axis(gs[2]; xlabel = "Time (s)", ylabel = "Mean order parameter",
+        ax = Axis(gs[2]; xlabel = "Time (s)",
+                  ylabel = rich("Mean order parameter ",
+                                rich("R", subscript("θ"), font = "Times Italic")),
                   title = "Order parameter during flashes",
                   xautolimitmargin = (0, 0), xminorticksvisible = true,
                   xminorticks = IntervalsBetween(5), yminorticksvisible = true,
@@ -115,7 +117,9 @@ begin
     begin # * Plot mean LFP
         Ō = mean.(Olfp[1])
         f = Figure()
-        ax = Axis(f[1, 1]; xlabel = "Time (s)", ylabel = "Mean order parameter",
+        ax = Axis(f[1, 1]; xlabel = "Time (s)",
+                  ylabel = rich("Mean order parameter ",
+                                rich("R", subscript("θ"), font = "Times Italic")),
                   title = "Order parameter during flashes",
                   xautolimitmargin = (0, 0), xminorticksvisible = true,
                   xminorticks = IntervalsBetween(5), yminorticksvisible = true,
@@ -188,7 +192,9 @@ begin # * Plot the mean order parameter across time
     Ō_h = orderparameter(Og_h)
     Ō_m = orderparameter(Og_m)
 
-    ax = Axis(gs[1]; xlabel = "Time (s)", ylabel = "Mean order parameter",
+    ax = Axis(gs[1]; xlabel = "Time (s)",
+              ylabel = rich("Mean order parameter ",
+                            rich("R", subscript("θ"), font = "Times Italic")),
               title = "Order parameter during task",
               xautolimitmargin = (0, 0), xminorticksvisible = true,
               xminorticks = IntervalsBetween(5), yminorticksvisible = true,
@@ -411,7 +417,7 @@ else
 end
 
 begin # * Plot classification performance
-    ax = Axis(fig[2, 1:2];
+    ax = Axis(fig[2, 1];
               xticks = ([2, 5, 7], ["Post-offset", "Pre-offset", "Null"]),
               ylabel = "Balanced accuracy", title = "Hit/miss classification",
               limits = ((0.5, 7.5), (0.35, 0.95)), xminorticksvisible = false)
@@ -421,6 +427,42 @@ begin # * Plot classification performance
     vspan!(ax, 0.5, 3.5; color = (california, 0.2))
     vspan!(ax, 3.5, 6.5; color = (cucumber, 0.2))
     vspan!(ax, 6.5, 7.5; color = (:gray, 0.2))
+    hlines!(ax, [0.5]; color = (:black, 0.5), linestyle = :dash, linewidth = 2)
+
+    begin # * Write statistics
+        open(statsfile, "a+") do file
+            write(file, "\n# Classification performance\n")
+            write(file, "\n## Order parameter pre-offset\n")
+            write(file, "\nMedian BAc = $(median(bac_pre))")
+            write(file, "\nIQR = $(iqr(bac_pre))")
+            𝑝 = HypothesisTests.pvalue(HypothesisTests.MannWhitneyUTest(bac_pre, bac_sur);
+                                       tail = :right)
+            write(file, "\nU-test, right-sided 𝑝 to sur= $𝑝")
+            write(file, "\n")
+
+            write(file, "\n## Order parameter post-offset\n")
+            write(file, "\nMedian BAc = $(median(bac_post))")
+            write(file, "\nIQR = $(iqr(bac_post))")
+            𝑝 = HypothesisTests.pvalue(HypothesisTests.MannWhitneyUTest(bac_pre, bac_post);
+                                       tail = :both)
+            write(file, "\nU-test, two-sided 𝑝 to pre. = $𝑝")
+            write(file, "\n")
+
+            write(file, "\n## Mean LFP pre-offset \n")
+            write(file, "\nMedian BAc = $(median(bac_lfp_pre[1]))")
+            write(file, "\nIQR = $(iqr(bac_lfp_pre[1]))")
+            𝑝 = HypothesisTests.pvalue(HypothesisTests.MannWhitneyUTest(bac_pre,
+                                                                        bac_lfp_pre[1]);
+                                       tail = :right)
+            write(file, "\nU-test, two-sided 𝑝 to pre. = $𝑝")
+            write(file, "\n")
+
+            write(file, "\n## Order parameter pre-offset null\n")
+            write(file, "\nMedian BAc = $(median(bac_sur))")
+            write(file, "\nIQR = $(iqr(bac_sur))")
+            write(file, "\n")
+        end
+    end
 
     boxplot!(ax, fill(1, length(bac_post)), bac_post; boxargs..., color = cornflowerblue,
              label = "Order parameter")
@@ -447,7 +489,7 @@ begin # * Plot classification performance
 end
 
 begin # * Plot region-wise weightings
-    ax = Axis(fig[2, 3]; xlabel = "Time (s)", ylabel = "Normalized LDA weight",
+    ax = Axis(fig[2, 2]; xlabel = "Time (s)", ylabel = "Normalized LDA weight",
               title = "Regional classification weights")
     vlines!(ax, [0, 0.25], color = (:black, 0.2), linestyle = :dash)
     hlines!(ax, [0], color = (:black, 0.5), linewidth = 2)
