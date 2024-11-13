@@ -183,7 +183,8 @@ function send_powerspectra(sessionid, stimulus, structure;
             LFP = set(LFP, 𝑡 => origts)
             ϕ = set(ϕ, 𝑡 => origts)
             r = set(r, 𝑡 => origts)
-            N = fit(HalfZScore, r) # * Crucial; normalization makes this correlation-like
+            @assert dims(r, 1) isa DimensionalData.TimeDim
+            N = fit(HalfZScore, r; dims = 1) # * Crucial; normalization makes this correlation-like. Dimension 1 is time (check)
             normalize!(r, N)
 
             unitdepths[:, :spc] .= NaN
