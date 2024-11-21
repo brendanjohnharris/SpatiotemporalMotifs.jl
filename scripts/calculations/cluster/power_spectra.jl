@@ -39,9 +39,10 @@ if haskey(ENV, "JULIA_DISTRIBUTED")
                                  retry_errors = $retry_errors)
         end
     end
-    USydClusters.Physics.runscripts(exprs[1:nn]; ncpus = 4, mem = 64, walltime = 1,
+    USydClusters.Physics.runscripts(exprs[1:nn]; ncpus = 16, mem = 100, walltime = 1,
                                     project = projectdir(), qsub_flags = "-q yossarian")
-    USydClusters.Physics.runscripts(exprs[nn+1:end]; ncpus = 4, mem = 64, walltime = 1,
+    USydClusters.Physics.runscripts(exprs[(nn + 1):end]; ncpus = 16, mem = 100,
+                                    walltime = 1,
                                     project = projectdir(), qsub_flags = "-q yossarian")
 else
     for param in params
