@@ -569,11 +569,9 @@ function sac!(spikes::AbstractDataFrame, r::AbstractTimeSeries; pbar = nothing,
     for unit in eachrow(spikes)
         if unit.probe_id == probeid
             unitid = unit.ecephys_unit_id
-            _r = r[Depth(Near(unit.streamlinedepth))]
-            if !isnothing(normfunc) # * Normalize over trials AND time
-                @assert dims(r, 1) isa DimensionalData.TimeDim
-                @assert dims(r, 3) == dims(r, Trial)
-                N = fit(normfunc, _r; dims = [1, 3]) # * Crucial; normalization makes this correlation-like. dim 1 is time
+            _r = r[Depth(Near(unit.streamlinedepth))] # * We have selected a single depth, so...
+            if !isnothing(normfunc) # * ... normalize over trials AND time
+                N = fit(normfunc, _r) # * Crucial; normalization makes this correlation-like. dim 1 is time
                 _r = normalize(_r, N)
             end
             spiketimes = unit.spiketimes
