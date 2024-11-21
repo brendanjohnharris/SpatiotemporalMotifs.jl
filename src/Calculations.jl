@@ -184,6 +184,7 @@ function send_powerspectra(sessionid, stimulus, structure;
             ϕ = set(ϕ, 𝑡 => origts)
             r = set(r, 𝑡 => origts)
             @assert dims(r, 1) isa DimensionalData.TimeDim
+            r = ustrip.(r) # Remove voltage units, not used from here on
             N = fit(HalfZScore, r; dims = 1) # * Crucial; normalization makes this correlation-like. Dimension 1 is time (check)
             normalize!(r, N)
 
@@ -201,7 +202,7 @@ function send_powerspectra(sessionid, stimulus, structure;
                 spikes = spiketimes[unitid]
 
                 pγ, p, 𝑝 = ppc(ustripall(_ϕ), spikes)
-                rγ = sac(ustripall(_r), spikes)
+                rγ = sac(_r, spikes)
                 unitdepths[u, :].spc = pγ
                 unitdepths[u, :].spc_angle = p
                 unitdepths[u, :].spc_pvalue = 𝑝
