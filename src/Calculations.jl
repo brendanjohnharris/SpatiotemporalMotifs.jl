@@ -223,6 +223,7 @@ function send_powerspectra(sessionid, stimulus, structure;
         @warn e
         tagsave(outfile, Dict("error" => sprint(showerror, e)))
     end
+    @info "Finished calculations"
     GC.safepoint()
     GC.gc()
 end
