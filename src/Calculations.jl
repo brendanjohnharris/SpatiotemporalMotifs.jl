@@ -184,7 +184,7 @@ function send_powerspectra(sessionid, stimulus, structure;
             ϕ = set(ϕ, 𝑡 => origts)
             r = set(r, 𝑡 => origts)
             @assert dims(r, 1) isa DimensionalData.TimeDim
-            r = ustrip.(r) # Remove voltage units, not used from here on
+            r = ustripall(r) # Remove units, not used from here on
             N = fit(HalfZScore, r; dims = 1) # * Crucial; normalization makes this correlation-like. Dimension 1 is time (check)
             normalize!(r, N)
 
@@ -194,7 +194,6 @@ function send_powerspectra(sessionid, stimulus, structure;
             unitdepths[:, :sac] .= NaN
 
             for u in 1:size(unitdepths, 1)
-                # Main.@infiltrate
                 unitid = unitdepths[u, :].ecephys_unit_id
                 depth = unitdepths[u, :].probedepth
                 _ϕ = ϕ[Depth(Near(depth))]
