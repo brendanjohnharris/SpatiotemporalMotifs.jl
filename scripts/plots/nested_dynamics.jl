@@ -204,7 +204,7 @@ begin # * Burst masks and schematic
         gsf = subdivide(sf, 3, 2)
         pf!.(gsf[:], eachindex(gsf); compact = true)
         addlabels!(sf)
-        wsave(plotdir("nested_oscillations", "supplemental_burst_likelihood.pdf"), sf)
+        wsave(plotdir("nested_dynamics", "supplemental_burst_likelihood.pdf"), sf)
     end
 
     begin # * Distribution of burst durations
@@ -278,11 +278,11 @@ begin # * Burst masks and schematic
 
     begin # * Final adjustments
         addlabels!(f)
-        wsave(plotdir("nested_oscillations", "supplemental_durations.pdf"), f)
+        wsave(plotdir("nested_dynamics", "supplemental_durations.pdf"), f)
     end # !! Also compare to surrogate durations?
 
     begin # * Write out stats
-        statsfile = plotdir("nested_oscillations", "nested_oscillations.txt")
+        statsfile = plotdir("nested_dynamics", "nested_dynamics.txt")
         close(open(statsfile, "w")) # Create the file or clear it
         open(statsfile, "a+") do file
             write(file, "\n# Burst durations\n")
@@ -399,7 +399,7 @@ begin # * Global and spatiotemporal PAC
             end
             addlabels!(f)
             display(f)
-            wsave(plotdir("nested_oscillations", "comodulograms_$stimulus.pdf"), f)
+            wsave(plotdir("nested_dynamics", "comodulograms_$stimulus.pdf"), f)
         end
 
         if stimulus == "spontaneous" # * Plot into main figure
@@ -476,7 +476,7 @@ begin # * Global and spatiotemporal PAC
             end
         end
         addlabels!(f)
-        wsave(plotdir("nested_oscillations", "supplemental_spatiotemporal_pac.pdf"), f)
+        wsave(plotdir("nested_dynamics", "supplemental_spatiotemporal_pac.pdf"), f)
         f
     end
 
@@ -662,5 +662,5 @@ end
 
 begin
     addlabels!(mf)
-    wsave(plotdir("nested_oscillations", "nested_oscillations.pdf"), mf)
+    wsave(plotdir("nested_dynamics", "nested_dynamics.pdf"), mf)
 end

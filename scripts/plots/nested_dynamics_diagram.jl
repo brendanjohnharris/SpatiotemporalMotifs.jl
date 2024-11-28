@@ -111,7 +111,7 @@ begin
         ax.elevation = 0.9
         ax.azimuth = -π / 2 + 0.1
         # * Plot the theta wave
-        L = tukey(size(x, :𝑡), 0.5)
+        L = tukey(size(x, :𝑡), 0.4)
         L[(length(L) ÷ 2):end] .= 1 # Opaque right edge
         l = repeat(L, 1, size(x, 2))
         l = MinMax(l)(l)
@@ -167,7 +167,7 @@ begin
     end
 end
 
-save(plotdir("schematic", "nested_oscillations_diagram.pdf"), f;
+save(plotdir("schematic", "nested_dynamics_diagram.pdf"), f;
      px_per_unit = 10)
 f
 

@@ -101,7 +101,7 @@ At times it will be useful to have precomputed unified layer annotations for all
 
 #### Schematics
 
-The wave illustration in Fig. 1 is produced by [nested_oscillations.jl](scripts/plots/nested_oscillations.jl).
+The wave illustration in Fig. 1 is produced by [nested_dynamics.jl](scripts/plots/nested_dynamics.jl).
 [single_trial_schematic.jl](scripts/plots/single_trial_schematic.jl) generates a version of the methdos schematic in Fig. 1 for each visaul cortical region.
 To produce the supplemental 'glass brain' movie, you will need to manually install and configure RPR makie on a machine with a sizeable GPU. The script [glass_brain.jl](`scripts/plots/glass_brain.jl`) will produce jpeg images for each frame of the animation, which you can stitch together with e.g. the `magick` command-line tool.
 
@@ -117,11 +117,11 @@ The script will take about 2 hours to run without pre-computed `fooof.jld` files
 2. [Order parameter](scripts/plots/theta_order_parameter.jl):.............
 3. [Inter-areal phase delays](scripts/plots/interareal_phasedelays.jl):.............
 
-#### Gamma bursts and nested oscillations
+#### Gamma bursts and nested dynamics
 
 1. [Gamma bursts](scripts/plots/gamma_bursts_task.jl)
-2. [Nested oscillations](scripts/plots/pac_task.jl)
-3. [Gamma bursts and nested oscillations](scripts/plots/classical_pac_task.jl.jl)
+2. [Nested dynamics](scripts/plots/pac_task.jl)
+3. [Gamma bursts and nested dynamics](scripts/plots/classical_pac_task.jl)
 
 #### [Spike-LFP coupling](scripts/plots/spike_ppc.jl)
 This script produces the final figure of the main text, plotting the spike-phase and spike-amplitude coupling across cortical layers and regions.

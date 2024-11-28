@@ -199,7 +199,7 @@ for structure in structures
 
     if false # * Spiky? Spikiness is important. Gamma power is doubled for visualization
         ax = Axis(g2[2][1, 1], xlabel = "Time (s)",
-                  title = "Nested oscillations")
+                  title = "Nested dynamics")
         d = 7 # Which channel?
         lines!(ax, lookup(V[ΔT][:, d], 𝑡) |> ustripall, V[ΔT][:, d] |> ustripall |> collect,
                color = (cucumber, 0.8),
