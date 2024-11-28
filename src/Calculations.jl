@@ -8,7 +8,7 @@ function powerspectra_quality(sessionid, stimulus, structure;
     plotfile = joinpath(plotpath, "$(sessionid)",
                         "$(stimulus)_$(structure)_pac.pdf")
     outfile = savepath(Dict("sessionid" => sessionid,
-                            "stimulus" => string(stimulus),
+                            "stimulus" => stimulus,
                             "structure" => structure), "jld2", outpath)
     badis = rewrite || isbad(outfile; retry_errors, check_other_file = plotfile)
     return !badis
@@ -33,7 +33,7 @@ function send_powerspectra(sessionid, stimulus, structure;
         _params = (; _params..., epoch = (:longest, :active))
     end
     outfile = savepath(Dict("sessionid" => params[:sessionid],
-                            "stimulus" => string(stimulus),
+                            "stimulus" => stimulus,
                             "structure" => structure), "jld2", outpath)
     @info outfile
 

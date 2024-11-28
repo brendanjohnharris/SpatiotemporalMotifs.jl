@@ -25,7 +25,7 @@ begin # * Set up master plot
     mgs = subdivide(mf, 3, 2)
 end
 
-begin
+begin # * Burst masks and schematic
     stimulus = r"Natural_Images"
     vars = [:r]
     α = 0.9
@@ -50,7 +50,7 @@ begin
                 filter(o -> (o[:sessionid] in oursessions), O)
             end
             idx = getindex.(out[1], :sessionid) .== SpatiotemporalMotifs.DEFAULT_SESSION_ID
-            schemr = only(out[6][idx])[:r][:, :, SpatiotemporalMotifs.DEFAULT_TRIAL_NUM]
+            schemr = only(out[6][idx])[:r][:, :, 26] # Select some trial, 26
 
             uni = load_uni(; stimulus, vars)
             @assert uni[1][:oursessions] == oursessions
@@ -331,6 +331,16 @@ begin
     end
 end
 
+function phipeak(r, ϕ; n = 20)
+    ϕ = mod2pi.(ϕ .+ pi) .- pi
+    ϕ = ModulationIndices.tortbin(ϕ; n)
+    h = [mean(r[ϕ .== i]) for i in 1:n]
+    angles = range(start = -π + π / n, stop = π - π / n, length = n) |>
+             collect
+    _, i = findmax(h)
+    phimax = angles[i]
+end
+
 begin # * Global and spatiotemporal PAC
     vars = [:ϕ, :r]
 
@@ -341,7 +351,7 @@ begin # * Global and spatiotemporal PAC
 
     stimuli = ["r\"Natural_Images\"", "spontaneous", "flash_250ms"]
     pQ = calcquality(datadir("power_spectra"))
-    for stimulus in stimuli
+    for stimulus in stimuli # * Average comodulograms
         _Q = pQ[stimulus = At(stimulus), Structure = At(structures)]
         subsessions = intersect(oursessions, lookup(_Q, SessionID))
         if length(subsessions) < length(oursessions)
@@ -425,11 +435,24 @@ begin # * Global and spatiotemporal PAC
         PAC = progressmap(ϕ, r) do ϕ, r
             pac(ϕ, r; dims = Trial)
         end
+        # ϕ_pref = map(ϕ, r) do ϕ, r
+        #     peaks = map(eachslice(ϕ; dims = (𝑡, Depth)),
+        #                 eachslice(r; dims = (𝑡, Depth))) do ϕ, r
+        #         phipeak(r, ϕ; n = 20)
+        #     end
+        # end
+        # begin
+        #     fax = heatmap(decompose(PAC[2])...; axis = (; yreversed = true))
+        #     f = fax.figure
+        #     selection = (𝑡(0.3u"s"..0.45u"s"), Depth(0.15..0.4))
+        #     tortinset!(f[1, 1], peaks[idx],
+        #                colormap = seethrough(structurecolors[struc], alphamin, 1),
+        #                halign = 0.3, valign = 0.6, color = structurecolors[struc])
+        # end
         GC.gc()
     end
 
     begin # * Supplemental figure: spatiotemporal PAC over all regions
-        cmax = maximum(PAC[1])
         f = SixPanel()
         gs = subdivide(f, 3, 2)
         for (g, l, P) in zip(gs, layerints, PAC)

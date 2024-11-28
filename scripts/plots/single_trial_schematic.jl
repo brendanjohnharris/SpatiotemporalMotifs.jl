@@ -57,7 +57,7 @@ for structure in structures
         unitdepths = load_unitdepths(Q[SessionID = (lookup(Q, SessionID) .== sessionid),
                                        Structure = At(structures),
                                        stimulus = (lookup(Q, :stimulus) .==
-                                                   string(stimulus))])
+                                                   stimulus)])
 
         # spikes = AN.getspiketimes(sessionid, structure)
         spikes = map(collect(spikes)) do (u, sp)

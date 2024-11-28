@@ -28,7 +28,7 @@ const lfpcolormap = darksunset
 const amplitudecolormap = :bone
 const phasecolormap = cyclic
 const DEFAULT_SESSION_ID = 1140102579
-const DEFAULT_TRIAL_NUM = 26
+const DEFAULT_TRIAL_NUM = 14
 
 const visual_cortex_layout = Dict("VISp" => [350, 350],
                                   "VISl" => [170, 310],
