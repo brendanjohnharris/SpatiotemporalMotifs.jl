@@ -24,12 +24,12 @@ structures = deepcopy(SM.structures)
 push!(structures, "LGd")
 push!(structures, "LGd-sh")
 push!(structures, "LGd-co")
-params = Iterators.product(oursessions, stimuli, unique(structures)) |> collect
+_params = Iterators.product(oursessions, stimuli, unique(structures)) |> collect
 idxs = map(xy -> SM.powerspectra_quality(xy...; rewrite,
-                                         retry_errors), params)
-params = params[.!idxs]
+                                         retry_errors), _params)
+params = _params[.!idxs]
 
-if haskey(ENV, "JULIA_DISTRIBUTED")
+if haskey(ENV, "JULIA_DISTRIBUTED") && !isempty(params)
     exprs = map(params) do (o, stimulus, structure)
         expr = quote
             using Pkg
@@ -46,7 +46,7 @@ if haskey(ENV, "JULIA_DISTRIBUTED")
                                     walltime = 1,
                                     project = projectdir(), qsub_flags = "-q yossarian")
 else
-    for param in params
+    for param in _params
         SM.send_powerspectra(param...; rewrite, retry_errors)
     end
 end

@@ -12,7 +12,7 @@ using Images
 using ModulationIndices
 import CairoMakie.Axis
 using SpatiotemporalMotifs
-import SpatiotemporalMotifs: HistBins
+import SpatiotemporalMotifs: HistBins, structures
 using Peaks
 @preamble
 set_theme!(foresight(:physics))
@@ -286,13 +286,13 @@ begin # * Burst masks and schematic
         close(open(statsfile, "w")) # Create the file or clear it
         open(statsfile, "a+") do file
             write(file, "\n# Burst durations\n")
-            write(file, "Mean duration (s) = $(mean(vcat(tbins...)))\n")
-            write(file, "Duration std (s) = $(std(vcat(tbins...)))\n")
+            write(file, "Mean duration (s) = $(mean(vcat(parent.(tbins)...)))\n")
+            write(file, "Duration std (s) = $(std(vcat(parent.(tbins)...)))\n")
         end
         open(statsfile, "a+") do file
             write(file, "\n# Burst widths\n")
-            write(file, "Mean width (μm) = $(mean(vcat(xbins...)))\n")
-            write(file, "Width std (s) = $(std(vcat(xbins...)))\n")
+            write(file, "Mean width (μm) = $(mean(vcat(parent.(xbins)...)))\n")
+            write(file, "Width std (s) = $(std(vcat(parent.(xbins)...)))\n")
         end
         for T in [0u"s" .. 0.25u"s", 0.25u"s" .. 0.5u"s"]
             N = 1e6
@@ -349,7 +349,7 @@ begin # * Global and spatiotemporal PAC
     Q = Q[SessionID = At(oursessions)]
     quality = mean(Q[stimulus = At(stimulus)])
 
-    stimuli = ["r\"Natural_Images\"", "spontaneous", "flash_250ms"]
+    stimuli = [r"Natural_Images", "spontaneous", "flash_250ms"]
     pQ = calcquality(datadir("power_spectra"))
     for stimulus in stimuli # * Average comodulograms
         _Q = pQ[stimulus = At(stimulus), Structure = At(structures)]
