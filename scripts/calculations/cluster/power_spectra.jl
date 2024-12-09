@@ -40,11 +40,11 @@ if haskey(ENV, "JULIA_DISTRIBUTED") && !isempty(params)
         end
     end
     nn = length(exprs) ÷ 2
-    USydClusters.Physics.runscripts(exprs[1:nn]; ncpus = 16, mem = 120, walltime = 1,
-                                    project = projectdir(), qsub_flags = "-q yossarian")
-    USydClusters.Physics.runscripts(exprs[(nn + 1):end]; ncpus = 16, mem = 120,
+    USydClusters.Physics.runscripts(exprs[1:nn]; ncpus = 16, mem = 100, walltime = 1,
+                                    project = projectdir())#, qsub_flags = "-q yossarian")
+    USydClusters.Physics.runscripts(exprs[(nn + 1):end]; ncpus = 16, mem = 100,
                                     walltime = 1,
-                                    project = projectdir(), qsub_flags = "-q yossarian")
+                                    project = projectdir())#, qsub_flags = "-q yossarian")
 else
     for param in _params
         SM.send_powerspectra(param...; rewrite, retry_errors)
