@@ -2,7 +2,7 @@
 
 julia_version = "1.10.0"
 manifest_format = "2.0"
-project_hash = "1d365ad0f24717b54dd0124af5d2d8a87a875597"
+project_hash = "9fc536dd573e801110f95f530213b5df39155da9"
 
 [[deps.AMD]]
 deps = ["LinearAlgebra", "SparseArrays", "SuiteSparse_jll"]
@@ -76,19 +76,15 @@ version = "1.1.3"
 [[deps.AllenNeuropixels]]
 deps = ["AllenNeuropixelsBase", "AllenSDK", "CSV", "Clustering", "Colors", "ContinuousWavelets", "DSP", "DataFrames", "Dates", "DelayEmbeddings", "Dierckx", "DimensionalData", "Distances", "Downloads", "FFTW", "FileIO", "GLFW", "GeometryBasics", "HDF5", "HTTP", "HypothesisTests", "ImageMagick", "ImageMorphology", "ImageTransformations", "Images", "Interpolations", "IntervalSets", "JSON", "LinearAlgebra", "LsqFit", "Markdown", "MeshIO", "Meshing", "Mmap", "MultivariateStats", "NWBStream", "Observables", "Preferences", "ProgressLogging", "PyFOOOF", "PythonCall", "Random", "Reexport", "Requires", "SparseArrays", "Statistics", "StatsBase", "TimeZones", "TimeseriesSurrogates", "TimeseriesTools", "Wavelets"]
 git-tree-sha1 = "3c7c5882769ca00acdfb5377fbc158c9ec19774a"
-repo-rev = "main"
-repo-url = "https://github.com/brendanjohnharris/AllenNeuropixels.jl.git"
 uuid = "c7dbd8d7-5c13-4dcb-90e2-bff79a096f56"
 version = "0.2.0"
 weakdeps = ["Makie"]
 
 [[deps.AllenNeuropixelsBase]]
 deps = ["AllenSDK", "CSV", "Colors", "CondaPkg", "DataFrames", "Dierckx", "DimensionalData", "Downloads", "FileIO", "GeometryBasics", "HDF5", "IntervalSets", "JSON", "NRRD", "NWBStream", "Preferences", "ProgressLogging", "PythonCall", "Random", "Scratch", "SparseArrays", "Statistics", "TimeseriesTools"]
-git-tree-sha1 = "868044d720194c5ec15af41b9706d9fb1db11632"
-repo-rev = "main"
-repo-url = "https://github.com/brendanjohnharris/AllenNeuropixelsBase.jl.git"
+git-tree-sha1 = "ceea6a4a238d5ab31a1795acdbb575f070b98a34"
 uuid = "0b0e28cf-a3af-44db-8bea-1c4507018d35"
-version = "0.3.0"
+version = "0.3.1"
 
 [[deps.AllenSDK]]
 deps = ["PythonCall"]
@@ -789,12 +785,10 @@ uuid = "a3f928ae-7b40-5064-980b-68af3947d34b"
 version = "2.13.96+0"
 
 [[deps.Foresight]]
-deps = ["Clustering", "Colors", "FileIO", "Format", "ImageClipboard", "Images", "LinearAlgebra", "Makie", "Preferences", "Random", "Requires"]
-git-tree-sha1 = "cfd1eb19c912a46e34c6cc7cca44a5e4a9ce57e5"
-repo-rev = "main"
-repo-url = "https://github.com/brendanjohnharris/Foresight.jl.git"
+deps = ["Clustering", "Colors", "FileIO", "Format", "ImageClipboard", "LinearAlgebra", "Makie", "Preferences", "Random", "Requires"]
+git-tree-sha1 = "6d1455dd0abf5e4a756427ea9dfd40e15536cb5f"
 uuid = "c6e1034d-1844-4b96-abf2-c5824a5aa8c3"
-version = "0.2.2"
+version = "0.2.4"
 
     [deps.Foresight.weakdeps]
     CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
@@ -2521,9 +2515,7 @@ version = "0.1.1"
 
 [[deps.Term]]
 deps = ["AbstractTrees", "CodeTracking", "Dates", "Highlights", "InteractiveUtils", "Logging", "Markdown", "MyterialColors", "OrderedCollections", "Parameters", "PrecompileTools", "ProgressLogging", "REPL", "Tables", "UUIDs", "Unicode", "UnicodeFun"]
-git-tree-sha1 = "808c88cb66ecd42923036141d82a02f9e0f55dcd"
-repo-rev = "master"
-repo-url = "https://github.com/FedeClaudi/Term.jl.git"
+git-tree-sha1 = "387e63d0b12d43982a3aacaef81cbbfb465715ae"
 uuid = "22787eb5-b846-44ae-b979-8e399b8463ab"
 version = "2.0.6"
 
@@ -2567,11 +2559,12 @@ version = "0.5.24"
 
 [[deps.TimeseriesFeatures]]
 deps = ["DimensionalData", "LinearAlgebra", "ProgressLogging", "Reexport", "Requires", "Statistics"]
-git-tree-sha1 = "7b64d4947c182269796920762c726634b123cd3a"
-repo-rev = "main"
-repo-url = "https://github.com/brendanjohnharris/TimeseriesFeatures.jl.git"
+git-tree-sha1 = "8943bdcee020e2eea803180fd7d21e3a78de5438"
 uuid = "f3112013-b923-4dfa-b867-8806c885f823"
-version = "0.4.3"
+version = "0.4.4"
+
+    [deps.TimeseriesFeatures.weakdeps]
+    Associations = "614afb3a-e278-4863-8805-9959372b9ec2"
 
 [[deps.TimeseriesSurrogates]]
 deps = ["AbstractFFTs", "DSP", "DelayEmbeddings", "Distances", "Distributions", "Interpolations", "LinearAlgebra", "LombScargle", "Random", "StateSpaceSets", "Statistics", "StatsAPI", "StatsBase", "Wavelets"]
@@ -2585,9 +2578,7 @@ weakdeps = ["Makie"]
 
 [[deps.TimeseriesTools]]
 deps = ["Dates", "DelimitedFiles", "DimensionalData", "Distributions", "FFTW", "FileIO", "GeometryBasics", "IntervalSets", "JSON", "LaTeXStrings", "LinearAlgebra", "MakieCore", "Normalization", "Peaks", "Random", "Reexport", "Requires", "SparseArrays", "Statistics", "Unitful"]
-git-tree-sha1 = "5c14e89dee3ffec7e8e4be72ec1e6090430ed178"
-repo-rev = "main"
-repo-url = "https://github.com/brendanjohnharris/TimeseriesTools.jl.git"
+git-tree-sha1 = "6a6694d49d2da16db4d1a758466a72253e0bea32"
 uuid = "380cddd1-6ef2-46ca-b087-e7151fb095ff"
 version = "0.5.0"
 

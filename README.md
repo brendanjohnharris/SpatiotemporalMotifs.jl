@@ -106,7 +106,7 @@ At times it will be useful to have precomputed unified layer annotations for all
 
 #### Fig. 2: Power spectra
 
-[`power_spectra.jl`](scripts/plots/power_spectra.jl) produces Fig. 2 of the paper, summarizing the spectral properties of visual cortical LFP.
+[`power_spectra.jl`](scripts/plots/power_spectra.jl) produces Fig. 2 of the paper, summarizing the spectral properties of visual cortical LFPs.
 It also produces a version of Fig. 2 for other visual stimuli.
 The script will take about 2 hours to run without pre-computed `fooof.jld` files, otherwise, about 15 minutes.
 

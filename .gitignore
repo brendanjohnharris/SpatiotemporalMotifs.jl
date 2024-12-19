@@ -23,3 +23,4 @@ test/
 scripts/calculations/float32_conversion.jl
 data/old/
 old_data/
+Manifest copy.toml
