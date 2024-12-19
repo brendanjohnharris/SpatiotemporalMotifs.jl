@@ -40,9 +40,9 @@ if haskey(ENV, "JULIA_DISTRIBUTED") && !isempty(params)
         end
     end
     nn = length(exprs) ÷ 2
-    USydClusters.Physics.runscripts(exprs[1:nn]; ncpus = 16, mem = 100, walltime = 1,
+    USydClusters.Physics.runscripts(exprs[1:nn]; ncpus = 12, mem = 80, walltime = 1,
                                     project = projectdir())#, qsub_flags = "-q yossarian")
-    USydClusters.Physics.runscripts(exprs[(nn + 1):end]; ncpus = 16, mem = 100,
+    USydClusters.Physics.runscripts(exprs[(nn + 1):end]; ncpus = 12, mem = 80,
                                     walltime = 1,
                                     project = projectdir())#, qsub_flags = "-q yossarian")
 else
