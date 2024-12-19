@@ -4,14 +4,6 @@ Julia code for reproducing the analyses and figures in "_Cross-scale spatiotempo
 
 ## Guide
 
-Most analyses are computationally intensive. We recommend either:
-
-1. Running the code on a high-performance computing cluster, which will require adapting the scripts to use the cluster manager of your favorite supercomputer. This option is described in [step 1](#1.-performing-calculations) below.
-2. Downloading the precomputed results from [[figshare]], in which case you can skip directly to [step 2](#2.-plotting-results) after [step 0](#0.-Setup). This option requires a desktop with a modest amount of RAM (>16 GB), and some scripts will still take around 30 minutes to complete.
-
-
-### 0. Setup
-
 Installation should be straightforward:
 ```julia
 run(`git clone https://github.com/brendanjohnharris/SpatiotemporalMotifs.jl`)
@@ -31,7 +23,15 @@ import AllenNeuropixels as AN
 AN.setdatadir("/path/to/my/data/")
 ```
 All Neuropixels data files will be downloaded to this directory; by default it is a Julia scratchspace.
+
+#### Reproduce calculations or just figures?
+
+You can choose between:
+1. Reproducing the full analysis, by running the code on a high-performance computing cluster. You will need to adapt the scripts to use the cluster manager of your favorite supercomputer. This option is described in [step 1](#1.-performing-calculations) below.
+2. Downloading the precomputed results from [[figshare]], in which case you can skip directly to [step 2](#2.-plotting-results). This option requires a desktop with a modest amount of RAM (>16 GB), and some scripts will still take around 30 minutes to complete.
 Note that all other working and intermediate data files for this project will be saved to `SpatiotemporalMotifs.jl/data`.
+
+
 
 #### Key dependencies
 
