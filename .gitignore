@@ -21,3 +21,4 @@ cache/
 tempfig.png
 test/
 .CondaPkg.2
+scripts/calculations/float32_conversion.jl

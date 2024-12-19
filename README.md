@@ -1,6 +1,6 @@
 # SpatiotemporalMotifs.jl
 
-Julia code for reproducing the analyses and figures in "_Cross-scale spatiotemporal dynamics organize hierarchical processing in the mouse visual cortex_".
+Julia code for reproducing the study "_Cross-scale spatiotemporal dynamics organize hierarchical processing in the mouse visual cortex_".
 
 ## Guide
 
@@ -12,7 +12,8 @@ using Pkg
 Pkg.activate(".")
 Pkg.instantiate()
 ```
-The steps above will reproduce the exact versions of all dependencies used to generate the final results of the paper; running `Pkg.update()` afterwards (not recommended) will update all dependencies to their newest allowed versions.
+The steps above will reproduce the exact versions of all dependencies used to generate the final results of the paper.
+Running `Pkg.update()` afterwards (**not recommended**) will update all dependencies to their newest allowed versions.
 
 > [!WARNING]
 >The Python dependencies should install automatically, but if you encounter issues, please see the documentation for [CondaPkg.jl](https://github.com/JuliaPy/CondaPkg.jl). As a last resort, you can always create a conda environment yourself, manually install the Python dependencies (listed in the `CondaPkg.toml` files of [AllenSDK.jl](https://github.com/brendanjohnharris/AllenSDK.jl) and [FOOOF.jl](https://github.com/beacon-biosignals/PyFOOOF.jl)), set `JULIA_CONDAPKG_ENV` to point to this environment, and disable automatic Conda updates with `JULIA_CONDAPKG_OFFLINE=true`.
@@ -35,7 +36,7 @@ Note that all other working and intermediate data files for this project will be
 
 #### Key dependencies
 
-This project depends crucially on the dependencies, highlighted below. A full list of dependencies can be found in `Project.toml`, with exact versions in the `Manifest.toml`.
+This project depends crucially on the dependencies highlighted below. A full list of dependencies can be found in `Project.toml`, with exact versions in the `Manifest.toml`.
 
 ##### [AllenNeuropixels.jl](https://github.com/brendanjohnharris/AllenNeuropixels.jl)
 

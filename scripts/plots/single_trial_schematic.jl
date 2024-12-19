@@ -282,7 +282,7 @@ for structure in structures
         # rowgap!(f.layout, 1, Relative(0.1))
         # rowsize!(f.layout, 1, Relative(0.3))
         # colgap!(f.layout, 1, Relative(0.1))
-        addlabels!(f)
+        addlabels!(f, labelformat)
 
         save(plotdir("schematic", "single_trial_schematic_$structure.pdf"), f)
         f

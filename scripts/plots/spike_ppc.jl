@@ -132,7 +132,7 @@ begin
     begin # * Plot, for each structure, spontaneous SAC
         ax = Axis(gs[3], xlabel = "Cortical depth (%)", ylabel = "SAC",
                   title = "Spike-amplitude coupling (γ)",
-                  limits = ((0.05, 0.95), (0, nothing)),
+                  limits = ((0.05, 0.95), (1.1, 1.5)),
                   xtickformat = depthticks)
         for structure in reverse(structures)
             idxs = unitdepths.structure_acronym .== structure
@@ -243,7 +243,7 @@ begin
     begin # * Plot, for each structure, SAC
         ax = Axis(gs[4], xlabel = "Cortical depth (%)", ylabel = "SAC",
                   title = "Spike-amplitude coupling (γ)",
-                  limits = ((0.05, 0.95), (1.05, 1.45)),
+                  limits = ((0.05, 0.95), (1.1, 1.5)),
                   xtickformat = depthticks)
         for structure in reverse(structures)
             idxs = pspikes.structure_acronym .== structure
@@ -467,7 +467,7 @@ if false
 end
 
 begin
-    addlabels!(f)
+    addlabels!(f, labelformat)
     linkyaxes!(gs[1] |> contents |> first, gs[2] |> contents |> first)
     wsave(plotdir("spike_lfp", "spike_lfp.pdf"), f)
     f

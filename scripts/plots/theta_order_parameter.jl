@@ -510,7 +510,7 @@ begin # * Plot region-wise weightings
 end
 
 begin # * Save
-    addlabels!(fig, ["(d)", "(e)", "(f)", "(g)"])
+    addlabels!(fig, ["D", "E", "F", "G"])
     wsave(plotdir("theta_order_parameter", "theta_order_parameter.pdf"), fig)
     display(fig)
 end

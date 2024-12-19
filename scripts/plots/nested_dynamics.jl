@@ -203,7 +203,7 @@ begin # * Burst masks and schematic
         sf = SixPanel()
         gsf = subdivide(sf, 3, 2)
         pf!.(gsf[:], eachindex(gsf); compact = true)
-        addlabels!(sf)
+        addlabels!(sf, labelformat)
         wsave(plotdir("nested_dynamics", "supplemental_burst_likelihood.pdf"), sf)
     end
 
@@ -277,7 +277,7 @@ begin # * Burst masks and schematic
     end
 
     begin # * Final adjustments
-        addlabels!(f)
+        addlabels!(f, labelformat)
         wsave(plotdir("nested_dynamics", "supplemental_durations.pdf"), f)
     end # !! Also compare to surrogate durations?
 
@@ -397,7 +397,7 @@ begin # * Global and spatiotemporal PAC
                 p = heatmap!(ax, s; colormap = seethrough(reverse(sunrise)), rasterize = 5)
                 Colorbar(g[1, 2], p; label = "Modulation index")
             end
-            addlabels!(f)
+            addlabels!(f, labelformat)
             display(f)
             wsave(plotdir("nested_dynamics", "comodulograms_$stimulus.pdf"), f)
         end
@@ -475,7 +475,7 @@ begin # * Global and spatiotemporal PAC
                 Colorbar(mgs[4][1, 2], p, label = "PAC (×10³)")
             end
         end
-        addlabels!(f)
+        addlabels!(f, labelformat)
         wsave(plotdir("nested_dynamics", "supplemental_spatiotemporal_pac.pdf"), f)
         f
     end
@@ -661,6 +661,6 @@ begin # * Layer-wise PAC
 end
 
 begin
-    addlabels!(mf)
+    addlabels!(mf, labelformat)
     wsave(plotdir("nested_dynamics", "nested_dynamics.pdf"), mf)
 end

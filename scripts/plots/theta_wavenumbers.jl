@@ -118,7 +118,7 @@ begin # * Supplemental material: average wavenumbers in each region
                 first
         end
     end
-    addlabels!(f)
+    addlabels!(f, labelformat)
     display(f)
     wsave(plotdir("theta_wavenumbers", "supplemental_wavenumber.pdf"), f)
 end
@@ -182,7 +182,7 @@ begin # * Supplemental material: csd in each region
         #         first
         # end
     end
-    addlabels!(f)
+    addlabels!(f, labelformat)
     display(f)
     wsave(plotdir("theta_wavenumbers", "supplemental_csd.pdf"), f)
 end
@@ -222,13 +222,13 @@ begin # * Supplemental material: average wavenumbers in each region
             p = plotlayermap!(ax, m, ints; arrows = true, colorrange) |> first
         end
     end
-    addlabels!(f)
+    addlabels!(f, labelformat)
     display(f)
     wsave(plotdir("theta_wavenumbers", "supplemental_wavenumber_flash.pdf"), f)
 end
 
 begin # * Save main figure
-    addlabels!(mf)
+    addlabels!(mf, labelformat)
     wsave(plotdir("theta_wavenumbers", "theta_wavenumber.pdf"), mf)
     display(mf)
 end

@@ -212,7 +212,12 @@ function send_powerspectra(sessionid, stimulus, structure;
         D = Dict(DimensionalData.metadata(LFP))
         @pack! D = channels, streamlinedepths, layerinfo
         S = rebuild(S; metadata = D)
-        outD = @strdict S C sC R sR unitdepths
+        outD = Dict("S" => S .|> Float32,
+                    "C" => C .|> Float32,
+                    "sC" => sC .|> Float32,
+                    "R" => R .|> Float32,
+                    "sR" => sR .|> Float32,
+                    "unitdepths" => unitdepths)
         tagsave(outfile, outD)
 
         GC.safepoint()
@@ -304,7 +309,7 @@ function _calculations(session::AN.AbstractSession, structure, stimulus)
     tmap = deepcopy(_tmap)
     tmap[𝑡(Near(starttimes))] .= starttimes
     tmap = rectify(tmap, dims = 𝑡, tol = 3)
-    dev = tmap[findlast(tmap .> 1)] - times(tmap)[findlast(tmap .> 1)] # * Gonna have to fix this
+    dev = tmap[findlast(tmap .> 1)] - times(tmap)[findlast(tmap .> 1)]
     LFP = rectify(LFP, dims = 𝑡, tol = 3)
     @assert times(LFP) == times(tmap)
     starttimes = times(tmap[tmap .> 1]) |> collect # * The change times transformed to rectified time coordinates
@@ -370,18 +375,18 @@ function send_calculations(D::Dict, session = AN.Session(D[:sessionid]);
                "pass_θ" => pass_θ,
                "pass_γ" => pass_γ,
                "V" => V,
-               "csd" => csd,
-               "x" => x,
-               "y" => y,
-               "a" => a,
-               "ϕ" => ϕ,
+               "csd" => csd .|> Float32,
+               "x" => x .|> Float32,
+               "y" => y .|> Float32,
+               "a" => a .|> Float32,
+               "ϕ" => ϕ .|> Float32,
                #    "ϕᵧ" => ϕᵧ,
-               "ω" => ω,
-               "k" => k,
-               "v" => v,
-               "r" => r,
-               "ωᵧ" => ωᵧ,
-               "kᵧ" => kᵧ,
+               "ω" => ω .|> Float32,
+               "k" => k .|> Float32,
+               "v" => v .|> Float32,
+               "r" => r .|> Float32,
+               "ωᵧ" => ωᵧ .|> Float32,
+               "kᵧ" => kᵧ .|> Float32,
                #    "vₚ" => vₚ,
                #    "vᵧ" => vᵧ,
                "units" => units,
@@ -456,13 +461,13 @@ function send_thalamus_calculations(D::Dict, session = AN.Session(D[:sessionid])
                "trials" => trials[2:(end - 2), :],
                "pass_θ" => pass_θ,
                "pass_γ" => pass_γ,
-               "V" => V,
+               "V" => V .|> Float32,
                "csd" => csd,
-               "x" => x,
-               "y" => y,
-               "a" => a,
-               "ϕ" => ϕ,
-               "r" => r,
+               "x" => x .|> Float32,
+               "y" => y .|> Float32,
+               "a" => a .|> Float32,
+               "ϕ" => ϕ .|> Float32,
+               "r" => r .|> Float32,
                "units" => units,
                "spiketimes" => spiketimes,
                "performance_metrics" => performance_metrics)
@@ -568,7 +573,8 @@ function _collect_calculations(outfile; sessionid, structure, stimulus, path, su
         outfile[string(structure) * "/" * string(sessionid) * "/" * k] = v
     end
     for (k, v) in ovars
-        outfile[string(structure) * "/" * string(sessionid) * "/" * string(k)] = v
+        outfile[string(structure) * "/" * string(sessionid) * "/" * string(k)] = v .|>
+                                                                                 Float32
     end
     return nothing
 end
@@ -743,7 +749,7 @@ function unify_calculations(Q; stimulus, vars = sort([:V, :csd, :x, :ϕ, :r, :k,
                 end
                 @info "Saving data for $(structures[si])"
                 for (k, v) in pairs(ovars)
-                    outfile[string(structures[si]) * "/" * k] = v
+                    outfile[string(structures[si]) * "/" * k] = v .|> Float32
                 end
             end
         end

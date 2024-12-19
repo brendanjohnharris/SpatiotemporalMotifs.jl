@@ -414,7 +414,7 @@ for stimulus in stimuli
                              ticklabelsize = 14)
                 # linkxaxes!(ax, ax2)
             end
-            addlabels!(sf)
+            addlabels!(sf, labelformat)
             wsave(plotdir("power_spectra", "residual_power_supplement$(filebase).pdf"), sf)
             sf
         end
@@ -658,7 +658,7 @@ for stimulus in stimuli
 
             plotlayerints!(ax, layerints; axis = :y, newticks = false, flipside = true)
         end
-        addlabels!(f, ["(a)", "(d)", "(f)", "(e)", "(c)", "(b)", "(g)", "(h)"])
+        addlabels!(f, ["A", "D", "F", "E", "C", "B", "G", "H"])
         f |> display
     end
     wsave(plotdir("power_spectra", "power_spectra$filebase.pdf"), f)
