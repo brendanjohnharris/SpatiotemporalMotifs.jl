@@ -1,7 +1,7 @@
 name = "SpatiotemporalMotifs"
 uuid = "171a676f-b549-4f99-bec7-f4305cd3cef0"
 authors = ["brendanjohnharris <brendanjohnharris@gmail.com> and contributors"]
-version = "1.0.0-DEV"
+version = "0.1.0"
 
 [deps]
 AllenNeuropixels = "c7dbd8d7-5c13-4dcb-90e2-bff79a096f56"

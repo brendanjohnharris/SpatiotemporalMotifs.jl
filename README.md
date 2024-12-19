@@ -1,19 +1,14 @@
 # SpatiotemporalMotifs.jl
 
-<!-- [![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://brendanjohnharris.github.io/SpatiotemporalMotifs.jl/stable/)
-[![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://brendanjohnharris.github.io/SpatiotemporalMotifs.jl/dev/) -->
-<!-- [![Build Status](https://github.com/brendanjohnharris/SpatiotemporalMotifs.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/brendanjohnharris/SpatiotemporalMotifs.jl/actions/workflows/CI.yml?query=branch%3Amain)
-[![Coverage](https://codecov.io/gh/brendanjohnharris/SpatiotemporalMotifs.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/brendanjohnharris/SpatiotemporalMotifs.jl) -->
+Julia code for reproducing the analyses and figures in "_Cross-scale spatiotemporal dynamics organize hierarchical processing in the mouse visual cortex_".
 
 ## Guide
 
-This project contains code for reproducing the analyses and figures in the paper "........................".
-Since many analyses are computationally intensive, we recommend either:
+Most analyses are computationally intensive. We recommend either:
 
-1. Running the code on a high-performance computing cluster, which will require adapting the scripts to use the cluster manager of your local supercomputer. This option is described in [Section 1](#1.-performing-calculations) below.
-2. Downloading the precomputed results from .....................................
+1. Running the code on a high-performance computing cluster, which will require adapting the scripts to use the cluster manager of your favorite supercomputer. This option is described in [step 1](#1.-performing-calculations) below.
+2. Downloading the precomputed results from [[figshare]], in which case you can skip directly to [step 2](#2.-plotting-results) after [step 0](#0.-Setup). This option requires a desktop with a modest amount of RAM (>16 GB), and some scripts will still take around 30 minutes to complete.
 
-If the results are downloaded from Figshare, skip directly to [Section 2](#2.-plotting-results). Please note that while plotting the downloaded results will not require a high-performance computing cluster, it will still require a computer with a modest amount of RAM (>16 GB) and some analyses will still take upwards of 30 minutes to complete.
 
 ### 0. Setup
 
@@ -28,7 +23,7 @@ Pkg.instantiate()
 The steps above will reproduce the exact versions of all dependencies used to generate the final results of the paper; running `Pkg.update()` afterwards (not recommended) will update all dependencies to their newest allowed versions.
 
 > [!WARNING]
->The Python dependencies should install automatically, but if you encounter issues, please see the documentation for [CondaPkg.jl](https://github.com/JuliaPy/CondaPkg.jl). As a last resort, you can always create a conda environment yourself, manually install the Python dependencies (listed in the `CondaPkg.toml` files of [AllenSDK.jl](https://github.com/brendanjohnharris/AllenSDK.jl) and [FOOOF.jl](https://github.com/beacon-biosignals/PyFOOOF.jl)), set `JULIA_CONDAPKG_ENV` to point to this environment, and disable automatic Conda updates with `JULIA_CONDAPKG_OFFLINE=false`.
+>The Python dependencies should install automatically, but if you encounter issues, please see the documentation for [CondaPkg.jl](https://github.com/JuliaPy/CondaPkg.jl). As a last resort, you can always create a conda environment yourself, manually install the Python dependencies (listed in the `CondaPkg.toml` files of [AllenSDK.jl](https://github.com/brendanjohnharris/AllenSDK.jl) and [FOOOF.jl](https://github.com/beacon-biosignals/PyFOOOF.jl)), set `JULIA_CONDAPKG_ENV` to point to this environment, and disable automatic Conda updates with `JULIA_CONDAPKG_OFFLINE=true`.
 
 You should then set the `AllenNeuropixels` data directory to some place convenient, with:
 ```julia
@@ -40,33 +35,36 @@ Note that all other working and intermediate data files for this project will be
 
 #### Key dependencies
 
-This project depends significantly on some key dependencies, highlighted below. These packages---beyond the full list of dependencies contained in `Project.toml`
+This project depends crucially on the dependencies, highlighted below. A full list of dependencies can be found in `Project.toml`, with exact versions in the `Manifest.toml`.
 
-##### Dr Watson
+##### [AllenNeuropixels.jl](https://github.com/brendanjohnharris/AllenNeuropixels.jl)
 
-...............................
+For accessing and processing the 'Allen Neuropixels---Visual Behavior' dataset.
+See also [AllenNeuropixelsBase.jl](https://github.com/brendanjohnharris/AllenNeuropixelsBase.jl) and [AllenSDK.jl](https://github.com/brendanjohnharris/AllenSDK.jl) for component functionalities.
 
-##### AllenNeuropixels
+##### [TimeseriesTools](https://github.com/brendanjohnharris/TimeseriesTools.jl)
 
-...............
+For power spectra and wave-based analyses, as well as general time-series manipulation.
 
-##### TimeseriesTools
+##### [Makie](https://github.com/MakieOrg/Makie.jl) and [Foresight](https://github.com/brendanjohnharris/Foresight.jl)
 
-..................
+For figures and visualization. `Makie` is a powerful graphics package, and the 'physics' theme from `Foresight` was used for all figures.
 
-##### Foresight
+##### [Dr Watson](https://github.com/JuliaDynamics/DrWatson.jl)
 
-..................
+For project standardization and reproducibility.
+
+
 
 
 ### 1. Performing calculations
 
 The project is divided into `plots`, `data`, `src`, and `scripts` subdirectories.
 The `plots` directory contains all figures used in the accompanying journal article, as generated by the scripts in this project.
-The `data` directory is initially empty, and will contains the calculated results, including any intermediate data.
+The `data` directory is initially empty, and will contain the calculated results, including any intermediate data.
 The `src` directory contains the main modularized code for the project, whereas the `scripts` directory contains code for running the analyses defined in `src` and plotting the results; inside `scripts` are the `scripts/calculations` and `scripts/plots` directories.
 Broadly, the `scripts` in `scripts/calculations` will produce data required for the scripts in `scripts/plots`, and _all_ scripts in `scripts/calculations` should be run before any scripts in `scripts/plots`.
-In this section we walk through the order in which `scripts/calculations/*` should be run, treating `scripts/plots` in [Section 2](#2.-plotting-results).
+In this section we walk through the order in which `scripts/calculations/*` should be run, dealing with `scripts/plots` in [Section 2](#2.-plotting-results).
 Each script can be run as `julia -t auto <path to script>` or, on Linux, `chmod u+x <path to script>` followed by executing `<path to script>`.
 Please hover over the header links to see the file name for each script.
 
@@ -77,13 +75,13 @@ This script creates the `data/session_table.jld2` file, which contains a `Datafr
 
 #### [Downloading data](scripts/calculations/download_data.jl)
 
-While the [AllenNeuropixels.jl](www.github.com/brendanjohnharris/AllenNeuropixels.jl) package can download data files on-demand, we recommend downloading the data files in advance to verify the data are complete and to avoid internet connection issues on computing nodes. Downloading the data can take many hours, and requires a strong internet connection. Please note this script will download the data files to a Julia scratchspace unless a custom directory is set (see [AllenNeuropixels.jl](www.github.com/brendanjohnharris/AllenNeuropixels.jl) for instructions).
+While the [AllenNeuropixels.jl](https://github.com/brendanjohnharris/AllenNeuropixels.jl) package can download data files on-demand, we recommend downloading the data files in advance to verify the data are complete and to avoid internet connection issues on computing nodes. Downloading the data can take many hours, and requires a strong internet connection. Please note this script will download the data files to a Julia scratchspace unless a custom directory is set (see [AllenNeuropixels.jl](https://github.com/brendanjohnharris/AllenNeuropixels.jl) for instructions).
 This script creates the `data/power_spectra` directory, containing `.jld2` files with power spectra for each session, structure, and stimulus, as well as the `data/power_spectra_plots` directory, containing plots of the same spectra.
 
 #### [Power spectra](scripts/calculations/cluster/power_spectra.jl)
 
-Located at `scripts/calculations/cluster/power_spectra.jl`, this script calculates the power spectra of the local field potentials for each session, seven structure (the six visual cortical regions and the dorsal lateral geniculate nucleus), and three stimuli (spontaneous, flashes, and task-active natural images).
-This script must be run on a high-performance computing cluster, and will need to be tweaked to use a cluster manager other than the University of Sydney School of Physics HPC (managed by the [USydClusters.jl](https://github.com/brendanjohnharris/UsydClusters.jl) package). To ensure your cluster manager is functioning correctly, please edit the `scripts/calculations/cluster/testscript.jl` file until it returns without error. You may need to run this script again in the REPl to ensure there are no errors (this script is prone to memory overflow).
+Located at `scripts/calculations/cluster/power_spectra.jl`, this script calculates the power spectra of the local field potentials for each session, seven structures (the six visual cortical regions and the dorsal lateral geniculate nucleus), and three stimuli (spontaneous, flashes, and task-active natural images).
+This script must be run on a high-performance computing cluster, and will need to be tweaked to use a cluster manager other than the University of Sydney School of Physics HPC (managed by the [USydClusters.jl](https://github.com/brendanjohnharris/UsydClusters.jl) package). To ensure your cluster manager is functioning correctly, please edit the `scripts/calculations/cluster/testscript.jl` file until it returns without error. You may need to run this script again in the REPL to ensure there are no errors (this script is prone to memory overflow).
 
 #### [Calculations](scripts/calculations/cluster/calculations.jl)
 
@@ -99,29 +97,28 @@ At times it will be useful to have precomputed unified layer annotations for all
 
 ### 2. Plotting results
 
-#### Schematics
+#### Fig. 1: Schematics
 
-The wave illustration in Fig. 1 is produced by [nested_dynamics.jl](scripts/plots/nested_dynamics.jl).
-[single_trial_schematic.jl](scripts/plots/single_trial_schematic.jl) generates a version of the methdos schematic in Fig. 1 for each visaul cortical region.
-To produce the supplemental 'glass brain' movie, you will need to manually install and configure RPR makie on a machine with a sizeable GPU. The script [glass_brain.jl](`scripts/plots/glass_brain.jl`) will produce jpeg images for each frame of the animation, which you can stitch together with e.g. the `magick` command-line tool.
+1. [`nested_dynamics_diagram.jl`](scripts/plots/nested_dynamics_diagram.jl): produces the wave illustration in Fig. 1.
+2. [`single_trial_schematic.jl`](scripts/plots/single_trial_schematic.jl): generates a version of the methods schematic in Fig. 1 for each visual cortical region.
+3. [`glass_brain.jl`](scripts/plots/glass_brain.jl): produces jpeg images for each frame of the 'glass brain' Supplementary Movie, which you can stitch together with e.g. the [`magick`](https://github.com/ImageMagick/ImageMagick) command-line tool. You will need to manually install and configure [RPRMakie](https://docs.makie.org/stable/explanations/backends/rprmakie) on a machine with a sizeable GPU to run this script.
 
-#### [Power spectra](scripts/plots/power_spectra.jl)
+#### Fig. 2: Power spectra
 
-This script produces Fig. 2 of the paper, summarizing the spectral properties of visual cortical LFP.
-It also produces version of Fig. 2 for other visual stimuli.
+[`power_spectra.jl`](scripts/plots/power_spectra.jl) produces Fig. 2 of the paper, summarizing the spectral properties of visual cortical LFP.
+It also produces a version of Fig. 2 for other visual stimuli.
 The script will take about 2 hours to run without pre-computed `fooof.jld` files, otherwise, about 15 minutes.
 
-#### Theta propagation
+#### Fig. 3: Translaminar theta propagation
 
-1. [Theta wavenumbers](scripts/plots/theta_wavenumbers.jl): produces panels A--C of Fig.3, heatmaps of the median wavenumber in `VISl` during hit, miss, and flash trials.
-2. [Order parameter](scripts/plots/theta_order_parameter.jl):.............
-3. [Inter-areal phase delays](scripts/plots/interareal_phasedelays.jl):.............
+1. [`theta_wavenumbers.jl`](scripts/plots/theta_wavenumbers.jl): produces panels A--C of Fig.3, heatmaps of the median wavenumber in `VISl` during hit, miss, and flash trials.
+2. [`theta_order_parameter.jl`](scripts/plots/theta_order_parameter.jl): panels D--F of Fig. 3, order parameter time courses and LDA hit/miss classification.
 
-#### Gamma bursts and nested dynamics
+#### Fig. 4: Hierarchical theta propagation
+[`interareal_phasedelays.jl`](scripts/plots/interareal_phasedelays.jl) plots anatomical and functional networks as well as hierarchical order parameters.
 
-1. [Gamma bursts](scripts/plots/gamma_bursts_task.jl)
-2. [Nested dynamics](scripts/plots/pac_task.jl)
-3. [Gamma bursts and nested dynamics](scripts/plots/classical_pac_task.jl)
+#### Fig. 5: Gamma packets and nested dynamics
+[`nested_dynamics.jl`](scripts/plots/nested_dynamics.jl) plots gamma burst width and theta--gamma phase-amplitude coupling
 
-#### [Spike-LFP coupling](scripts/plots/spike_ppc.jl)
-This script produces the final figure of the main text, plotting the spike-phase and spike-amplitude coupling across cortical layers and regions.
+#### Fig. 6: Spike-LFP coupling
+[`spike_ppc.jl`](scripts/plots/spike_ppc.jl) plots spike--phase coupling for theta, spike--amplitude coupling for gamma, and preferred spike--theta phase during both spontaneous and task periods.
