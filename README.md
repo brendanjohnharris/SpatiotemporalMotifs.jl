@@ -122,4 +122,4 @@ The script will take about 2 hours to run without pre-computed `fooof.jld` files
 [`nested_dynamics.jl`](scripts/plots/nested_dynamics.jl) plots gamma burst width and theta--gamma phase-amplitude coupling
 
 #### Fig. 6: Spike-LFP coupling
-[`spike_ppc.jl`](scripts/plots/spike_ppc.jl) plots spike--phase coupling for theta, spike--amplitude coupling for gamma, and preferred spike--theta phase during both spontaneous and task periods.
+[`spike_lfp.jl`](scripts/plots/spike_lfp.jl) plots spike--phase coupling for theta, spike--amplitude coupling for gamma, and preferred spike--theta phase during both spontaneous and task periods.

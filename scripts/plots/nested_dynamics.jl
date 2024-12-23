@@ -237,7 +237,7 @@ begin # * Burst masks and schematic
         end
 
         l = axislegend(ax; merge = true, nbanks = 2, position = :rt, framevisible = true,
-                       fontsize = 10)
+                       labelsize = 10)
         reverselegend!(l)
         plotlayerints!(ax, layerints; newticks = false, flipside = false, axis = :x)
         f
@@ -272,7 +272,7 @@ begin # * Burst masks and schematic
         end
 
         l = axislegend(ax; merge = true, nbanks = 2, position = :lt, framevisible = true,
-                       fontsize = 10)
+                       labelsize = 10)
         reverselegend!(l)
     end
 
@@ -465,14 +465,14 @@ begin # * Global and spatiotemporal PAC
             Colorbar(g[1, 2], p, label = "PAC")
 
             if s == "VISl"
-                ax = Axis(mgs[4][1, 1]; title = "$s spatiotemporal PAC", yreversed = true,
+                ax = Axis(mgs[6][1, 1]; title = "$s spatiotemporal PAC", yreversed = true,
                           limits = (nothing, (extrema(lookup(P, Depth)))),
                           xlabel = "Time (s)")
                 p = plotlayermap!(ax,
                                   ustripall(P[𝑡 = SpatiotemporalMotifs.INTERVAL]) .* 10^3,
                                   l; rasterize = 5) |>
                     first
-                Colorbar(mgs[4][1, 2], p, label = "PAC (×10³)")
+                Colorbar(mgs[6][1, 2], p, label = "PAC (×10³)")
             end
         end
         addlabels!(f, labelformat)
@@ -556,7 +556,7 @@ begin # * Layer-wise PAC
     end
 
     begin # * Plot layer-wise PAC
-        ax = Axis(mgs[5]; xlabel = "Cortical depth (%)", ylabel = "Median PAC",
+        ax = Axis(mgs[4]; xlabel = "Cortical depth (%)", ylabel = "Median PAC",
                   xtickformat = depthticks, limits = ((0, 1), nothing),
                   title = "Layerwise θ-γ PAC")
         for (i, p) in enumerate(pacc)
@@ -576,7 +576,7 @@ begin # * Layer-wise PAC
                      markersize = 10, alpha = 0.8)
         end
         l = axislegend(ax; merge = true, nbanks = 2, position = :lt, framevisible = true,
-                       fontsize = 10)
+                       labelsize = 10)
         layerints = load(datadir("grand_unified_layers.jld2"), "layerints")
         plotlayerints!(ax, layerints; axis = :x, newticks = false, flipside = false)
         f
@@ -587,7 +587,7 @@ begin # * Layer-wise PAC
             μ, (σl, σh) = bootstrapmedian(p |> ustripall; dims = 2)
         end .|> first
         if true
-            gg = mgs[5]
+            gg = mgs[4]
             idx = Depth(Near(0.25))
             alphamin = 0.2
             struc = 1
@@ -628,7 +628,7 @@ begin # * Layer-wise PAC
     end
 
     begin
-        ax = PolarAxis(mgs[6]; theta_as_x = false, thetalimits = (-0.1pi, 1.2pi),
+        ax = PolarAxis(mgs[5]; theta_as_x = false, thetalimits = (-0.1pi, 1.2pi),
                        rticks = 0:0.25:1, rtickformat = depthticks,
                        title = "Layerwise PAC angle")
         for (i, p) in enumerate(peaks)

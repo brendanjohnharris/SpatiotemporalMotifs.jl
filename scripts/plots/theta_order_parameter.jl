@@ -422,7 +422,7 @@ begin # * Plot classification performance
               ylabel = "Balanced accuracy", title = "Hit/miss classification",
               limits = ((0.5, 7.5), (0.35, 0.95)), xminorticksvisible = false)
     boxargs = (; width = 0.75, strokewidth = 5, whiskerwidth = 0.2,
-               strokecolor = (:gray, 0.0)) # !!!! Show outliers??
+               strokecolor = (:gray, 0.0), whiskerlinewidth = 6) # !!!! Show outliers??
 
     vspan!(ax, 0.5, 3.5; color = (california, 0.2))
     vspan!(ax, 3.5, 6.5; color = (cucumber, 0.2))
@@ -485,7 +485,7 @@ begin # * Plot classification performance
           align = (:center, :center))
 
     boxplot!(ax, fill(7, length(bac_sur)), bac_sur; color = :gray, boxargs...)
-    axislegend(ax; merge = true)
+    axislegend(ax; merge = true, labelsize = 10)
 end
 
 begin # * Plot region-wise weightings

@@ -18,7 +18,7 @@ using Distributed
 @preamble
 set_theme!(foresight(:physics))
 
-stimuli = ["r\"Natural_Images\"", "spontaneous", "flash_250ms"]
+stimuli = [r"Natural_Images", "spontaneous", "flash_250ms"]
 xtickformat = x -> string.(round.(Int, x))
 theta = Interval(SpatiotemporalMotifs.THETA...)
 gamma = Interval(SpatiotemporalMotifs.GAMMA...)
@@ -136,10 +136,10 @@ for stimulus in stimuli
 
             # * Band annotations
             vspan!(ax2, extrema(theta)..., color = (crimson, 0.22),
-                   label = "𝛉 ($(theta.left) – $(theta.right) Hz)")
+                   label = "𝛉")
             vlines!(ax2, [7.0], color = (crimson, 0.42), linestyle = :dash, linewidth = 4)
             vspan!(ax2, extrema(gamma)..., color = (cornflowerblue, 0.22),
-                   label = "𝛄 ($(gamma.left) – $(gamma.right) Hz)")
+                   label = "𝛄")
             vlines!(ax2, [54.4], color = (cornflowerblue, 0.42), linestyle = :dash,
                     linewidth = 4)
 
@@ -176,7 +176,7 @@ for stimulus in stimuli
             #     end
             # end
 
-            axislegend(ax, position = :rt, nbanks = 3, labelsize = 12, merge = true,
+            axislegend(ax, position = :rt, nbanks = 3, labelsize = 10, merge = true,
                        backgroundcolor = :white,
                        framevisible = true, padding = (5, 5, 5, 5))
             f
@@ -190,10 +190,11 @@ for stimulus in stimuli
             else
                 if haskey(ENV, "JULIA_DISTRIBUTED") && length(procs()) == 1 # We have no running workers, but we could
                     using USydClusters
-                    USydClusters.Physics.addprocs(9; mem = 32, ncpus = 4,
+                    USydClusters.Physics.addprocs(64; mem = 32, ncpus = 6,
                                                   project = projectdir()) # ? Can reuse these for the following bac calculations
                     @everywhere using SpatiotemporalMotifs
                     @everywhere SpatiotemporalMotifs.@preamble
+                    @everywhere @info "Packages loaded"
                 end
                 L = map(S) do s # If you can set up the cluster workers as above, should take about 5 minutes. Otherwise, 30 minutes
                     pmap(fooof, eachslice(ustripall(s), dims = (2, 3)))
@@ -234,9 +235,9 @@ for stimulus in stimuli
 
         begin # * Plot the intercept
             ax = Axis(f[2, 1:2][1, 2]; #ylabel = "Cortical depth (%)",
-                      xlabel = "Normalized 1/f intercept",
+                      xlabel = "Normalized 1/𝑓 intercept",
                       limits = ((-2.75, 2.75), (0, 1)), ytickformat = depthticks,
-                      title = "1/f intercept", yreversed = true)
+                      title = "1/𝑓 intercept", yreversed = true)
             for (i, _b) in b |> enumerate |> collect |> reverse
                 μ, (σl, σh) = bootstrapmedian(_b, dims = SessionID)
                 μ, σl, σh = upsample.((μ, σl, σh), 5)
@@ -254,9 +255,9 @@ for stimulus in stimuli
 
         begin # * Plot the exponent
             ax = Axis(f[2, 1:2][1, 1]; ylabel = "Cortical depth (%)",
-                      xlabel = "1/f exponent",
+                      xlabel = "1/𝑓 exponent",
                       limits = ((0.9, 2.1), (0, 1)), ytickformat = depthticks,
-                      title = "1/f exponent", yreversed = true)
+                      title = "1/𝑓 exponent", yreversed = true)
             for (i, chi) in χ |> enumerate |> collect |> reverse
                 μ, (σl, σh) = bootstrapmedian(chi, dims = SessionID)
                 μ, σl, σh = upsample.((μ, σl, σh), 5)
@@ -276,7 +277,7 @@ for stimulus in stimuli
             τs = cat(first.(tps), last.(tps); dims = Var([:kendall, :pvalue]))
             mtau = median(τs[2:end, 1]) # Median excluding VISp
             open(statsfile, "a+") do file
-                write(file, "\n## 1/f exponent\n")
+                write(file, "\n## 1/𝑓 exponent\n")
                 show(file, DataFrame(DimTable(τs; layersfrom = Var)))
                 write(file, "\nMedian τ (no VISp) = $mtau\n")
             end
@@ -289,8 +290,8 @@ for stimulus in stimuli
                 x = mapslices(x, dims = (1, 2)) do s
                     s ./ maximum(s, dims = 2)
                 end |> ustripall
-                x = dropdims(median(x[𝑓 = 1 .. 300], dims = SessionID), dims = SessionID)[:,
-                                                                                          2:end]
+                x = median(x[𝑓 = 1 .. 300], dims = SessionID)
+                x = dropdims(x, dims = SessionID)[:, 2:end]
 
                 ax = Axis(gs[i][1, 1], xlabel = "Frequency (Hz)",
                           ylabel = "Cortical depth (%)",
@@ -445,7 +446,7 @@ for stimulus in stimuli
                 # no = mean(sum(ustripall(S[Structure = At(s)]), dims = Freq);
                 #           dims = Depth)
                 no = sum(ustripall(S[Structure = At(s)]), dims = Freq) # Total power of each channel
-                x = sum(ss, dims = Freq) ./ no # The fraction of power above the 1/f component in a given frequency band
+                x = sum(ss, dims = Freq) ./ no # The fraction of power above the 1/𝑓 component in a given frequency band
                 x = dropdims(x, dims = Freq)
             end
             θr = ToolsArray(θr, (Structure(structures),))
@@ -581,10 +582,12 @@ for stimulus in stimuli
             # μt[𝑝t .> PTHR] .= NaN
             # μg[𝑝g .> PTHR] .= NaN
 
+            markersize = 8
+
             ax = Axis(f[2, 1:2][1, 3]; #ylabel = "Cortical depth (%)",
                       xlabel = "Kendall's 𝜏",
                       ytickformat = depthticks,
-                      title = "1/f hierarchies", limits = ((-0.73, 0.73), (0, 1)),
+                      title = "1/𝑓 hierarchies", limits = ((-0.73, 0.73), (0, 1)),
                       yreversed = true)
 
             vlines!(ax, 0; color = :gray, linewidth = 3)
@@ -592,29 +595,29 @@ for stimulus in stimuli
             band!(ax, Point2f.(collect(first.(σ)), unidepths),
                   Point2f.(collect(last.(σ)), unidepths);
                   color = (cucumber, bandalpha),
-                  label = "1/f exponent")
+                  label = "1/𝑓 exponent")
             # lines!(ax, unidepths, collect(μ); alpha = bandalpha,
-            #        label = "1/f exponent", color = cucumber)
+            #        label = "1/𝑓 exponent", color = cucumber)
             scatter!(ax, collect(μ[𝑝 .< PTHR]), unidepths[𝑝 .< PTHR];
-                     label = "1/f exponent", color = cucumber)
+                     label = "1/𝑓 exponent", color = cucumber, markersize)
             scatter!(ax, collect(μ[𝑝 .≥ PTHR]), unidepths[𝑝 .≥ PTHR]; color = :transparent,
                      strokecolor = cucumber,
-                     strokewidth = 1)
+                     strokewidth = 1, markersize)
 
             band!(ax, Point2f.(collect(first.(σb)), unidepths),
                   Point2f.(collect(last.(σb)), unidepths);
                   color = (juliapurple, bandalpha),
-                  label = "1/f intercept")
+                  label = "1/𝑓 intercept")
             # lines!(ax, unidepths, collect(μ); alpha = bandalpha,
-            #        label = "1/f exponent", color = cucumber)
+            #        label = "1/𝑓 exponent", color = cucumber)
             scatter!(ax, collect(μb[𝑝b .< PTHR]), unidepths[𝑝b .< PTHR];
-                     label = "1/f intercept", color = juliapurple)
+                     label = "1/𝑓 intercept", color = juliapurple, markersize)
             scatter!(ax, collect(μb[𝑝b .≥ PTHR]), unidepths[𝑝b .≥ PTHR];
                      color = :transparent,
                      strokecolor = juliapurple,
-                     strokewidth = 1)
+                     strokewidth = 1, markersize)
 
-            axislegend(ax, position = :lt, merge = true, labelsize = 12, nbanks = 1)
+            axislegend(ax, position = :lb, merge = true, labelsize = 12, nbanks = 1)
 
             plotlayerints!(ax, layerints; axis = :y, newticks = false, flipside = true)
         end
@@ -637,10 +640,10 @@ for stimulus in stimuli
             # lines!(ax, unidepths, collect(μt); alpha = bandalpha, label = "Residual θ power",
             #        color = crimson)
             scatter!(ax, collect(μt[𝑝t .< PTHR]), unidepths[𝑝t .< PTHR];
-                     label = "Residual θ", color = crimson)
+                     label = "Residual θ", color = crimson, markersize)
             scatter!(ax, collect(μt[𝑝t .≥ PTHR]), unidepths[𝑝t .≥ PTHR];
                      color = :transparent, strokecolor = crimson,
-                     strokewidth = 1)
+                     strokewidth = 1, markersize)
 
             band!(ax, Point2f.(collect(first.(σg)), unidepths),
                   Point2f.(collect(last.(σg)), unidepths);
@@ -649,12 +652,12 @@ for stimulus in stimuli
             # lines!(ax, unidepths, collect(μg); alpha = bandalpha, label = "Residual γ power",
             #    color = cornflowerblue)
             scatter!(ax, collect(μg[𝑝g .< PTHR]), unidepths[𝑝g .< PTHR];
-                     label = "Residual γ", color = cornflowerblue)
+                     label = "Residual γ", color = cornflowerblue, markersize)
             scatter!(ax, collect(μg[𝑝g .≥ PTHR]), unidepths[𝑝g .≥ PTHR];
                      color = :transparent, strokecolor = cornflowerblue,
-                     strokewidth = 1)
+                     strokewidth = 1, markersize)
 
-            axislegend(ax, position = :lt, merge = true, labelsize = 12, nbanks = 1)
+            axislegend(ax, position = :lb, merge = true, labelsize = 12, nbanks = 1)
 
             plotlayerints!(ax, layerints; axis = :y, newticks = false, flipside = true)
         end
