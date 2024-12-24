@@ -749,7 +749,11 @@ function unify_calculations(Q; stimulus, vars = sort([:V, :csd, :x, :ϕ, :r, :k,
                 end
                 @info "Saving data for $(structures[si])"
                 for (k, v) in pairs(ovars)
-                    outfile[string(structures[si]) * "/" * k] = v .|> Float32
+                    if eltype(v) isa Number
+                        outfile[string(structures[si]) * "/" * k] = v .|> Float32
+                    else
+                        outfile[string(structures[si]) * "/" * k] = v
+                    end
                 end
             end
         end
