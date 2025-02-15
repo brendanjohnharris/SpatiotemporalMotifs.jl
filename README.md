@@ -28,10 +28,10 @@ All Neuropixels data files will be downloaded to this directory; by default it i
 #### Reproduce calculations or just figures?
 
 You can choose between:
-1. Reproducing the full analysis, by running the code on a high-performance computing cluster. You will need to adapt the scripts to use the cluster manager of your favorite supercomputer. This option is described in [step 1](#1.-performing-calculations) below.
-2. Downloading the precomputed results from [[figshare]], in which case you can skip directly to [step 2](#2.-plotting-results). This option requires a desktop with a modest amount of RAM (>16 GB), and some scripts will still take around 30 minutes to complete.
+1. Reproducing the full set of calculations and analyses, by running the code on a high-performance computing cluster. You will need to adapt the scripts to use the cluster manager of your favorite supercomputer. This option is described in [step 1](#1.-performing-calculations) below.
+2. Downloading the full precomputed dataset from [[figshare]] and running final analyses yourself; go to [step 2](#2.-final-analyses). This option requires a desktop with a modest amount of RAM (>16 GB), and some scripts will still take around 30 minutes to complete.
 Note that all other working and intermediate data files for this project will be saved to `SpatiotemporalMotifs.jl/data`.
-
+3. Re-plotting figures using a precomputed, reduced dataset; go to [step 3](#3.-replotting-all-results). This option can be done on a local laptop machine, or online via this CodeOcean capsule.
 
 
 #### Key dependencies
@@ -77,7 +77,7 @@ This script creates the `data/session_table.jld2` file, which contains a `Datafr
 #### [Downloading data](scripts/calculations/download_data.jl)
 
 While the [AllenNeuropixels.jl](https://github.com/brendanjohnharris/AllenNeuropixels.jl) package can download data files on-demand, we recommend downloading the data files in advance to verify the data are complete and to avoid internet connection issues on computing nodes. Downloading the data can take many hours, and requires a strong internet connection. Please note this script will download the data files to a Julia scratchspace unless a custom directory is set (see [AllenNeuropixels.jl](https://github.com/brendanjohnharris/AllenNeuropixels.jl) for instructions).
-This script creates the `data/power_spectra` directory, containing `.jld2` files with power spectra for each session, structure, and stimulus, as well as the `data/power_spectra_plots` directory, containing plots of the same spectra.
+This script creates the `data/power_spectra` directory, containing `.jld2` files with power spectra for each session, structure, and stimulus, as well as the `data/plots/power_spectra_plots` directory, containing plots of the same spectra.
 
 #### [Power spectra](scripts/calculations/cluster/power_spectra.jl)
 
@@ -96,11 +96,13 @@ There are some session quality metrics---the layer assignment consistency, and s
 
 At times it will be useful to have precomputed unified layer annotations for all sessions and structures; this script produces these annotations and saves them in `data/grand_unified_layers.jld2`.
 
-### 2. Plotting results
+### 2. Final analyses
+The following scripts take the calculated data from [step 1](#1.-performing-calculations), perform statistical analyses, save to a reduced plot dataset (`data/plots/`), then generate generate figures (saved to `plots/`).
+The resulting plot data and figure files have can be found on Figshare.
 
 #### Fig. 1: Schematics
 
-1. [`nested_dynamics_diagram.jl`](scripts/plots/nested_dynamics_diagram.jl): produces the wave illustration in Fig. 1.
+1. [`fig1A.jl`](scripts/plots/fig1A.jl): produces the wave illustration in Fig. 1.
 2. [`single_trial_schematic.jl`](scripts/plots/single_trial_schematic.jl): generates a version of the methods schematic in Fig. 1 for each visual cortical region.
 3. [`glass_brain.jl`](scripts/plots/glass_brain.jl): produces jpeg images for each frame of the 'glass brain' Supplementary Movie, which you can stitch together with e.g. the [`magick`](https://github.com/ImageMagick/ImageMagick) command-line tool. You will need to manually install and configure [RPRMakie](https://docs.makie.org/stable/explanations/backends/rprmakie) on a machine with a sizeable GPU to run this script.
 
@@ -123,3 +125,8 @@ The script will take about 2 hours to run without pre-computed `fooof.jld` files
 
 #### Fig. 6: Spike-LFP coupling
 [`spike_lfp.jl`](scripts/plots/spike_lfp.jl) plots spike--phase coupling for theta, spike--amplitude coupling for gamma, and preferred spike--theta phase during both spontaneous and task periods.
+
+### 3. Replotting all results
+
+If you have downloaded the plot data from Figsahre, and placed the data files in `data/plots/`, you can replot all figures by running the [`produce_figures.jl`](produce_figures) shell script.
+This file simply runs all of the plot scripts in the order listed in [step 2](#2.-final-analyses) and saves the results to `plots/`.

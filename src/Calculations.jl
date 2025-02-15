@@ -3,7 +3,7 @@ using TimeseriesTools
 
 function powerspectra_quality(sessionid, stimulus, structure;
                               outpath = datadir("power_spectra"),
-                              plotpath = datadir("power_spectra_plots"),
+                              plotpath = datadir("plots", "power_spectra_plots"),
                               rewrite = false, retry_errors = true)
     plotfile = joinpath(plotpath, "$(sessionid)",
                         "$(stimulus)_$(structure)_pac.pdf")
@@ -16,7 +16,7 @@ end
 
 function send_powerspectra(sessionid, stimulus, structure;
                            outpath = datadir("power_spectra"),
-                           plotpath = datadir("power_spectra_plots"),
+                           plotpath = datadir("plots", "power_spectra_plots"),
                            rewrite = false, retry_errors = true)
     params = (;
               sessionid,

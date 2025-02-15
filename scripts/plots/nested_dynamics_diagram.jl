@@ -8,45 +8,64 @@ using SpatiotemporalMotifs
 using Peaks
 @preamble
 set_theme!(foresight(:physics))
-Q = calcquality(datadir("power_spectra"))
 
-begin # * Plot parameters
+begin # * Parameters
+    stimulus = r"Natural_Images"
+    sessionid = SpatiotemporalMotifs.DEFAULT_SESSION_ID
+    trial = 14 # SpatiotemporalMotifs.DEFAULT_TRIAL_NUM
+    # ΔT = SpatiotemporalMotifs.INTERVAL |> 𝑡
+    ΔT = (-0.02u"s" .. 0.5u"s") |> 𝑡
+    structure = "VISl"
+    ΔD = Depth(0.15 .. 0.8)
     depth_colormap = SpatiotemporalMotifs.layercolormap
+
+    config = Dict{String, Any}()
+    @pack! config = stimulus, sessionid, trial, structure
 end
+
+plot_data, data_file = produce_or_load(copy(config), datadir("plots"); filename = savepath,
+                                       prefix = "fig1A") do config # * Extract plot data from full calculations
+    @unpack stimulus, sessionid, trial, structure = config
+    Q = calcquality(datadir("power_spectra"))
+    file = savepath((; sessionid, stimulus, structure), "jld2")
+    file = datadir("calculations", file)
+    out = jldopen(file, "r") do file
+        θ = file["ϕ"][:, :, trial]
+        γ = file["y"][:, :, trial]
+        r = file["r"]
+        datadepths = file["streamlinedepths"]
+        spikes = file["spiketimes"]
+        out = Dict{String, Any}()
+        @pack! out = θ, γ, r, datadepths, spikes
+        return out
+    end
+    unitdepths = load_unitdepths(Q[SessionID = (lookup(Q, SessionID) .== sessionid),
+                                   Structure = At([structure]),
+                                   stimulus = (lookup(Q, :stimulus) .==
+                                               stimulus)])
+    out["unitdepths"] = unitdepths
+    return out
+end
+
 begin
-    begin # * Parameters
-        stimulus = r"Natural_Images"
-        sessionid = SpatiotemporalMotifs.DEFAULT_SESSION_ID
-        trial = 14 # SpatiotemporalMotifs.DEFAULT_TRIAL_NUM
-        # ΔT = SpatiotemporalMotifs.INTERVAL |> 𝑡
-        ΔT = (-0.02u"s" .. 0.5u"s") |> 𝑡
-        structure = "VISl"
-        ΔD = Depth(0.15 .. 0.8)
-
-        file = savepath((; sessionid, stimulus, structure), "jld2")
-        file = datadir("calculations", file)
-        file = jldopen(file, "r")
-
+    @unpack θ, γ, r, datadepths, spikes, unitdepths = plot_data
+    begin
         # Normalized theta by taking phase
-        θ = file["ϕ"][ΔT][:, :, trial]
-        θ = set(θ, Depth(file["streamlinedepths"]))[ΔD] |> ustripall
+        θ = θ[ΔT]
+        θ = set(θ, Depth(datadepths))[ΔD] |> ustripall
         θ = -1im * θ .|> exp .|> real
         θ[1, :] .= θ[2, :]
 
-        γ = file["y"][ΔT][:, :, trial]
-        γ = set(γ, Depth(file["streamlinedepths"]))[ΔD] |> ustripall
-        r = file["r"][ΔT][:, :, trial]
-        r = set(r, Depth(file["streamlinedepths"]))[ΔD] |> ustripall
-        _r = file["r"][ΔT]
+        γ = γ[ΔT]
+        γ = set(γ, Depth(datadepths))[ΔD] |> ustripall
+
+        _r = deepcopy(r)[ΔT]
+        r = r[ΔT]
+        r = set(r, Depth(datadepths))[ΔD] |> ustripall
         r̂ = HalfZScore(_r, dims = [1, 3])(_r) # Normalized over time and trials
-        _r = set(_r[:, :, trial], Depth(file["streamlinedepths"]))[ΔD]
-        r = set(r̂[:, :, trial], Depth(file["streamlinedepths"]))[ΔD] |> ustripall
-        spikes = file["spiketimes"]
-        close(file)
-        unitdepths = load_unitdepths(Q[SessionID = (lookup(Q, SessionID) .== sessionid),
-                                       Structure = At([structure]),
-                                       stimulus = (lookup(Q, :stimulus) .==
-                                                   stimulus)])
+        _r = set(_r[:, :, trial], Depth(datadepths))[ΔD]
+        r = set(r̂[:, :, trial], Depth(datadepths))[ΔD] |> ustripall
+
         spikes = map(collect(spikes)) do (u, sp)
             t = ustripall(only(refdims(θ, :changetime)))
             sp = sp[sp .∈ [t - 0.25 .. t + 0.75]] .- t
@@ -167,11 +186,11 @@ begin
     end
 end
 
-save(plotdir("schematic", "nested_dynamics_diagram.pdf"), f;
+save(plotdir("schematic", "fig1A.pdf"), f;
      px_per_unit = 10)
 f
 
-begin # * Save representative stimulus images
+if false # * Save a few representative stimulus images
     import AllenNeuropixelsBase as ANB
     using PythonCall
     sessionid = SpatiotemporalMotifs.DEFAULT_SESSION_ID
