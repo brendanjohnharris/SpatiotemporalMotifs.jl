@@ -33,16 +33,16 @@ plot_data, data_file = produce_or_load(copy(config), datadir("plots"); filename 
             datadepths = file["streamlinedepths"]
             spikes = file["spiketimes"]
 
-            V = file["V"][:, :, trial]
-            x = file["x"][:, :, trial]
-            y = file["y"][:, :, trial]
-            ϕ = file["ϕ"][:, :, trial]
-            k = file["k"][:, :, trial]
-            ω = file["ω"][:, :, trial]
-            v = file["v"][:, :, trial]
+            V = file["V"][:, :, trial] .|> Float32
+            x = file["x"][:, :, trial] .|> Float32
+            y = file["y"][:, :, trial] .|> Float32
+            ϕ = file["ϕ"][:, :, trial] .|> Float32
+            k = file["k"][:, :, trial] .|> Float32
+            ω = file["ω"][:, :, trial] .|> Float32
+            v = file["v"][:, :, trial] .|> Float32
             θ = deepcopy(ϕ)
             γ = deepcopy(y)
-            r = file["r"] # Don't selet trial, because we need to normalize over time later
+            r = file["r"] .|> Float32 # Don't select trial, because we need to normalize over time later on
 
             out = Dict{String, Any}()
             @pack! out = V, x, y, ϕ, k, ω, v, θ, γ, r, layernames, datadepths, spikes
@@ -205,7 +205,7 @@ begin # ? Figure 1A
         end
     end
 
-    wsave(plotdir("schematic", "fig1A.pdf"), f;
+    wsave(plotdir("fig1", "fig1A.pdf"), f;
           px_per_unit = 10)
     f
 
@@ -221,13 +221,13 @@ begin # ? Figure 1A
             img = fill(Makie.RGBA(0, 0, 0, 0), size(_img))
             is = _img[.!isnan.(_img)] ./ 255
             img[.!isnan.(_img)] .= Makie.RGBA.(is, is, is, 1.0)
-            save(plotdir("schematic", "natural_images", "natural_images_$i.png"), img)
+            save(plotdir("fig1", "natural_images", "natural_images_$i.png"), img)
         end
 
         _img = df[1, :unwarped]
         img = fill(Makie.RGBA(0, 0, 0, 0), size(_img))
         img[.!isnan.(_img)] .= Makie.RGBA.(0.5, 0.5, 0.5, 1.0)
-        save(plotdir("schematic", "natural_images", "natural_images_0.png"), img)
+        save(plotdir("fig1", "natural_images", "natural_images_0.png"), img)
     end
     f
 end
@@ -455,7 +455,7 @@ begin # ? Figure 1: C--G
             # colgap!(f.layout, 1, Relative(0.1))
             addlabels!(f, labelformat)
 
-            wsave(plotdir("schematic", "fig1_$structure.pdf"), f)
+            wsave(plotdir("fig1", "single_trial_schematic_$structure.pdf"), f)
             f
         end
 

@@ -232,7 +232,7 @@ end
 begin # * Plots
     f = FourPanel()
     gs = subdivide(f, 2, 2)
-    layerints = load(datadir("grand_unified_layers.jld2"), "layerints")
+    layerints = load(datadir("plots", "grand_unified_layers.jld2"), "layerints")
     begin # * Schematic of hierarchy
         ax = Axis(gs[1], yreversed = true, aspect = DataAspect(),
                   title = "Anatomical hierarchy")

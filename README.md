@@ -94,7 +94,7 @@ There are some session quality metrics---the layer assignment consistency, and s
 
 #### [Storing unified layer annotations](scripts/calculations/grand_unified_layers.jl)
 
-At times it will be useful to have precomputed unified layer annotations for all sessions and structures; this script produces these annotations and saves them in `data/grand_unified_layers.jld2`.
+At times it will be useful to have precomputed unified layer annotations for all sessions and structures; this script produces these annotations and saves them in `data/plots/grand_unified_layers.jld2`.
 
 ### 2. Final analyses
 The following scripts take the calculated data from [step 1](#1.-performing-calculations), perform statistical analyses, save to a reduced plot dataset (`data/plots/`), then generate generate figures (saved to `plots/`).
@@ -102,13 +102,12 @@ The resulting plot data and figure files have can be found on Figshare.
 
 #### Fig. 1: Schematics
 
-1. [`fig1A.jl`](scripts/plots/fig1A.jl): produces the wave illustration in Fig. 1.
-2. [`single_trial_schematic.jl`](scripts/plots/single_trial_schematic.jl): generates a version of the methods schematic in Fig. 1 for each visual cortical region.
-3. [`glass_brain.jl`](scripts/plots/glass_brain.jl): produces jpeg images for each frame of the 'glass brain' Supplementary Movie, which you can stitch together with e.g. the [`magick`](https://github.com/ImageMagick/ImageMagick) command-line tool. You will need to manually install and configure [RPRMakie](https://docs.makie.org/stable/explanations/backends/rprmakie) on a machine with a sizeable GPU to run this script.
+1. [`fig1.jl`](scripts/plots/fig1.jl): generates the wave illustration in Fig. 1a, and versions of the methods schematic in Fig. 1 for each visual cortical region.
+2. [`glass_brain.jl`](scripts/plots/glass_brain.jl): produces jpeg images for each frame of the 'glass brain' Supplementary Movie, which you can stitch together with e.g. the [`magick`](https://github.com/ImageMagick/ImageMagick) command-line tool. You will need to manually install and configure [RPRMakie](https://docs.makie.org/stable/explanations/backends/rprmakie) on a machine with a sizeable GPU to run this script.
 
 #### Fig. 2: Power spectra
 
-[`power_spectra.jl`](scripts/plots/power_spectra.jl) produces Fig. 2 of the paper, summarizing the spectral properties of visual cortical LFPs.
+[`fig2.jl`](scripts/plots/fig2.jl) produces a figure summarizing the spectral properties of visual cortical LFPs.
 It also produces a version of Fig. 2 for other visual stimuli.
 The script will take about 2 hours to run without pre-computed `fooof.jld` files, otherwise, about 15 minutes.
 

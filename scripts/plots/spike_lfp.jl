@@ -70,7 +70,7 @@ begin
     begin # * Set up figure
         f = SixPanel()
         gs = subdivide(f, 3, 2)
-        layerints = load(datadir("grand_unified_layers.jld2"), "layerints")
+        layerints = load(datadir("plots", "grand_unified_layers.jld2"), "layerints")
         bins = range(0, 1, length = 11)
     end
 

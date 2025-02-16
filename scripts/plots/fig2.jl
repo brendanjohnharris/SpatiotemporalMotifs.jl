@@ -25,19 +25,16 @@ gamma = Interval(SpatiotemporalMotifs.GAMMA...)
 alpha = 0.8
 bandalpha = 0.2
 
-session_table = load(datadir("posthoc_session_table.jld2"), "session_table")
-oursessions = session_table.ecephys_session_id
-
-for stimulus in stimuli
-    begin
-        path = datadir("power_spectra")
+plot_data, data_file = produce_or_load(Dict(), datadir("plots");
+                                       filename = savepath,
+                                       prefix = "fig2") do _
+    session_table = load(datadir("posthoc_session_table.jld2"), "session_table")
+    oursessions = session_table.ecephys_session_id
+    path = datadir("power_spectra")
+    plot_data = map(stimuli) do stimulus
         Q = calcquality(path)[stimulus = At(stimulus), Structure = At(structures)]
         Q = Q[SessionID(At(oursessions))]
         @assert mean(Q) > 0.9
-        filebase = stimulus == "spontaneous" ? "" : "_$stimulus"
-        statsfile = plotdir("power_spectra", "power_spectra$filebase.txt")
-        close(open(statsfile, "w")) # Create the file or clear it
-        f = SixPanel()
 
         begin # * Load data
             S = map(lookup(Q, Structure)) do structure
@@ -80,13 +77,12 @@ for stimulus in stimuli
                 layernums = ToolsArray(stack(getindex.(DimensionalData.metadata.(out),
                                                        :layernums)),
                                        (Dim{:depths}(unidepths), SessionID(sessions)))
-                S = stack(SessionID(sessions), out, dims = 3)
+                S = stack(SessionID(sessions), out, dims = 3) .|> Float32
                 layernums = parselayernum.(layernames)
                 return S, layernames, layernums
             end
             S, layernames, layernums = zip(S...)
         end
-
         begin # * Format layers
             meanlayers = map(layernums) do l
                 round.(Int, mean(l, dims = 2))
@@ -110,10 +106,28 @@ for stimulus in stimuli
             S = ToolsArray(S |> collect, (Structure(lookup(Q, Structure)),))
             S̄ = map(S̄) do s
                 N = UnitEnergy(s, dims = 1)
-                N(s)
+                N(s) .|> Float32
             end
-            layerints = load(datadir("grand_unified_layers.jld2"), "layerints")
+            layerints = load(datadir("plots", "grand_unified_layers.jld2"), "layerints")
         end
+
+        plot_data = Dict{String, Any}()
+        @pack! plot_data = S, layernames, layernums, layerints, meanlayers, S̄, oursessions,
+                           Q
+        return plot_data
+    end
+
+    return Dict(string.(stimuli) .=> plot_data)
+end
+
+for stimulus in stimuli
+    @info "Plotting spectra for $stimulus"
+    @unpack S, layernames, layernums, layerints, meanlayers, S̄, oursessions, Q = plot_data[string(stimulus)]
+    begin
+        filebase = stimulus == "spontaneous" ? "" : "_$stimulus"
+        statsfile = plotdir("fig2", "power_spectra$filebase.txt")
+        close(open(statsfile, "w")) # Create the file or clear it
+        f = SixPanel()
 
         begin # * Mean power spectrum in VISp and VISam. Bands show 1 S.D.
             axargs = (; xscale = log10, yscale = log10,
@@ -183,7 +197,7 @@ for stimulus in stimuli
         end
 
         begin # * Calculate the channel-wise fits. Can take a good 30 minutes
-            file = datadir("fooof", "fooof$filebase.jld2")
+            file = datadir("plots", "fooof", "fooof$filebase.jld2")
 
             if isfile(file)
                 χ, b, L = load(file, "χ", "b", "L")
@@ -315,7 +329,7 @@ for stimulus in stimuli
             # rowsize!(fs.layout, 2, Aspect(2, 0.9))
             # rowsize!(fs.layout, 3, Aspect(2, 0.9))
             fs
-            wsave(plotdir("power_spectra", "relative_power_supplement$filebase.pdf"), fs)
+            wsave(plotdir("fig2", "relative_power_supplement$filebase.pdf"), fs)
         end
 
         begin # * Plot fooof residuals. Bands are 1 S.D.
@@ -416,7 +430,7 @@ for stimulus in stimuli
                 # linkxaxes!(ax, ax2)
             end
             addlabels!(sf, labelformat)
-            wsave(plotdir("power_spectra", "residual_power_supplement$(filebase).pdf"), sf)
+            wsave(plotdir("fig2", "residual_power_supplement$(filebase).pdf"), sf)
             sf
         end
 
@@ -664,5 +678,5 @@ for stimulus in stimuli
         addlabels!(f, ["A", "D", "F", "E", "C", "B", "G", "H"])
         f |> display
     end
-    wsave(plotdir("power_spectra", "power_spectra$filebase.pdf"), f)
+    wsave(plotdir("fig2", "power_spectra$filebase.pdf"), f)
 end

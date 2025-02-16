@@ -38,7 +38,7 @@ begin # * Burst masks and schematic
     begin # * Extract burst mask from each trial. Takes about 15 minutes on 32 cores
         thr = 2.0
         file = datadir("gamma_bursts.jld2")
-        layerints = load(datadir("grand_unified_layers.jld2"), "layerints")
+        layerints = load(datadir("plots", "grand_unified_layers.jld2"), "layerints")
         if isfile(file)
             m, Δt, Δx, ints, schemr = load(file, "m", "Δt", "Δx", "ints", "schemr")
         else
@@ -577,7 +577,7 @@ begin # * Layer-wise PAC
         end
         l = axislegend(ax; merge = true, nbanks = 2, position = :lt, framevisible = true,
                        labelsize = 10)
-        layerints = load(datadir("grand_unified_layers.jld2"), "layerints")
+        layerints = load(datadir("plots", "grand_unified_layers.jld2"), "layerints")
         plotlayerints!(ax, layerints; axis = :x, newticks = false, flipside = false)
         f
     end
