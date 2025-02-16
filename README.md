@@ -129,4 +129,4 @@ The script will take about 2 hours to run without pre-computed `fooof.jld` files
 ### 3. Replotting all results
 
 If you have downloaded the plot data from Figsahre, and placed the data files in `data/plots/`, you can replot all figures by running the [`produce_figures.jl`](produce_figures) shell script.
-This file simply runs all of the plot scripts in the order listed in [step 2](#2.-final-analyses) and saves the results to `plots/`.
+This file simply runs all of the plot scripts in the order listed in [step 2](#2.-final-analyses) and saves the results to `plots/`. Ensure that you have properly instantiated this project via the Julia REPL before running this script.

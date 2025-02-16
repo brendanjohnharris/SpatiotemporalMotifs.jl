@@ -20,32 +20,32 @@ begin # * Parameters
     depth_colormap = SpatiotemporalMotifs.layercolormap
 
     config = Dict{String, Any}()
-    @pack! config = stimulus, sessionid, trial, structure
+    @pack! config = stimulus, sessionid, trial
 end
 
-plot_data, data_file = produce_or_load(copy(config), datadir("plots"); filename = savepath,
-                                       prefix = "fig1A") do config # * Extract plot data from full calculations
-    @unpack stimulus, sessionid, trial, structure = config
-    Q = calcquality(datadir("power_spectra"))
-    file = savepath((; sessionid, stimulus, structure), "jld2")
-    file = datadir("calculations", file)
-    out = jldopen(file, "r") do file
-        θ = file["ϕ"][:, :, trial]
-        γ = file["y"][:, :, trial]
-        r = file["r"]
-        datadepths = file["streamlinedepths"]
-        spikes = file["spiketimes"]
-        out = Dict{String, Any}()
-        @pack! out = θ, γ, r, datadepths, spikes
-        return out
-    end
-    unitdepths = load_unitdepths(Q[SessionID = (lookup(Q, SessionID) .== sessionid),
-                                   Structure = At([structure]),
-                                   stimulus = (lookup(Q, :stimulus) .==
-                                               stimulus)])
-    out["unitdepths"] = unitdepths
-    return out
-end
+# plot_data, data_file = produce_or_load(copy(config), datadir("plots"); filename = savepath,
+#                                        prefix = "fig1") do config # * Extract plot data from full calculations
+#     @unpack stimulus, sessionid, trial, structure = config
+#     Q = calcquality(datadir("power_spectra"))
+#     file = savepath((; sessionid, stimulus, structure), "jld2")
+#     file = datadir("calculations", file)
+#     out = jldopen(file, "r") do file
+#         θ = file["ϕ"][:, :, trial]
+#         γ = file["y"][:, :, trial]
+#         r = file["r"]
+#         datadepths = file["streamlinedepths"]
+#         spikes = file["spiketimes"]
+#         out = Dict{String, Any}()
+#         @pack! out = θ, γ, r, datadepths, spikes
+#         return out
+#     end
+#     unitdepths = load_unitdepths(Q[SessionID = (lookup(Q, SessionID) .== sessionid),
+#                                    Structure = At([structure]),
+#                                    stimulus = (lookup(Q, :stimulus) .==
+#                                                stimulus)])
+#     out["unitdepths"] = unitdepths
+#     return out
+# end
 
 begin
     @unpack θ, γ, r, datadepths, spikes, unitdepths = plot_data
@@ -186,8 +186,8 @@ begin
     end
 end
 
-save(plotdir("schematic", "fig1A.pdf"), f;
-     px_per_unit = 10)
+wsave(plotdir("schematic", "fig1A.pdf"), f;
+      px_per_unit = 10)
 f
 
 if false # * Save a few representative stimulus images
