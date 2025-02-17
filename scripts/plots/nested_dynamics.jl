@@ -17,97 +17,248 @@ using Peaks
 @preamble
 set_theme!(foresight(:physics))
 
-session_table = load(datadir("posthoc_session_table.jld2"), "session_table")
-oursessions = session_table.ecephys_session_id
+thr = 2.0
+config = @strdict thr
+
+plot_data, data_file = produce_or_load(config, datadir("plots");
+                                       filename = savepath,
+                                       prefix = "fig5") do config
+    session_table = load(datadir("posthoc_session_table.jld2"), "session_table")
+    oursessions = session_table.ecephys_session_id
+    layerints = load(datadir("plots", "grand_unified_layers.jld2"), "layerints")
+    stimuli = [r"Natural_Images", "spontaneous", "flash_250ms"]
+    stimulus = r"Natural_Images" # Stimulus for the final figure
+    @unpack thr = config
+
+    begin # * Extract burst mask from each trial. Takes about 20 minutes on 128 cores
+        @info "Calculating γ-bursts"
+        vars = [:r]
+
+        path = datadir("calculations")
+        Q = calcquality(path)[Structure = At(structures)]
+        quality = mean(Q[stimulus = At(stimulus)])
+        out = load_calculations(Q; stimulus, vars)
+        out = map(out) do O # * Filter to posthoc sessions
+            filter(o -> (o[:sessionid] in oursessions), O)
+        end
+        idx = getindex.(out[1], :sessionid) .== SpatiotemporalMotifs.DEFAULT_SESSION_ID
+        schemr = only(out[6][idx])[:r][:, :, 26] # Select some trial, 26
+
+        uni = load_uni(; stimulus, vars)
+        @assert uni[1][:oursessions] == oursessions
+        ints = getindex.(uni, :layerints)
+        Bs = map(out) do O
+            @info "here"
+            mtx = pmap(O) do o
+                r = o[:r] .* 1000 # V to mV
+                r = HalfZScore(r, dims = [1, 3])(r) # Normalized over time and trials
+                pks, proms = findpeaks(r; minprom = thr)
+                m = maskpeaks(r; minprom = thr) .> 0
+
+                Δt = mapslices(m; dims = 1) do m
+                    @assert m isa AbstractVector
+                    @assert eltype(m) <: Bool
+                    length(m) < 1000 &&
+                        @warn "Input seems too short to be a time series..."
+                    m = Matrix(m') # label_components segfaults with vectors
+                    cs = label_components(m)
+                    c = component_lengths(cs) |> last
+                    c = c * samplingperiod(r)
+                end
+
+                # * Replace unified depths with probe depths
+                origdepths = sort(metadata(r)[:depths] |> values |> collect)
+                _m = set(m, Depth => origdepths)
+                _m = rectify(_m, dims = Depth)
+                # m = m[1:3:end, :, :] # Downsample for speed
+
+                Δx = mapslices(m; dims = 2) do m
+                    @assert m isa AbstractVector
+                    @assert eltype(m) <: Bool
+                    length(m) > 30 && @warn "Input seems too long to be layer-wise..."
+                    m = Matrix(m') # label_components segfaults with vectors
+                    cs = label_components(m)
+                    c = component_lengths(cs) |> last
+                    c = c * step(lookup(_m, Depth)) .* u"μm"
+                end
+                return m, Δt, Δx
+            end
+            m, Δt, Δx = [getindex.(mtx, i) for i in eachindex(mtx[1])]
+            return m, Δt, Δx
+        end
+        m, Δt, Δx = [getindex.(Bs, i) for i in eachindex(Bs[1])]
+        gamma_bursts = @strdict m Δt Δx ints schemr
+        Bs = []
+        GC.gc()
+    end
+
+    begin # * Spatiotemporal PAC
+        @info "Calculating spatiotemporal PAC"
+        vars = [:ϕ, :r]
+
+        path = datadir("calculations")
+        Q = calcquality(path)[Structure = At(structures)]
+        Q = Q[SessionID = At(oursessions)]
+        quality = mean(Q[stimulus = At(stimulus)])
+
+        pQ = calcquality(datadir("power_spectra"))
+        data = map(stimuli) do stimulus
+            _Q = pQ[stimulus = At(stimulus), Structure = At(structures)]
+            subsessions = intersect(oursessions, lookup(_Q, SessionID))
+            if length(subsessions) < length(oursessions)
+                @warn "Power spectra calculations are incomplete, proceeding regardless"
+            end
+            _Q = _Q[SessionID(At(subsessions))]
+            filebase = stimulus == "spontaneous" ? "" : "_$stimulus"
+
+            begin # * Load data
+                S = map(lookup(_Q, Structure)) do structure
+                    out = map(lookup(_Q, SessionID)) do sessionid
+                        if _Q[SessionID = At(sessionid), Structure = At(structure)] == 0
+                            return nothing
+                        end
+                        filename = savepath((@strdict sessionid structure stimulus), "jld2",
+                                            datadir("power_spectra"))
+                        C = load(filename, "C")
+                        # S = load(filename, "sC")
+                        # return (C .- S) ./ median(S)
+                    end
+                    idxs = .!isnothing.(out)
+                    out = out[idxs]
+
+                    m = DimensionalData.metadata.(out)
+                    out = map(out) do o
+                        dropdims(mean(o, dims = Chan), dims = Chan)
+                    end
+                    out = stack(SessionID(lookup(_Q, SessionID)[idxs]), out, dims = 3)
+                    return out
+                end
+            end
+            uni = load_uni(; stimulus, vars)
+
+            unidepths = getindex.(uni, :unidepths)
+            layerints = getindex.(uni, :layerints)
+            layernames = getindex.(uni, :layernames)
+            layernums = getindex.(uni, :layernums)
+
+            begin # * Normalize amplitudes and generate a burst mask
+                r = [abs.(uni[i][:r]) for i in eachindex(uni)]
+
+                ϕ = [uni[i][:ϕ] for i in eachindex(uni)]
+                ϕ = [mod2pi.(x .+ pi) .- pi for x in ϕ]
+
+                uni = []
+                PAC = progressmap(ϕ, r) do ϕ, r
+                    pac(ϕ, r; dims = Trial)
+                end
+                # ϕ_pref = map(ϕ, r) do ϕ, r
+                #     peaks = map(eachslice(ϕ; dims = (𝑡, Depth)),
+                #                 eachslice(r; dims = (𝑡, Depth))) do ϕ, r
+                #         phipeak(r, ϕ; n = 20)
+                #     end
+                # end
+                # begin
+                #     fax = heatmap(decompose(PAC[2])...; axis = (; yreversed = true))
+                #     f = fax.figure
+                #     selection = (𝑡(0.3u"s"..0.45u"s"), Depth(0.15..0.4))
+                #     tortinset!(f[1, 1], peaks[idx],
+                #                colormap = seethrough(structurecolors[struc], alphamin, 1),
+                #                halign = 0.3, valign = 0.6, color = structurecolors[struc])
+                # end
+                GC.gc()
+            end
+            return (@strdict S _Q PAC)
+        end
+        spatiotemporal_pac = Dict(string.(stimuli) .=> data)
+    end
+
+    begin # * Layerwise PAC
+        @info "Calculating layerwise PAC"
+        Q = Q[stimulus = At(stimulus)]
+        out = load_calculations(Q; stimulus, vars)
+        GC.gc()
+        begin
+            sessionids = getindex.(out[1], :sessionid)
+            trials = [getindex.(o, :trials) for o in out]
+            ϕs = [getindex.(o, :ϕ) for o in out]
+            rs = [getindex.(o, :r) for o in out]
+            out = []
+            GC.gc()
+            unidepths = range(0.05, 0.95, length = 19)
+            pacc = map(ϕs, rs) do ϕ, r
+                map(ϕ, r) do p, a
+                    pac(p, a; dims = (𝑡, :changetime))
+                end
+            end
+            GC.gc()
+            pacc = map(pacc) do pa
+                map(pa) do p
+                    p = p[Depth = Near(unidepths)]
+                    set(p, Depth => unidepths)
+                end
+            end
+            # pacc = stack.([SessionID(sessionids)], pacc; dims = 2)
+            pacc = [cat(p...; dims = SessionID(sessionids)) for p in pacc]
+            GC.gc()
+        end
+        begin # * Polar plot of coupling angle peaks (find peaks? what if there is more than 1? )
+            function phipeak(r, ϕ; n = 50)
+                ϕ = mod2pi.(ϕ .+ pi) .- pi
+                ϕ = ModulationIndices.tortbin(ϕ; n)
+                h = [mean(r[ϕ .== i]) for i in 1:n]
+                angles = range(start = -π + π / n, stop = π - π / n, length = n) |>
+                         collect
+                _, i = findmax(h)
+                phimax = angles[i]
+            end
+            function phipeaks(r, ϕ; kwargs...)
+                peaks = map(eachslice(r, dims = Depth),
+                            eachslice(ϕ, dims = Depth)) do a, b
+                    phipeak(a, b; kwargs...)
+                end
+                out = ϕ[1, :, 1] # Just a depth slice
+                out .= peaks
+                return out
+            end
+            peaks = progressmap(rs, ϕs) do r, ϕ
+                map(r, ϕ) do a, p
+                    phipeaks(a, p; n = 20)
+                end
+            end
+            peaks = map(peaks) do pa
+                map(pa) do p
+                    p = p[Depth = Near(unidepths)]
+                    set(p, Depth => unidepths)
+                end
+            end
+            peaks = stack.([SessionID(sessionids)], peaks; dims = 2)
+        end
+        layerwise_pac = @strdict pacc peaks
+    end
+
+    return (@strdict gamma_bursts layerints spatiotemporal_pac layerwise_pac)
+end
 
 begin # * Set up master plot
     mf = SixPanel()
     mgs = subdivide(mf, 3, 2)
+    α = 0.9
 end
 
 begin # * Burst masks and schematic
-    stimulus = r"Natural_Images"
-    vars = [:r]
-    α = 0.9
-
+    @unpack m, Δt, Δx, ints, schemr = plot_data["gamma_bursts"]
     begin # * Setup plot
         f = TwoPanel()
         gs = subdivide(f, 1, 2)
     end
 
-    begin # * Extract burst mask from each trial. Takes about 15 minutes on 32 cores
-        thr = 2.0
-        file = datadir("gamma_bursts.jld2")
-        layerints = load(datadir("plots", "grand_unified_layers.jld2"), "layerints")
-        if isfile(file)
-            m, Δt, Δx, ints, schemr = load(file, "m", "Δt", "Δx", "ints", "schemr")
-        else
-            path = datadir("calculations")
-            Q = calcquality(path)[Structure = At(structures)]
-            quality = mean(Q[stimulus = At(stimulus)])
-            out = load_calculations(Q; stimulus, vars)
-            out = map(out) do O # * Filter to posthoc sessions
-                filter(o -> (o[:sessionid] in oursessions), O)
-            end
-            idx = getindex.(out[1], :sessionid) .== SpatiotemporalMotifs.DEFAULT_SESSION_ID
-            schemr = only(out[6][idx])[:r][:, :, 26] # Select some trial, 26
-
-            uni = load_uni(; stimulus, vars)
-            @assert uni[1][:oursessions] == oursessions
-            ints = getindex.(uni, :layerints)
-            Bs = map(out) do O
-                mtx = map(O) do o
-                    r = o[:r] .* 1000 # V to mV
-                    r = HalfZScore(r, dims = [1, 3])(r) # Normalized over time and trials
-                    pks, proms = findpeaks(r; minprom = thr)
-                    m = maskpeaks(r; minprom = thr) .> 0
-
-                    if false && metadata(r)[:sessionid] == 1048189115
-                        ff = TwoPanel()
-                        ax = Axis(ff[1, 1]; title = "Gamma amplitude", xlabel = "Time (s)",
-                                  ylabel = "Depth (μm)")
-                        heatmap!(ax, r[:, :, 5] |> ustripall)
-                        ax = Axis(ff[1, 2]; title = "Burst mask", xlabel = "Time (s)",
-                                  ylabel = "Depth (μm)")
-                        heatmap!(ax, m[:, :, 5] |> ustripall)
-                        display(ff)
-                    end
-
-                    Δt = mapslices(m; dims = 1) do m
-                        @assert m isa AbstractVector
-                        @assert eltype(m) <: Bool
-                        length(m) < 1000 &&
-                            @warn "Input seems too short to be a time series..."
-                        m = Matrix(m') # label_components segfaults with vectors
-                        cs = label_components(m)
-                        c = component_lengths(cs) |> last
-                        c = c * samplingperiod(r)
-                    end
-
-                    # * Replace unified depths with probe depths
-                    origdepths = sort(metadata(r)[:depths] |> values |> collect)
-                    _m = set(m, Depth => origdepths)
-                    _m = rectify(_m, dims = Depth)
-                    # m = m[1:3:end, :, :] # Downsample for speed
-
-                    Δx = mapslices(m; dims = 2) do m
-                        @assert m isa AbstractVector
-                        @assert eltype(m) <: Bool
-                        length(m) > 30 && @warn "Input seems too long to be layer-wise..."
-                        m = Matrix(m') # label_components segfaults with vectors
-                        cs = label_components(m)
-                        c = component_lengths(cs) |> last
-                        c = c * step(lookup(_m, Depth)) .* u"μm"
-                    end
-                    return m, Δt, Δx
-                end
-                m, Δt, Δx = [getindex.(mtx, i) for i in eachindex(mtx[1])]
-                return m, Δt, Δx
-            end
-            m, Δt, Δx = [getindex.(Bs, i) for i in eachindex(Bs[1])]
-            tagsave(file, @strdict m Δt Δx ints schemr)
-        end
-    end
+    # begin
+    #     if isfile(file)
+    #         m, Δt, Δx, ints, schemr = load(file, "m", "Δt", "Δx", "ints", "schemr")
+    #     else
+    #         tagsave(file, @strdict m Δt Δx ints schemr)
+    #     end
+    # end
 
     begin # * Schematic diagram
         ax = Axis3(mgs[1]; perspectiveness = 0.25, viewmode = :stretch,
@@ -342,49 +493,8 @@ function phipeak(r, ϕ; n = 20)
 end
 
 begin # * Global and spatiotemporal PAC
-    vars = [:ϕ, :r]
-
-    path = datadir("calculations")
-    Q = calcquality(path)[Structure = At(structures)]
-    Q = Q[SessionID = At(oursessions)]
-    quality = mean(Q[stimulus = At(stimulus)])
-
-    stimuli = [r"Natural_Images", "spontaneous", "flash_250ms"]
-    pQ = calcquality(datadir("power_spectra"))
     for stimulus in stimuli # * Average comodulograms
-        _Q = pQ[stimulus = At(stimulus), Structure = At(structures)]
-        subsessions = intersect(oursessions, lookup(_Q, SessionID))
-        if length(subsessions) < length(oursessions)
-            @warn "Power spectra calculations are incomplete, proceeding regardless"
-        end
-        _Q = _Q[SessionID(At(subsessions))]
-        filebase = stimulus == "spontaneous" ? "" : "_$stimulus"
-        f = Figure(size = (900, 1080))
-
-        begin # * Load data
-            S = map(lookup(_Q, Structure)) do structure
-                out = map(lookup(_Q, SessionID)) do sessionid
-                    if _Q[SessionID = At(sessionid), Structure = At(structure)] == 0
-                        return nothing
-                    end
-                    filename = savepath((@strdict sessionid structure stimulus), "jld2",
-                                        datadir("power_spectra"))
-                    C = load(filename, "C")
-                    # S = load(filename, "sC")
-                    # return (C .- S) ./ median(S)
-                end
-                idxs = .!isnothing.(out)
-                out = out[idxs]
-
-                m = DimensionalData.metadata.(out)
-                out = map(out) do o
-                    dropdims(mean(o, dims = Chan), dims = Chan)
-                end
-                out = stack(SessionID(lookup(_Q, SessionID)[idxs]), out, dims = 3)
-                return out
-            end
-        end
-
+        @unpack S, _Q, PAC = plot_data["spatiotemporal_pac"][stimulus]
         begin # * Supplemental average comodulograms
             f = SixPanel()
             gs = subdivide(f, 3, 2)
@@ -418,40 +528,6 @@ begin # * Global and spatiotemporal PAC
         end
     end
 
-    uni = load_uni(; stimulus, vars)
-
-    unidepths = getindex.(uni, :unidepths)
-    layerints = getindex.(uni, :layerints)
-    layernames = getindex.(uni, :layernames)
-    layernums = getindex.(uni, :layernums)
-
-    begin # * Normalize amplitudes and generate a burst mask
-        r = [abs.(uni[i][:r]) for i in eachindex(uni)]
-
-        ϕ = [uni[i][:ϕ] for i in eachindex(uni)]
-        ϕ = [mod2pi.(x .+ pi) .- pi for x in ϕ]
-
-        uni = []
-        PAC = progressmap(ϕ, r) do ϕ, r
-            pac(ϕ, r; dims = Trial)
-        end
-        # ϕ_pref = map(ϕ, r) do ϕ, r
-        #     peaks = map(eachslice(ϕ; dims = (𝑡, Depth)),
-        #                 eachslice(r; dims = (𝑡, Depth))) do ϕ, r
-        #         phipeak(r, ϕ; n = 20)
-        #     end
-        # end
-        # begin
-        #     fax = heatmap(decompose(PAC[2])...; axis = (; yreversed = true))
-        #     f = fax.figure
-        #     selection = (𝑡(0.3u"s"..0.45u"s"), Depth(0.15..0.4))
-        #     tortinset!(f[1, 1], peaks[idx],
-        #                colormap = seethrough(structurecolors[struc], alphamin, 1),
-        #                halign = 0.3, valign = 0.6, color = structurecolors[struc])
-        # end
-        GC.gc()
-    end
-
     begin # * Supplemental figure: spatiotemporal PAC over all regions
         f = SixPanel()
         gs = subdivide(f, 3, 2)
@@ -479,82 +555,9 @@ begin # * Global and spatiotemporal PAC
         wsave(plotdir("nested_dynamics", "supplemental_spatiotemporal_pac.pdf"), f)
         f
     end
-
-    r = []
-    ϕ = []
 end
 
 begin # * Layer-wise PAC
-    begin
-        lfile = datadir("layerwise_pac.jld2")
-        Q = Q[stimulus = At(stimulus)]
-        if isfile(lfile)
-            pacc, peaks = load(lfile, "pacc", "peaks")
-        else
-            begin
-                out = load_calculations(Q; stimulus, vars)
-                GC.gc()
-            end
-            begin
-                sessionids = getindex.(out[1], :sessionid)
-                trials = [getindex.(o, :trials) for o in out]
-                ϕs = [getindex.(o, :ϕ) for o in out]
-                rs = [getindex.(o, :r) for o in out]
-                out = []
-                GC.gc()
-                unidepths = range(0.05, 0.95, length = 19)
-                pacc = map(ϕs, rs) do ϕ, r
-                    map(ϕ, r) do p, a
-                        pac(p, a; dims = (𝑡, :changetime))
-                    end
-                end
-                GC.gc()
-                pacc = map(pacc) do pa
-                    map(pa) do p
-                        p = p[Depth = Near(unidepths)]
-                        set(p, Depth => unidepths)
-                    end
-                end
-                # pacc = stack.([SessionID(sessionids)], pacc; dims = 2)
-                pacc = [cat(p...; dims = SessionID(sessionids)) for p in pacc]
-                GC.gc()
-            end
-            begin # * Polar plot of coupling angle peaks (find peaks? what if there is more than 1? )
-                function phipeak(r, ϕ; n = 50)
-                    ϕ = mod2pi.(ϕ .+ pi) .- pi
-                    ϕ = ModulationIndices.tortbin(ϕ; n)
-                    h = [mean(r[ϕ .== i]) for i in 1:n]
-                    angles = range(start = -π + π / n, stop = π - π / n, length = n) |>
-                             collect
-                    _, i = findmax(h)
-                    phimax = angles[i]
-                end
-                function phipeaks(r, ϕ; kwargs...)
-                    peaks = map(eachslice(r, dims = Depth),
-                                eachslice(ϕ, dims = Depth)) do a, b
-                        phipeak(a, b; kwargs...)
-                    end
-                    out = ϕ[1, :, 1] # Just a depth slice
-                    out .= peaks
-                    return out
-                end
-                peaks = progressmap(rs, ϕs) do r, ϕ
-                    map(r, ϕ) do a, p
-                        phipeaks(a, p; n = 20)
-                    end
-                end
-                peaks = map(peaks) do pa
-                    map(pa) do p
-                        p = p[Depth = Near(unidepths)]
-                        set(p, Depth => unidepths)
-                    end
-                end
-                peaks = stack.([SessionID(sessionids)], peaks; dims = 2)
-            end
-            tagsave(lfile, @strdict pacc peaks)
-        end
-    end
-
     begin # * Plot layer-wise PAC
         ax = Axis(mgs[4]; xlabel = "Cortical depth (%)", ylabel = "Median PAC",
                   xtickformat = depthticks, limits = ((0, 1), nothing),
@@ -577,8 +580,8 @@ begin # * Layer-wise PAC
         end
         l = axislegend(ax; merge = true, nbanks = 2, position = :lt, framevisible = true,
                        labelsize = 10)
-        layerints = load(datadir("plots", "grand_unified_layers.jld2"), "layerints")
-        plotlayerints!(ax, layerints; axis = :x, newticks = false, flipside = false)
+        grandlayerints = load(datadir("plots", "grand_unified_layers.jld2"), "layerints")
+        plotlayerints!(ax, grandlayerints; axis = :x, newticks = false, flipside = false)
         f
     end
 

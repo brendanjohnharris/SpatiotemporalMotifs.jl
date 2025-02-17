@@ -77,7 +77,7 @@ plot_data, data_file = produce_or_load(config, datadir("plots");
                     end
                 end
             end
-            flashes = @strdict Og layergroups
+            flashes = @strdict Og
         end
         begin # * Natural images
             stimulus = r"Natural_Images"
@@ -552,7 +552,7 @@ begin # * Order parameters
         end
     end
     begin # * Flashes
-        @unpack Og, layergroups = plot_data["order_parameters"]["flashes"]
+        @unpack Og = plot_data["order_parameters"]["flashes"]
         begin # * Plot the mean order parameter across time
             Ō = orderparameter(Og)
 
@@ -585,7 +585,7 @@ begin # * Order parameters
     end
     begin # * Task stimulus (natural images)
         @unpack Og, layergroups, D = plot_data["order_parameters"]["Natural_Images"]
-        @unpack bac_pre bac_post bac_sur bac_lfp_pre bac_lfp_post regcoef folds repeats, W, Wlfp=D
+        @unpack bac_pre, bac_post, bac_sur, bac_lfp_pre, bac_lfp_post, regcoef, folds, repeats, W, Wlfp = D
 
         Og_h = [[o[:, lookup(o, Trial) .== true] for o in O] for O in Og]
         Og_m = [[o[:, lookup(o, Trial) .== false] for o in O] for O in Og]
@@ -748,8 +748,8 @@ begin # * Order parameters
                 ws = upsample(ws, 5, 1)
                 ts = ustripall(lookup(ws, 𝑡))
                 μ = mean(ws, dims = SessionID) |> vec
-                σ = std(ws, dims = SessionID) ./ sqrt(size(ws, SessionID)) |> ustripall |>
-                    vec
+                σ = std(ws, dims = SessionID) ./ sqrt(size(ws, SessionID)) |> vec |>
+                    ustripall
                 band!(ax, ts, μ - σ, μ + σ; color = (structurecolormap[structure], 0.3),
                       label = structure)
                 lines!(ax, ts, μ; color = structurecolormap[structure], label = structure)
@@ -764,6 +764,7 @@ begin # * Order parameters
 
     begin # * Save
         addlabels!(fullfig, labelformat)
+        rowsize!(fullfig.layout, 1, Relative(0.25))
         wsave(plotdir("fig3.pdf"), fullfig)
     end
 end

@@ -11,53 +11,54 @@ using SpatiotemporalMotifs
 set_theme!(foresight(:physics))
 Random.seed!(42)
 
-stimulus = r"Natural_Images"
-vars = [:ϕ, :r]
+plot_data, data_file = produce_or_load(Dict(), datadir("plots");
+                                       filename = savepath,
+                                       prefix = "fig6") do _
+    stimulus = r"Natural_Images"
+    vars = [:ϕ, :r]
 
-session_table = load(datadir("posthoc_session_table.jld2"), "session_table")
-oursessions = session_table.ecephys_session_id
+    session_table = load(datadir("posthoc_session_table.jld2"), "session_table")
+    oursessions = session_table.ecephys_session_id
 
-path = datadir("calculations")
-Q = calcquality(path)[Structure = At(structures)][SessionID = At(oursessions)]
-out = load_calculations(Q; stimulus, vars)
-Qs = calcquality(datadir("power_spectra"))[Structure = At(structures)][SessionID = At(oursessions)]
-unitdepths = load_unitdepths(Qs)
+    path = datadir("calculations")
+    Q = calcquality(path)[Structure = At(structures)][SessionID = At(oursessions)]
+    out = load_calculations(Q; stimulus, vars)
+    Qs = calcquality(datadir("power_spectra"))[Structure = At(structures)][SessionID = At(oursessions)]
+    unitdepths = load_unitdepths(Qs)
 
-begin # * Format spikes to depth dataframe. These have already been rectified
-    spikes = map(out) do o
-        regionalspikes = map(o) do _o
-            DataFrame(collect.([keys(_o[:spiketimes]), values(_o[:spiketimes])]),
-                      [:ecephys_unit_id, :spiketimes])
+    begin # * Format spikes to depth dataframe. These have already been rectified
+        spikes = map(out) do o
+            regionalspikes = map(o) do _o
+                DataFrame(collect.([keys(_o[:spiketimes]), values(_o[:spiketimes])]),
+                          [:ecephys_unit_id, :spiketimes])
+            end
+            vcat(regionalspikes...)
         end
-        vcat(regionalspikes...)
+        D = vcat(spikes...)
+        spikes = innerjoin(D, unitdepths, on = :ecephys_unit_id)
+        filter!(:streamlinedepth => ∈(0 .. 1), spikes) # Cortex only
     end
-    D = vcat(spikes...)
-    spikes = innerjoin(D, unitdepths, on = :ecephys_unit_id)
-    filter!(:streamlinedepth => ∈(0 .. 1), spikes) # Cortex only
-end
 
-begin # * Calculate spike--phase and spike--amplitude coupling across layers. Takes about 30 minutes over 64 cores, 125 GB
-    if isfile(datadir("spike_lfp.jld2"))
-        pspikes = load(datadir("spike_lfp.jld2"), "pspikes") # Delete this file to recalculate
-    else
-        pspikes = deepcopy(spikes)
-    end
-    requiredcols = [:pairwise_phase_consistency, :trial_pairwise_phase_consistency,
-        :pairwise_phase_consistency_pvalue, :trial_pairwise_phase_consistency_pvalue,
-        :pairwise_phase_consistency_angle, :pairwise_phase_consistency_angle,
-        :spike_amplitude_coupling, :trial_spike_amplitude_coupling]
-    if !all(hasproperty.([pspikes], requiredcols))
-        for s in eachindex(structures)
-            ϕ = getindex.(out[s], :ϕ)
-            r = getindex.(out[s], :r)
-            spc!(pspikes, ustripall.(ϕ)) # * PPC spike--phase coupling
-            sac!(pspikes, ustripall.(r)) # * Mean normalized amplitude spike--amplitude coupling
+    begin # * Calculate spike--phase and spike--amplitude coupling across layers. Takes about 30 minutes over 64 cores, 125 GB
+        if isfile(datadir("spike_lfp.jld2"))
+            pspikes = load(datadir("spike_lfp.jld2"), "pspikes") # Delete this file to recalculate
+        else
+            pspikes = deepcopy(spikes)
         end
-        save(datadir("spike_lfp.jld2"), "pspikes", pspikes)
+        requiredcols = [:pairwise_phase_consistency, :trial_pairwise_phase_consistency,
+            :pairwise_phase_consistency_pvalue, :trial_pairwise_phase_consistency_pvalue,
+            :pairwise_phase_consistency_angle, :pairwise_phase_consistency_angle,
+            :spike_amplitude_coupling, :trial_spike_amplitude_coupling]
+        if !all(hasproperty.([pspikes], requiredcols))
+            for s in eachindex(structures)
+                ϕ = getindex.(out[s], :ϕ)
+                r = getindex.(out[s], :r)
+                spc!(pspikes, ustripall.(ϕ)) # * PPC spike--phase coupling
+                sac!(pspikes, ustripall.(r)) # * Mean normalized amplitude spike--amplitude coupling
+            end
+            save(datadir("spike_lfp.jld2"), "pspikes", pspikes)
+        end
     end
-end
-
-begin
     pspikes = subset(pspikes, :pairwise_phase_consistency => ByRow(!isnan))
     pspikes = subset(pspikes, :pairwise_phase_consistency => ByRow(>(0)))
     pspikes = subset(pspikes, :spike_amplitude_coupling => ByRow(!isnan))
@@ -66,7 +67,9 @@ begin
     unitdepths = subset(unitdepths, :spc => ByRow(!isnan))
     unitdepths = subset(unitdepths, :spc => ByRow(>(0)))
     unitdepths = subset(unitdepths, :sac => ByRow(!isnan))
+end
 
+begin
     begin # * Set up figure
         f = SixPanel()
         gs = subdivide(f, 3, 2)
