@@ -76,21 +76,8 @@ plot_data, data_file = produce_or_load(config, datadir("plots");
                         set(ret, Dim{:changetime} => Trial)
                     end
                 end
-                layergroups = [1:5]#, [1, 2], [3], [4, 5]] # Superficial, middle (L4), deep
-                Olfp = map(layergroups) do ls
-                    map(out) do o
-                        map(o) do p
-                            k = deepcopy(p[:x])
-                            idxs = parselayernum.(metadata(k)[:layernames]) .∈ [ls]
-                            k = k[:, parent(idxs), :]
-                            N = ZScore(k, dims = 1)
-                            normalize!(k, N)
-                            ret = dropdims(mean(k; dims = Depth), dims = Depth)
-                        end
-                    end
-                end
             end
-            flashes = @strdict Og Olfp layergroups
+            flashes = @strdict Og layergroups
         end
         begin # * Natural images
             stimulus = r"Natural_Images"
@@ -282,7 +269,7 @@ plot_data, data_file = produce_or_load(config, datadir("plots");
                 tagsave(datafile, D)
             end
 
-            Natural_Images = @strdict Og Og_h Og_m Olfp layergroups D
+            Natural_Images = @strdict Og layergroups D
         end
         order_parameters = @strdict flashes Natural_Images
         out = [] # Clear for memory
@@ -355,8 +342,7 @@ plot_data, data_file = produce_or_load(config, datadir("plots");
         end
         wavenumbers = @strdict Natural_Images flashes
     end
-
-    return (@strdict wavenumbers, order_parameters)
+    return (@strdict wavenumbers order_parameters)
 end
 
 # begin # * Current source density
@@ -566,7 +552,7 @@ begin # * Order parameters
         end
     end
     begin # * Flashes
-        @unpack Og, Olfp, layergroups = plot_data["order_parameters"]["flashes"]
+        @unpack Og, layergroups = plot_data["order_parameters"]["flashes"]
         begin # * Plot the mean order parameter across time
             Ō = orderparameter(Og)
 
@@ -596,40 +582,13 @@ begin # * Order parameters
                            merge = true)
             reverselegend!(l)
         end
-        begin # * Plot mean LFP
-            Ō = mean.(Olfp[1])
-            f = Figure()
-            ax = Axis(f[1, 1]; xlabel = "Time (s)",
-                      ylabel = rich("Mean order parameter ",
-                                    rich("R", subscript("θ"), font = "Times Italic")),
-                      title = "Order parameter during flashes",
-                      xautolimitmargin = (0, 0), xminorticksvisible = true,
-                      xminorticks = IntervalsBetween(5), yminorticksvisible = true,
-                      yminorticks = IntervalsBetween(5))
-            hlines!(ax, [0]; color = (:black, 0.5), linestyle = :dash, linewidth = 2)
-            vlines!(ax, [0, 0.25]; color = (:black, 0.5), linestyle = :dash, linewidth = 2)
-            for (i, O) in reverse(collect(enumerate(Ō)))
-                structure = metadata(O)[:structure]
-                O = O[𝑡(SpatiotemporalMotifs.INTERVAL)]
-                μ = dropdims(mean(O, dims = 2), dims = 2)
-                σ = dropdims(std(O, dims = 2), dims = 2)
-                σ = σ ./ 2
-                bargs = [times(μ), μ .- σ, μ .+ σ] .|> ustripall .|> collect
-                band!(ax, bargs..., color = (structurecolors[i], 0.3), label = structure)
-                lines!(ax, times(μ) |> ustripall, μ |> ustripall |> collect,
-                       color = (structurecolors[i], 0.7),
-                       label = structure)
-            end
-            l = axislegend(ax, position = :lt, nbanks = 2, framevisible = true,
-                           labelsize = 12,
-                           merge = true)
-            reverselegend!(l)
-            f
-        end
     end
     begin # * Task stimulus (natural images)
-        @unpack Og, Og_h, Og_m, Olfp, layergroups, D = plot_data["order_parameters"]["Natural_Images"]
+        @unpack Og, layergroups, D = plot_data["order_parameters"]["Natural_Images"]
         @unpack bac_pre bac_post bac_sur bac_lfp_pre bac_lfp_post regcoef folds repeats, W, Wlfp=D
+
+        Og_h = [[o[:, lookup(o, Trial) .== true] for o in O] for O in Og]
+        Og_m = [[o[:, lookup(o, Trial) .== false] for o in O] for O in Og]
 
         begin # * Plot the mean order parameter across time
             Ō = orderparameter(Og)
