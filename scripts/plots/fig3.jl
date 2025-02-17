@@ -768,6 +768,6 @@ begin # * Order parameters
     begin # * Save
         addlabels!(fullfig, labelformat)
         rowsize!(fullfig.layout, 1, Relative(0.25))
-        wsave(plotdir("fig3.pdf"), fullfig)
+        wsave(plotdir("fig3", "theta_order_parameter.pdf"), fullfig)
     end
 end

@@ -235,7 +235,8 @@ begin # ? Figure 1: C--G
     @info "Plotting single-trial schematic"
     ΔT = 𝑡(-0.25u"s" .. 0.75u"s")
     δT = 𝑡(0u"s" .. 0.25u"s")
-    for (structure, data) in plot_data
+    for structure in structures
+        data = plot_data[structure]
         begin
             @unpack V, x, y, ϕ, k, ω, v, θ, γ, r, layernames, datadepths, spikes, unitdepths = data
 

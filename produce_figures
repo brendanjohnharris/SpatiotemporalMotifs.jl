@@ -2,6 +2,8 @@
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 chmod -R u+x "$DIR/scripts/plots/"
 
+start=$(date +%s)
+
 echo "Producing Fig. 1"
 "$DIR/scripts/plots/fig1.jl"
 
@@ -19,3 +21,8 @@ echo "Producing Fig. 5"
 
 echo "Producing Fig. 6"
 "$DIR/scripts/plots/fig6.jl"
+
+end=$(date +%s)
+elapsed=$((end - start))
+minutes=$((elapsed / 60))
+echo "All figures combined took $minutes minutes."

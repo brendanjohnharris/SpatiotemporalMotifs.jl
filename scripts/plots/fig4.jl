@@ -295,7 +295,7 @@ begin # * Plots
     end
     begin # * Correlation to hierarchy score
         ax = Axis(gs[2][1, 1], yreversed = true, xlabel = "Time (s)",
-                  ylabel = "Cortical depth (%)", title = " ", yformat = depthticks,
+                  ylabel = "Cortical depth (%)", title = " ", ytickformat = depthticks,
                   xticks = -0.25:0.25:0.75)
         levelmap = cgrad(:binary, [0, 1 / 3, 2 / 3, 1]; categorical = true)
         plevels = [-2, -4, -6]
@@ -325,7 +325,7 @@ begin # * Plots
     end
     begin # * Correlation to functional hierarchy score
         ax = Axis(gs[4][1, 1], yreversed = true, xlabel = "Time (s)",
-                  ylabel = "Cortical depth (%)", title = " ", yformat = depthticks,
+                  ylabel = "Cortical depth (%)", title = " ", ytickformat = depthticks,
                   xticks = -0.25:0.25:0.75)
         # ∂̄ = dropdims(mean(∂h, dims = Trial), dims = Trial)
         H = deepcopy(𝑝_f)
