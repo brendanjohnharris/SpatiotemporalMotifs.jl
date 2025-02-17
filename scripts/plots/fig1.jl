@@ -15,8 +15,7 @@ begin # * Parameters
     sessionid = SpatiotemporalMotifs.DEFAULT_SESSION_ID
     trial = 14 #10# SpatiotemporalMotifs.DEFAULT_TRIAL_NUM
 
-    config = Dict{String, Any}()
-    @pack! config = stimulus, sessionid, trial
+    config = @strdict stimulus sessionid trial
 end
 
 plot_data, data_file = produce_or_load(copy(config), datadir("plots"); filename = savepath,
@@ -44,8 +43,7 @@ plot_data, data_file = produce_or_load(copy(config), datadir("plots"); filename 
             γ = deepcopy(y)
             r = file["r"] .|> Float32 # Don't select trial, because we need to normalize over time later on
 
-            out = Dict{String, Any}()
-            @pack! out = V, x, y, ϕ, k, ω, v, θ, γ, r, layernames, datadepths, spikes
+            out = @strdict V x y ϕ k ω v θ γ r layernames datadepths spikes
             return out
         end
         unitdepths = load_unitdepths(Q[SessionID = (lookup(Q, SessionID) .== sessionid),

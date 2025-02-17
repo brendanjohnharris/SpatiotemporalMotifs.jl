@@ -113,11 +113,10 @@ The script will take about 2 hours to run without pre-computed `fooof.jld` files
 
 #### Fig. 3: Translaminar theta propagation
 
-1. [`theta_wavenumbers.jl`](scripts/plots/theta_wavenumbers.jl): produces panels A--C of Fig.3, heatmaps of the median wavenumber in `VISl` during hit, miss, and flash trials.
-2. [`theta_order_parameter.jl`](scripts/plots/theta_order_parameter.jl): panels D--F of Fig. 3, order parameter time courses and LDA hit/miss classification.
+1. [`fig3.jl`](scripts/plots/fig3.jl): produces heatmaps of the median wavenumber in `VISl` during hit, miss, and flash trials, as well as order parameter time courses and LDA hit/miss classification.
 
 #### Fig. 4: Hierarchical theta propagation
-[`interareal_phasedelays.jl`](scripts/plots/interareal_phasedelays.jl) plots anatomical and functional networks as well as hierarchical order parameters.
+[`fig4.jl`](scripts/plots/fig4.jl) plots anatomical and functional networks as well as hierarchical order parameters.
 
 #### Fig. 5: Gamma packets and nested dynamics
 [`nested_dynamics.jl`](scripts/plots/nested_dynamics.jl) plots gamma burst width and theta--gamma phase-amplitude coupling

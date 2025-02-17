@@ -111,9 +111,7 @@ plot_data, data_file = produce_or_load(Dict(), datadir("plots");
             layerints = load(datadir("plots", "grand_unified_layers.jld2"), "layerints")
         end
 
-        plot_data = Dict{String, Any}()
-        @pack! plot_data = S, layernames, layernums, layerints, meanlayers, S̄, oursessions,
-                           Q
+        plot_data = @strdict S layernames layernums layerints meanlayers S̄ oursessions Q
         return plot_data
     end
 

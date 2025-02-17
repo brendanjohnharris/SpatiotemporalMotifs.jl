@@ -1,4 +1,7 @@
 #!/bin/bash
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 chmod -R u+x "$DIR/scripts/plots/"
-"$DIR/scripts/plots/fig1A.jl"
+
+"$DIR/scripts/plots/fig1.jl"
+"$DIR/scripts/plots/fig2.jl"
+"$DIR/scripts/plots/fig3.jl"

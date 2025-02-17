@@ -17,21 +17,34 @@ using Distributions
 set_theme!(foresight(:physics))
 Random.seed!(42)
 
-stimulus = r"Natural_Images"
-vars = [:ϕ, :ω]
-
-session_table = load(datadir("posthoc_session_table.jld2"), "session_table")
-oursessions = session_table.ecephys_session_id
-
-path = datadir("calculations")
-Q = calcquality(path)[Structure = At(structures)]
-out = load_calculations(Q; stimulus, vars)
-out = map(out) do O
-    filter(o -> (o[:sessionid] in oursessions), O)
+begin
+    stimulus = r"Natural_Images"
+    vars = [:ϕ, :ω]
 end
-datafile = datadir("interareal_phasedelays.jld2")
 
-if !isfile(datafile)
+if !isfile(datadir("plots", "fig4.jld2")) # * Use extra workers if we can
+    if haskey(ENV, "JULIA_DISTRIBUTED") && length(procs()) == 1
+        using USydClusters
+        USydClusters.Physics.addprocs(8; mem = 16, ncpus = 4,
+                                      project = projectdir())
+        @everywhere using SpatiotemporalMotifs
+        @everywhere SpatiotemporalMotifs.@preamble
+    end
+end
+
+plot_data, data_file = produce_or_load(Dict(), datadir("plots");
+                                       filename = savepath,
+                                       prefix = "fig4") do config
+    session_table = load(datadir("posthoc_session_table.jld2"), "session_table")
+    oursessions = session_table.ecephys_session_id
+
+    path = datadir("calculations")
+    Q = calcquality(path)[Structure = At(structures)]
+    out = load_calculations(Q; stimulus, vars)
+    out = map(out) do O
+        filter(o -> (o[:sessionid] in oursessions), O)
+    end
+
     begin # * Functional hierarchy scores
         # ? See https://github.com/AllenInstitute/neuropixels_platform_paper/blob/master/Figure2/comparison_anatomical_functional_connectivity_final.ipynb
         dir = tempdir()
@@ -63,15 +76,6 @@ if !isfile(datafile)
         ωs = getindex.(pxy, 2)
     end
 
-    begin # * Use extra workers if we can
-        if haskey(ENV, "JULIA_DISTRIBUTED") && length(procs()) == 1
-            using USydClusters
-            USydClusters.Physics.addprocs(8; mem = 16, ncpus = 4,
-                                          project = projectdir())
-            @everywhere using SpatiotemporalMotifs
-            @everywhere SpatiotemporalMotifs.@preamble
-        end
-    end
     uniphis = pmap(ϕs, ωs) do ϕ, ω # Takes about 5 mins over 32 cores, 180 Gb
         changetimes = lookup.(ϕ, :changetime)
         latency = [maximum(abs.(a .- b))
@@ -90,9 +94,10 @@ if !isfile(datafile)
         stack(Structure(structures), ϕ)
     end
     Δϕ = pmap(uniphis) do uniphi
-        Δ = [(a, b) for a in eachslice(uniphi, dims = 4), b in eachslice(uniphi, dims = 4)]
+        Δ = [(a, b)
+             for a in eachslice(uniphi, dims = 4), b in eachslice(uniphi, dims = 4)]
         Δ = Δ[filter(!=(0), triu(LinearIndices(Δ), 1))]
-        Δ = map(Δ) do (a, b) # ! Check interpretation of phase difference to propagation direction
+        Δ = map(Δ) do (a, b)
             mod.(b .- a .+ π, eltype(b)(2π)) .- π
         end
         Δ = stack(Dim{:pair}(eachindex(Δ)), Δ, dims = 4)
@@ -101,7 +106,8 @@ if !isfile(datafile)
     plate = getindex.(Δϕ, [:], [1], [:], [1])
 
     begin # * Hierarchical distances
-        @assert structures == [DimensionalData.metadata(phi)[:structure] for phi in ϕs[1]]
+        @assert structures ==
+                [DimensionalData.metadata(phi)[:structure] for phi in ϕs[1]]
         hs = getindex.([hierarchy_scores], structures) .|> Float32
         Δhs = [b - a for a in hs, b in hs] # Make a distance matrix
         Δhs = Δhs[filter(!=(0), triu(LinearIndices(Δhs), 1))]
@@ -160,7 +166,7 @@ if !isfile(datafile)
                  for a in eachslice(uniphi, dims = 4),
                      b in eachslice(uniphi, dims = 4)]
             Δ = Δ[filter(!=(0), triu(LinearIndices(Δ), 1))]
-            Δ = map(Δ) do (a, b) # ! Check interpretation of phase difference to propagation direction
+            Δ = map(Δ) do (a, b)
                 mod.(b .- a .+ π, eltype(b)(2π)) .- π
             end
             Δ = stack(Dim{:pair}(eachindex(Δ)), Δ, dims = 4)
@@ -221,15 +227,11 @@ if !isfile(datafile)
             end
         end
     end
-
-    begin
-        tagsave(datafile, @strdict unidepths FF_score ∂h̄ ∂f̄ ∂h̄_sur ∂f̄_sur 𝑝_h 𝑝_f)
-    end
-else
-    @unpack unidepths, FF_score, ∂h̄, ∂f̄, ∂h̄_sur, ∂f̄_sur, 𝑝_h, 𝑝_f = load(datafile)
+    return (@strdict unidepths FF_score ∂h̄ ∂f̄ ∂h̄_sur ∂f̄_sur 𝑝_h 𝑝_f)
 end
 
 begin # * Plots
+    @unpack unidepths, FF_score, ∂h̄, ∂f̄, ∂h̄_sur, ∂f̄_sur, 𝑝_h, 𝑝_f = plot_data
     f = FourPanel()
     gs = subdivide(f, 2, 2)
     layerints = load(datadir("plots", "grand_unified_layers.jld2"), "layerints")
@@ -350,6 +352,6 @@ begin # * Plots
     end
     colsize!(f.layout, 1, Relative(0.35))
     addlabels!(f)
-    wsave(plotdir("interareal_phasedelays", "interareal_phasedelays.pdf"), f)
+    wsave(plotdir("fig4", "interareal_phasedelays.pdf"), f)
     f
 end
