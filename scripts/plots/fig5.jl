@@ -20,19 +20,20 @@ set_theme!(foresight(:physics))
 thr = 2.0
 config = @strdict thr
 
+stimuli = [r"Natural_Images", "spontaneous", "flash_250ms"]
+
 plot_data, data_file = produce_or_load(config, datadir("plots");
                                        filename = savepath,
                                        prefix = "fig5") do config
+    stimulus = r"Natural_Images" # Stimulus for the final figure
     session_table = load(datadir("posthoc_session_table.jld2"), "session_table")
     oursessions = session_table.ecephys_session_id
     layerints = load(datadir("plots", "grand_unified_layers.jld2"), "layerints")
-    stimuli = [r"Natural_Images", "spontaneous", "flash_250ms"]
-    stimulus = r"Natural_Images" # Stimulus for the final figure
     @unpack thr = config
 
     begin # * Extract burst mask from each trial. Takes about 20 minutes on 128 cores
         @info "Calculating γ-bursts"
-        vars = [:r, :ϕ]
+        vars = [:r]
 
         path = datadir("calculations")
         Q = calcquality(path)[Structure = At(structures)]
@@ -90,7 +91,7 @@ plot_data, data_file = produce_or_load(config, datadir("plots");
         @info "Calculating burst densities"
         Ns = map(m) do vm
             structure = metadata(vm[1])[:structure]
-            ts = -0.25u"s" .. 0.75u"s"
+            ts = SpatiotemporalMotifs.INTERVAL
             unidepths = 0.05:0.1:0.95
 
             Nb = pmap(vm) do m
@@ -255,17 +256,20 @@ plot_data, data_file = produce_or_load(config, datadir("plots");
         end
         layerwise_pac = @strdict pacc peaks
     end
-    return (@strdict gamma_bursts layerints global_pac spatiotemporal_pac layerwise_pac)
+    return (@strdict oursessions gamma_bursts layerints global_pac spatiotemporal_pac layerwise_pac)
 end
 
 begin # * Set up master plot
     mf = SixPanel()
     mgs = subdivide(mf, 3, 2)
     α = 0.9
+    grandlayerints = load(datadir("plots", "grand_unified_layers.jld2"), "layerints")
+    oursessions = plot_data["oursessions"]
 end
 
 begin # * Burst masks and schematic
-    @unpack m, Δt, Δx, ints, schemr = plot_data["gamma_bursts"]
+    @info "Plotting γ burst schematic"
+    @unpack Ns, Δt, Δx, ints, schemr = plot_data["gamma_bursts"]
     begin # * Setup plot
         f = TwoPanel()
         gs = subdivide(f, 1, 2)
@@ -339,11 +343,13 @@ begin # * Burst masks and schematic
     end
 
     begin # * Heatmap of burst likelihood
+        @info "Plotting burst likelihoods"
         function pf!(g, i; compact = false, kwargs...)
             structure, N = Ns[i]
+            ts = SpatiotemporalMotifs.INTERVAL
             ax = Axis(g[1, 1]; title = "Burst likelihood ($structure)", xlabel = "Time (s)",
                       yreversed = true,
-                      limits = (extrema(ts |> ustripall), extrema(unidepths)))
+                      limits = (extrema(ts |> ustripall), (0.05, 0.95)))
 
             if compact
                 if i[1] < 3
@@ -358,8 +364,6 @@ begin # * Burst masks and schematic
             plotlayerints!(ax, ints[i])
             return p
         end
-        # pf!(gs[2], 1) # * Plot VISp for main text
-        # current_figure()
 
         sf = SixPanel()
         gsf = subdivide(sf, 3, 2)
@@ -381,6 +385,7 @@ begin # * Burst masks and schematic
         end
     end
     begin # * Plot durations
+        @info "Plotting burst durations"
         ax = Axis(gs[1]; title = "Burst duration", xlabel = "Cortical depth (%)",
                   xtickformat = depthticks,
                   ytickformat = x -> string.(round.(Int, x .* 1000)),
@@ -400,7 +405,7 @@ begin # * Burst masks and schematic
         l = axislegend(ax; merge = true, nbanks = 2, position = :rt, framevisible = true,
                        labelsize = 10)
         reverselegend!(l)
-        plotlayerints!(ax, layerints; newticks = false, flipside = false, axis = :x)
+        plotlayerints!(ax, grandlayerints; newticks = false, flipside = false, axis = :x)
         f
     end
     begin # * Distribution of burst widths
@@ -416,6 +421,7 @@ begin # * Burst masks and schematic
         end
     end
     begin # * Plot widths
+        @info "Plotting burst widths"
         ax = Axis(mgs[2]; title = "Burst width", xlabel = "Time (s)",
                   ylabel = "Width (μm)", limits = ((-0.25, 0.75), (nothing, nothing)))
         vlines!(ax, [0.0, 0.25]; color = (:black, 0.5), linestyle = :dash, linewidth = 3)
@@ -456,6 +462,7 @@ begin # * Burst masks and schematic
             write(file, "Width std (s) = $(std(vcat(parent.(xbins)...)))\n")
         end
         for T in [0u"s" .. 0.25u"s", 0.25u"s" .. 0.5u"s"]
+            @info "Saving burst statistics for $T"
             N = 1e6
             open(statsfile, "a+") do file
                 write(file, "\n# Burst widths $T\n")
@@ -468,8 +475,8 @@ begin # * Burst masks and schematic
                 _y = dropdims(mean(_y, dims = :bin); dims = :bin)
                 y = stack(Depth([0]), [_y])
 
-                write(file, "Mean width (μm) = $(mean(vcat(subxbins...)))\n")
-                write(file, "Width std (s) = $(std(vcat(subxbins...)))\n")
+                write(file, "Mean width (μm) = $(mean(vcat(parent.(subxbins)...)))\n")
+                write(file, "Width std (s) = $(std(vcat(parent.(subxbins)...)))\n")
 
                 # * Group level
                 μ, σ, 𝑝 = hierarchicalkendall(x, ustrip.(y), :group; N) .|> first
@@ -503,8 +510,9 @@ function phipeak(r, ϕ; n = 20)
 end
 
 begin # * Global and spatiotemporal PAC
+    @info "Plotting global comodulograms"
     for stimulus in stimuli # * Average comodulograms
-        @unpack S, _Q = plot_data["global_pac"][stimulus]
+        @unpack S, _Q = plot_data["global_pac"][string.(stimulus)]
         begin # * Supplemental average comodulograms
             f = SixPanel()
             gs = subdivide(f, 3, 2)
@@ -528,7 +536,6 @@ begin # * Global and spatiotemporal PAC
                       xlabel = "Phase frequency (Hz)",
                       ylabel = "Amplitude frequency (Hz)")
             s = S[lookup(_Q, Structure) .== structure] |> only
-            display(s)
             s = dropdims(mean(s, dims = SessionID); dims = SessionID)
             s = upsample(s, 5, 1)
             s = upsample(s, 5, 2)
@@ -539,7 +546,9 @@ begin # * Global and spatiotemporal PAC
     end
 
     begin # * Spatiotemporal PAC
-        @unpack PAC = plot_data["spatiotemporal_pac"][stimulus]
+        @info "Plotting spatiotemporal PAC"
+        @unpack layerints = plot_data
+        @unpack PAC = plot_data["spatiotemporal_pac"]
         f = SixPanel()
         gs = subdivide(f, 3, 2)
         for (g, l, P) in zip(gs, layerints, PAC)
@@ -569,6 +578,8 @@ begin # * Global and spatiotemporal PAC
 end
 
 begin # * Layer-wise PAC
+    @info "Plotting layerwise PAC"
+    @unpack pacc, peaks = plot_data["layerwise_pac"]
     begin # * Plot layer-wise PAC
         ax = Axis(mgs[4]; xlabel = "Cortical depth (%)", ylabel = "Median PAC",
                   xtickformat = depthticks, limits = ((0, 1), nothing),
@@ -591,7 +602,6 @@ begin # * Layer-wise PAC
         end
         l = axislegend(ax; merge = true, nbanks = 2, position = :lt, framevisible = true,
                        labelsize = 10)
-        grandlayerints = load(datadir("plots", "grand_unified_layers.jld2"), "layerints")
         plotlayerints!(ax, grandlayerints; axis = :x, newticks = false, flipside = false)
         f
     end
@@ -642,6 +652,7 @@ begin # * Layer-wise PAC
     end
 
     begin
+        @info "Plotting preferred θ--γ phase"
         ax = PolarAxis(mgs[5]; theta_as_x = false, thetalimits = (-0.1pi, 1.2pi),
                        rticks = 0:0.25:1, rtickformat = depthticks,
                        title = "Layerwise PAC angle")

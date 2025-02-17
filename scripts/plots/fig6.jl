@@ -64,6 +64,11 @@ plot_data, data_file = produce_or_load(Dict(), datadir("plots");
     pspikes = subset(pspikes, :pairwise_phase_consistency => ByRow(!isnan))
     pspikes = subset(pspikes, :pairwise_phase_consistency => ByRow(>(0)))
     pspikes = subset(pspikes, :spike_amplitude_coupling => ByRow(!isnan))
+    select!(pspikes, Not([:spiketimes])) # We don't need the heavy spiketimes for this plot
+    select!(pspikes, Not([:filtering]))
+    select!(pspikes, Not([:trial_pairwise_phase_consistency]))
+    select!(pspikes, Not([:trial_pairwise_phase_consistency_pvalue]))
+    select!(pspikes, Not([:trial_spike_amplitude_coupling]))
 
     unitdepths = subset(unitdepths, :stimulus => ByRow(==("spontaneous")))
     unitdepths = subset(unitdepths, :spc => ByRow(!isnan))
@@ -83,6 +88,7 @@ begin
     end
 
     begin # * Plot, for each structure, spontaneous SPC
+        @info "Plotting spontaneous spike--phase coupling"
         ax = Axis(gs[1], xlabel = "Cortical depth (%)", ylabel = "PPC",
                   title = "Spike-phase coupling (θ)",
                   limits = ((0.05, 0.95), (0, nothing)),
@@ -138,6 +144,7 @@ begin
     end
 
     begin # * Plot, for each structure, spontaneous SAC
+        @info "Plotting spontaneous spike--amplitude coupling"
         ax = Axis(gs[3], xlabel = "Cortical depth (%)", ylabel = "SAC",
                   title = "Spike-amplitude coupling (γ)",
                   limits = ((0.05, 0.95), (1.1, 1.5)),
@@ -193,6 +200,7 @@ begin
     end
 
     begin # * Plot, for each structure, SPC
+        @info "Plotting structure-wise spike--phase coupling"
         ax = Axis(gs[2], xlabel = "Cortical depth (%)", ylabel = "PPC",
                   title = "Spike-phase coupling (θ)",
                   limits = ((0.05, 0.95), (0, nothing)),
@@ -249,6 +257,7 @@ begin
         reverselegend!(l)
     end
     begin # * Plot, for each structure, SAC
+        @info "Plotting structure-wise spike--amplitude coupling"
         ax = Axis(gs[4], xlabel = "Cortical depth (%)", ylabel = "SAC",
                   title = "Spike-amplitude coupling (γ)",
                   limits = ((0.05, 0.95), (1.1, 1.5)),
@@ -301,6 +310,7 @@ begin
 end
 
 begin # * Preferred phases for spontaneous
+    @info "Plotting preferred spike phases for spontaneous"
     ax = PolarAxis(gs[5]; theta_as_x = false, thetalimits = (0, 1.2pi),
                    rticks = 0:0.25:1, rtickformat = depthticks,
                    title = "Layerwise PPC angle")
@@ -365,6 +375,7 @@ begin # * Preferred phases for spontaneous
 end
 
 begin # * Preferred phases
+    @info "Plotting preferred spike phases"
     ax = PolarAxis(gs[6]; theta_as_x = false, thetalimits = (0, 1.2pi),
                    rticks = 0:0.25:1, rtickformat = depthticks,
                    title = "Layerwise PPC angle")
@@ -426,52 +437,6 @@ begin # * Preferred phases
                colormap = c,
                linewidth = 7)
     end
-end
-
-if false
-    ax = Axis(gs[4], xlabel = "Cortical depth (%)", ylabel = "Mean firing rate",
-              title = "Firing rate",
-              limits = ((0.05, 0.95), (0, nothing)),
-              xtickformat = depthticks)
-    for structure in reverse(structures)
-        idxs = pspikes.structure_acronym .== structure
-        allsesh_pspikes = @views pspikes[idxs, :]
-        mss = map(unique(allsesh_pspikes.ecephys_session_id)) do sesh
-            _pspikes = @views allsesh_pspikes[allsesh_pspikes.ecephys_session_id .== sesh,
-                                              :]
-            # ys = _pspikes.firing_rate .|> Float32
-            ys = map(_pspikes.spiketimes) do s
-                N = length(s) / (maximum(s) - minimum(s)) # Mean firing rate
-            end .|> Float32
-            xs = _pspikes.streamlinedepth .|> Float32
-            # hexbin(xs, ys)
-            B = HistBins(xs; bins)
-            _ms = rectify(B(ys), dims = :bin) .|> mean
-        end
-        X = cat(mss...; dims = 2)
-        _ms, (_σl, _σh) = bootstrapmedian(X; dims = 2)
-        idxs = .!isnan.(_ms) .& .!isnan.(_σl) .& .!isnan.(_σh)
-        _ms = _ms[idxs]
-        _σl = _σl[idxs]
-        _σh = _σh[idxs]
-
-        _ls = lookup(_ms, 1)
-        ms = upsample(_ms, 10)
-        σl = upsample(_σl, 10)
-        σh = upsample(_σh, 10)
-        ls = lookup(ms, 1)
-        band!(ax, ls, collect(σl), collect(σh);
-              color = (structurecolormap[structure], 0.3), label = structure)
-        lines!(ax, ls, collect(ms), color = (structurecolormap[structure], 0.7),
-               label = structure)
-        scatter!(ax, _ls, collect(_ms); color = structurecolormap[structure],
-                 label = structure)
-    end
-    l = axislegend(ax, merge = true, nbanks = 2, position = :lt)
-    reverselegend!(l)
-
-    plotlayerints!(ax, layerints; axis = :x, flipside = false, newticks = false,
-                   bgcolor = Makie.RGBA(0, 0, 0, 0))
 end
 
 begin

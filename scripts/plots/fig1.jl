@@ -57,6 +57,7 @@ plot_data, data_file = produce_or_load(copy(config), datadir("plots"); filename 
 end
 
 begin # ? Figure 1A
+    @info "Plotting wave schematic"
     structure = "VISl"
     ΔT = (-0.02u"s" .. 0.5u"s") |> 𝑡
     ΔD = Depth(0.15 .. 0.8)
@@ -231,6 +232,7 @@ begin # ? Figure 1A
 end
 
 begin # ? Figure 1: C--G
+    @info "Plotting single-trial schematic"
     ΔT = 𝑡(-0.25u"s" .. 0.75u"s")
     δT = 𝑡(0u"s" .. 0.25u"s")
     for (structure, data) in plot_data

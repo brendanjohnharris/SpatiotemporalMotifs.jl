@@ -367,6 +367,7 @@ begin # * Set up main figure
 end
 
 begin # * Wavenumbers
+    @info "Plotting wavenumbers"
     begin # * Supplemental material: average wavenumbers in each region
         f = Figure(size = (1440, 720) .* 1.25)
         fgs = subdivide(f, 3, 2)
@@ -461,6 +462,7 @@ begin # * Wavenumbers
 end
 
 begin # * Supplemental material: csd in each region
+    @info "Plotting CSDs"
     f = Figure(size = (1440, 720) .* 1.25)
     fgs = subdivide(f, 3, 2)
 
@@ -543,6 +545,7 @@ begin # * Supplemental material: csd in each region
 end
 
 begin # * Order parameters
+    @info "Plotting order parameters"
     function orderparameter(Og)
         map(Og) do O
             o = dropdims.(nansafe(mean; dims = Trial).(O), dims = Trial)

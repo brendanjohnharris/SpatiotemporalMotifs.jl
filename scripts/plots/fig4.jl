@@ -231,6 +231,7 @@ plot_data, data_file = produce_or_load(Dict(), datadir("plots");
 end
 
 begin # * Plots
+    @info "Plotting inter-areal phase delays"
     @unpack unidepths, FF_score, ∂h̄, ∂f̄, ∂h̄_sur, ∂f̄_sur, 𝑝_h, 𝑝_f = plot_data
     f = FourPanel()
     gs = subdivide(f, 2, 2)

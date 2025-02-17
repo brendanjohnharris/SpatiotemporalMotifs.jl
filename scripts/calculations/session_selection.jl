@@ -112,5 +112,7 @@ oursessions = subset(session_metrics,
 
 tagsave(datadir("session_table.jld2"), Dict("session_table" => oursessions))
 write(datadir("session_table.json"), JSON.json(oursessions))
+mkpath(datadir("plots"))
+write(datadir("plots", "session_table.json"), JSON.json(oursessions))
 
 # Read the dataframe as read("$(@__DIR__)/../session_table.json", String) |> JSON.parse |> DataFrame

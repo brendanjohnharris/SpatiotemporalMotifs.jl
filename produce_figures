@@ -2,9 +2,20 @@
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 chmod -R u+x "$DIR/scripts/plots/"
 
+echo "Producing Fig. 1"
 "$DIR/scripts/plots/fig1.jl"
+
+echo "Producing Fig. 2"
 "$DIR/scripts/plots/fig2.jl"
+
+echo "Producing Fig. 3"
 "$DIR/scripts/plots/fig3.jl"
+
+echo "Producing Fig. 4"
 "$DIR/scripts/plots/fig4.jl"
+
+echo "Producing Fig. 5"
 "$DIR/scripts/plots/fig5.jl"
+
+echo "Producing Fig. 6"
 "$DIR/scripts/plots/fig6.jl"

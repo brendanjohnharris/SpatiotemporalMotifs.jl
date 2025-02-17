@@ -94,7 +94,7 @@ There are some session quality metrics---the layer assignment consistency, and s
 
 #### [Storing unified layer annotations](scripts/calculations/grand_unified_layers.jl)
 
-At times it will be useful to have precomputed unified layer annotations for all sessions and structures; this script produces these annotations and saves them in `data/plots/grand_unified_layers.jld2`.
+At times it will be useful to have precomputed unified layer annotations for all sessions and structures; this script produces these annotations and saves them in both `data/grand_unified_layers.jld2` and  `data/plots/grand_unified_layers.jld2`.
 
 ### 2. Final analyses
 The following scripts take the calculated data from [step 1](#1.-performing-calculations), perform statistical analyses, save to a reduced plot dataset (`data/plots/`), then generate generate figures (saved to `plots/`).

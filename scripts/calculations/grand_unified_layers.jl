@@ -34,4 +34,5 @@ begin # * Grand  unified layers
     end
 end
 
+tagsave(datadir("grand_unified_layers.jld2"), (@strdict layerints))
 tagsave(datadir("plots", "grand_unified_layers.jld2"), (@strdict layerints))
