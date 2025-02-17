@@ -32,7 +32,7 @@ plot_data, data_file = produce_or_load(config, datadir("plots");
 
     begin # * Extract burst mask from each trial. Takes about 20 minutes on 128 cores
         @info "Calculating γ-bursts"
-        vars = [:r]
+        vars = [:r, :ϕ]
 
         path = datadir("calculations")
         Q = calcquality(path)[Structure = At(structures)]
@@ -48,7 +48,6 @@ plot_data, data_file = produce_or_load(config, datadir("plots");
         @assert uni[1][:oursessions] == oursessions
         ints = getindex.(uni, :layerints)
         Bs = map(out) do O
-            @info "here"
             mtx = pmap(O) do o
                 r = o[:r] .* 1000 # V to mV
                 r = HalfZScore(r, dims = [1, 3])(r) # Normalized over time and trials
@@ -87,7 +86,26 @@ plot_data, data_file = produce_or_load(config, datadir("plots");
             return m, Δt, Δx
         end
         m, Δt, Δx = [getindex.(Bs, i) for i in eachindex(Bs[1])]
-        gamma_bursts = @strdict m Δt Δx ints schemr
+
+        @info "Calculating burst densities"
+        Ns = map(m) do vm
+            structure = metadata(vm[1])[:structure]
+            ts = -0.25u"s" .. 0.75u"s"
+            unidepths = 0.05:0.1:0.95
+
+            Nb = pmap(vm) do m
+                m = dropdims(mean(m .> 0, dims = 3), dims = 3) # * Probability of bursting, over trials
+                m = m[𝑡(ts), Depth(Near(unidepths))]
+                m = set(m, Depth => unidepths)
+            end
+            structure => mean(Nb)
+        end
+
+        gamma_bursts = @strdict Ns Δt Δx ints schemr
+        m = []
+        Δt = []
+        Δx = []
+        uni = []
         Bs = []
         GC.gc()
     end
@@ -111,72 +129,74 @@ plot_data, data_file = produce_or_load(config, datadir("plots");
             _Q = _Q[SessionID(At(subsessions))]
             filebase = stimulus == "spontaneous" ? "" : "_$stimulus"
 
-            begin # * Load data
-                S = map(lookup(_Q, Structure)) do structure
-                    out = map(lookup(_Q, SessionID)) do sessionid
-                        if _Q[SessionID = At(sessionid), Structure = At(structure)] == 0
-                            return nothing
-                        end
-                        filename = savepath((@strdict sessionid structure stimulus), "jld2",
-                                            datadir("power_spectra"))
-                        C = load(filename, "C")
-                        # S = load(filename, "sC")
-                        # return (C .- S) ./ median(S)
+            S = map(lookup(_Q, Structure)) do structure # * Load data
+                out = map(lookup(_Q, SessionID)) do sessionid
+                    if _Q[SessionID = At(sessionid), Structure = At(structure)] == 0
+                        return nothing
                     end
-                    idxs = .!isnothing.(out)
-                    out = out[idxs]
-
-                    m = DimensionalData.metadata.(out)
-                    out = map(out) do o
-                        dropdims(mean(o, dims = Chan), dims = Chan)
-                    end
-                    out = stack(SessionID(lookup(_Q, SessionID)[idxs]), out, dims = 3)
-                    return out
+                    filename = savepath((@strdict sessionid structure stimulus), "jld2",
+                                        datadir("power_spectra"))
+                    C = load(filename, "C")
+                    # S = load(filename, "sC")
+                    # return (C .- S) ./ median(S)
                 end
-            end
-            uni = load_uni(; stimulus, vars)
+                idxs = .!isnothing.(out)
+                out = out[idxs]
 
-            unidepths = getindex.(uni, :unidepths)
-            layerints = getindex.(uni, :layerints)
-            layernames = getindex.(uni, :layernames)
-            layernums = getindex.(uni, :layernums)
-
-            begin # * Normalize amplitudes and generate a burst mask
-                r = [abs.(uni[i][:r]) for i in eachindex(uni)]
-
-                ϕ = [uni[i][:ϕ] for i in eachindex(uni)]
-                ϕ = [mod2pi.(x .+ pi) .- pi for x in ϕ]
-
-                uni = []
-                PAC = progressmap(ϕ, r) do ϕ, r
-                    pac(ϕ, r; dims = Trial)
+                m = DimensionalData.metadata.(out)
+                out = map(out) do o
+                    dropdims(mean(o, dims = Chan), dims = Chan)
                 end
-                # ϕ_pref = map(ϕ, r) do ϕ, r
-                #     peaks = map(eachslice(ϕ; dims = (𝑡, Depth)),
-                #                 eachslice(r; dims = (𝑡, Depth))) do ϕ, r
-                #         phipeak(r, ϕ; n = 20)
-                #     end
-                # end
-                # begin
-                #     fax = heatmap(decompose(PAC[2])...; axis = (; yreversed = true))
-                #     f = fax.figure
-                #     selection = (𝑡(0.3u"s"..0.45u"s"), Depth(0.15..0.4))
-                #     tortinset!(f[1, 1], peaks[idx],
-                #                colormap = seethrough(structurecolors[struc], alphamin, 1),
-                #                halign = 0.3, valign = 0.6, color = structurecolors[struc])
-                # end
-                GC.gc()
+                out = stack(SessionID(lookup(_Q, SessionID)[idxs]), out, dims = 3)
+                return out
             end
-            return (@strdict S _Q PAC)
+            return (@strdict S _Q)
         end
-        spatiotemporal_pac = Dict(string.(stimuli) .=> data)
+        global_pac = Dict(string.(stimuli) .=> data)
+
+        uni = load_uni(; stimulus, vars)
+
+        unidepths = getindex.(uni, :unidepths)
+        layerints = getindex.(uni, :layerints)
+        layernames = getindex.(uni, :layernames)
+        layernums = getindex.(uni, :layernums)
+
+        begin # * Normalize amplitudes and generate a burst mask
+            r = [abs.(uni[i][:r]) for i in eachindex(uni)]
+
+            ϕ = [uni[i][:ϕ] for i in eachindex(uni)]
+            ϕ = [mod2pi.(x .+ pi) .- pi for x in ϕ]
+
+            uni = []
+            PAC = progressmap(ϕ, r) do ϕ, r
+                pac(ϕ, r; dims = Trial)
+            end
+            # ϕ_pref = map(ϕ, r) do ϕ, r
+            #     peaks = map(eachslice(ϕ; dims = (𝑡, Depth)),
+            #                 eachslice(r; dims = (𝑡, Depth))) do ϕ, r
+            #         phipeak(r, ϕ; n = 20)
+            #     end
+            # end
+            # begin
+            #     fax = heatmap(decompose(PAC[2])...; axis = (; yreversed = true))
+            #     f = fax.figure
+            #     selection = (𝑡(0.3u"s"..0.45u"s"), Depth(0.15..0.4))
+            #     tortinset!(f[1, 1], peaks[idx],
+            #                colormap = seethrough(structurecolors[struc], alphamin, 1),
+            #                halign = 0.3, valign = 0.6, color = structurecolors[struc])
+            # end
+            r = ϕ = []
+            GC.gc()
+        end
+        spatiotemporal_pac = @strdict PAC
     end
 
     begin # * Layerwise PAC
         @info "Calculating layerwise PAC"
+        out = []
+        GC.gc()
         Q = Q[stimulus = At(stimulus)]
         out = load_calculations(Q; stimulus, vars)
-        GC.gc()
         begin
             sessionids = getindex.(out[1], :sessionid)
             trials = [getindex.(o, :trials) for o in out]
@@ -235,8 +255,7 @@ plot_data, data_file = produce_or_load(config, datadir("plots");
         end
         layerwise_pac = @strdict pacc peaks
     end
-
-    return (@strdict gamma_bursts layerints spatiotemporal_pac layerwise_pac)
+    return (@strdict gamma_bursts layerints global_pac spatiotemporal_pac layerwise_pac)
 end
 
 begin # * Set up master plot
@@ -321,10 +340,7 @@ begin # * Burst masks and schematic
 
     begin # * Heatmap of burst likelihood
         function pf!(g, i; compact = false, kwargs...)
-            vm = m[i] # * VISp
-            structure = metadata(vm[1])[:structure]
-            ts = -0.25u"s" .. 0.75u"s"
-            unidepths = 0.05:0.1:0.95
+            structure, N = Ns[i]
             ax = Axis(g[1, 1]; title = "Burst likelihood ($structure)", xlabel = "Time (s)",
                       yreversed = true,
                       limits = (extrema(ts |> ustripall), extrema(unidepths)))
@@ -334,12 +350,6 @@ begin # * Burst masks and schematic
                     hidexdecorations!(ax)
                 end
             end
-            Nb = map(vm) do m
-                m = dropdims(mean(m .> 0, dims = 3), dims = 3) # * Probability of bursting, over trials
-                m = m[𝑡(ts), Depth(Near(unidepths))]
-                m = set(m, Depth => unidepths)
-            end
-            N = mean(Nb)
             p, ps = plotlayermap!(ax, N; colorrange = (0, 0.35), rasterize = 5)
 
             if !compact || i in [2, 4, 6]
@@ -355,7 +365,7 @@ begin # * Burst masks and schematic
         gsf = subdivide(sf, 3, 2)
         pf!.(gsf[:], eachindex(gsf); compact = true)
         addlabels!(sf, labelformat)
-        wsave(plotdir("nested_dynamics", "supplemental_burst_likelihood.pdf"), sf)
+        wsave(plotdir("fig5", "supplemental_burst_likelihood.pdf"), sf)
     end
 
     begin # * Distribution of burst durations
@@ -429,11 +439,11 @@ begin # * Burst masks and schematic
 
     begin # * Final adjustments
         addlabels!(f, labelformat)
-        wsave(plotdir("nested_dynamics", "supplemental_durations.pdf"), f)
-    end # !! Also compare to surrogate durations?
+        wsave(plotdir("fig5", "supplemental_durations.pdf"), f)
+    end
 
     begin # * Write out stats
-        statsfile = plotdir("nested_dynamics", "nested_dynamics.txt")
+        statsfile = plotdir("fig5", "nested_dynamics.txt")
         close(open(statsfile, "w")) # Create the file or clear it
         open(statsfile, "a+") do file
             write(file, "\n# Burst durations\n")
@@ -494,7 +504,7 @@ end
 
 begin # * Global and spatiotemporal PAC
     for stimulus in stimuli # * Average comodulograms
-        @unpack S, _Q, PAC = plot_data["spatiotemporal_pac"][stimulus]
+        @unpack S, _Q = plot_data["global_pac"][stimulus]
         begin # * Supplemental average comodulograms
             f = SixPanel()
             gs = subdivide(f, 3, 2)
@@ -509,7 +519,7 @@ begin # * Global and spatiotemporal PAC
             end
             addlabels!(f, labelformat)
             display(f)
-            wsave(plotdir("nested_dynamics", "comodulograms_$stimulus.pdf"), f)
+            wsave(plotdir("fig5", "comodulograms_$stimulus.pdf"), f)
         end
 
         if stimulus == "spontaneous" # * Plot into main figure
@@ -528,7 +538,8 @@ begin # * Global and spatiotemporal PAC
         end
     end
 
-    begin # * Supplemental figure: spatiotemporal PAC over all regions
+    begin # * Spatiotemporal PAC
+        @unpack PAC = plot_data["spatiotemporal_pac"][stimulus]
         f = SixPanel()
         gs = subdivide(f, 3, 2)
         for (g, l, P) in zip(gs, layerints, PAC)
@@ -552,7 +563,7 @@ begin # * Global and spatiotemporal PAC
             end
         end
         addlabels!(f, labelformat)
-        wsave(plotdir("nested_dynamics", "supplemental_spatiotemporal_pac.pdf"), f)
+        wsave(plotdir("fig5", "supplemental_spatiotemporal_pac.pdf"), f)
         f
     end
 end
@@ -665,5 +676,5 @@ end
 
 begin
     addlabels!(mf, labelformat)
-    wsave(plotdir("nested_dynamics", "nested_dynamics.pdf"), mf)
+    wsave(plotdir("fig5", "nested_dynamics.pdf"), mf)
 end

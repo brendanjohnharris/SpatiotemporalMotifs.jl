@@ -40,6 +40,8 @@ plot_data, data_file = produce_or_load(Dict(), datadir("plots");
     end
 
     begin # * Calculate spike--phase and spike--amplitude coupling across layers. Takes about 30 minutes over 64 cores, 125 GB
+        # The idea here is that we have this larger spike_lfp file, and subset it to the
+        # relevant data for this plot
         if isfile(datadir("spike_lfp.jld2"))
             pspikes = load(datadir("spike_lfp.jld2"), "pspikes") # Delete this file to recalculate
         else
@@ -67,9 +69,12 @@ plot_data, data_file = produce_or_load(Dict(), datadir("plots");
     unitdepths = subset(unitdepths, :spc => ByRow(!isnan))
     unitdepths = subset(unitdepths, :spc => ByRow(>(0)))
     unitdepths = subset(unitdepths, :sac => ByRow(!isnan))
+
+    return (@strdict pspikes unitdepths)
 end
 
 begin
+    @unpack pspikes, unitdepths = plot_data
     begin # * Set up figure
         f = SixPanel()
         gs = subdivide(f, 3, 2)
@@ -472,6 +477,6 @@ end
 begin
     addlabels!(f, labelformat)
     linkyaxes!(gs[1] |> contents |> first, gs[2] |> contents |> first)
-    wsave(plotdir("spike_lfp", "spike_lfp.pdf"), f)
+    wsave(plotdir("fig6", "spike_lfp.pdf"), f)
     f
 end

@@ -119,10 +119,10 @@ The script will take about 2 hours to run without pre-computed `fooof.jld` files
 [`fig4.jl`](scripts/plots/fig4.jl) plots anatomical and functional networks as well as hierarchical order parameters.
 
 #### Fig. 5: Gamma packets and nested dynamics
-[`nested_dynamics.jl`](scripts/plots/nested_dynamics.jl) plots gamma burst width and theta--gamma phase-amplitude coupling
+[`fig5.jl`](scripts/plots/fig5.jl) plots gamma burst width and theta--gamma phase-amplitude coupling
 
 #### Fig. 6: Spike-LFP coupling
-[`spike_lfp.jl`](scripts/plots/spike_lfp.jl) plots spike--phase coupling for theta, spike--amplitude coupling for gamma, and preferred spike--theta phase during both spontaneous and task periods.
+[`fig6.jl`](scripts/plots/fig6.jl) plots spike--phase coupling for theta, spike--amplitude coupling for gamma, and preferred spike--theta phase during both spontaneous and task periods.
 
 ### 3. Replotting all results
 
