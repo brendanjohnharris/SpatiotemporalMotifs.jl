@@ -1,6 +1,6 @@
 # SpatiotemporalMotifs.jl
 
-Julia code for reproducing the study "_Cross-scale spatiotemporal dynamics organize hierarchical processing in the mouse visual cortex_".
+Julia code for reproducing the results of "_Nested spatiotemporal theta-gamma waves organize hierarchical visual processing_".
 
 ## Guide
 

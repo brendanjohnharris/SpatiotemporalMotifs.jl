@@ -24,6 +24,7 @@ theta = Interval(SpatiotemporalMotifs.THETA...)
 gamma = Interval(SpatiotemporalMotifs.GAMMA...)
 alpha = 0.8
 bandalpha = 0.2
+mkpath(plotdir("fig2"))
 
 plot_data, data_file = produce_or_load(Dict(), datadir("plots");
                                        filename = savepath,

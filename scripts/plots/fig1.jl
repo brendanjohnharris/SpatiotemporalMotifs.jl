@@ -200,6 +200,7 @@ begin # ? Figure 1A
             end
 
             ax.yreversed = true
+            hidespines!(ax)
             f
         end
     end

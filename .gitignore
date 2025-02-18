@@ -13,7 +13,7 @@
 Artifacts.toml
 LocalPreferences.toml
 data
-docs/build/
+docsb/build/
 docs/site/
 /plots
 cache/
