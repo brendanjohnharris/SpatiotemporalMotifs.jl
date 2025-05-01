@@ -1,4 +1,5 @@
 # SpatiotemporalMotifs.jl
+[![Zenodo](https://zenodo.org/badge/DOI/10.5281/zenodo.14550386.svg)](https://doi.org/10.5281/zenodo.14550386)
 
 Julia code for reproducing the results of "_Nested spatiotemporal theta-gamma waves organize hierarchical visual processing_".
 
