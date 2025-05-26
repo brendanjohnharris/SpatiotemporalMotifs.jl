@@ -440,7 +440,7 @@ function ppc(x::AbstractVector{T})::T where {T} # Eq. 14 of Vinck 2010
     return (2 / (N * (N - 1))) * sum(Δ)
 end
 function ppc(ϕ::UnivariateTimeSeries{T}, spikes::AbstractVector)::NTuple{3, T} where {T}
-    spikes = spikes[spikes .∈ [Interval(ϕ)]]
+    spikes = spikes[spikes .∈ [Interval(ϕ)]] # * Important: we only want spikes that are within the time range of the ϕ
     isempty(spikes) && return (NaN, NaN, NaN)
     phis = ϕ[𝑡(Near(spikes))] |> parent
     idxs = .!isnan.(phis)
@@ -678,6 +678,9 @@ function bootstrapaverage(average, x::AbstractVector{T}; confint = 0.95,
 end
 
 function bootstrapaverage(average, X::AbstractArray; dims = 1, kwargs...)
+    if length(dims) > 1
+        error("Only one dimension can be specified")
+    end
     ds = [i == dims ? 1 : Colon() for i in 1:ndims(X)]
     μ = similar(X[ds...])
     σl = similar(μ)
@@ -689,6 +692,9 @@ function bootstrapaverage(average, X::AbstractArray; dims = 1, kwargs...)
     return μ, (σl, σh)
 end
 function bootstrapaverage(average, X::AbstractToolsArray; dims = 1, kwargs...)
+    if length(dims) > 1
+        error("Only one dimension can be specified")
+    end
     dims = dimnum(X, dims)
     ds = [i == dims ? 1 : Colon() for i in 1:ndims(X)]
     μ = similar(X[ds...])

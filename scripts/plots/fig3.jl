@@ -1,6 +1,6 @@
 #! /bin/bash
 #=
-exec julia -t auto "${BASH_SOURCE[0]}" "$@"
+exec julia +1.10.9 -t auto "${BASH_SOURCE[0]}" "$@"
 =#
 # ? Expected execution time: 30 mins
 using DrWatson

@@ -1,6 +1,6 @@
 #! /bin/bash
 #=
-exec julia -t auto "${BASH_SOURCE[0]}" "$@"
+exec julia +1.10.9 -t auto "${BASH_SOURCE[0]}" "$@"
 =#
 using DrWatson
 @quickactivate "SpatiotemporalMotifs"
@@ -158,7 +158,7 @@ plot_data, data_file = produce_or_load(Dict(), datadir("plots");
         ∂f̄ = dropdims(mean(nansafe(mean, dims = :changetime).(∂f)); dims = :changetime)
     end
 
-    begin
+    begin # * Probe-shuffled nulls
         Δϕ_sur = map(uniphis) do uniphi
             idxs = randperm(size(uniphi, 4)) # Random probe reshuffling
             uniphi = uniphi[:, :, :, idxs]
@@ -227,6 +227,7 @@ plot_data, data_file = produce_or_load(Dict(), datadir("plots");
             end
         end
     end
+
     return (@strdict unidepths FF_score ∂h̄ ∂f̄ ∂h̄_sur ∂f̄_sur 𝑝_h 𝑝_f)
 end
 

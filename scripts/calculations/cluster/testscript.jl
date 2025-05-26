@@ -1,13 +1,13 @@
 #! /bin/bash
 #=
-exec julia -t auto "${BASH_SOURCE[0]}" "$@"
+exec julia +1.10.9 -t auto "${BASH_SOURCE[0]}" "$@"
 =#
 using DrWatson
 @quickactivate "SpatiotemporalMotifs"
 using Distributed
 import USydClusters.Physics: addprocs, selfdestruct
 
-project = "/headnode2/bhar9988/code/DDC/SpatiotemporalMotifs/"
+project = "/taiji1/bhar9988/code/DDC/SpatiotemporalMotifs/"
 procs = addprocs(5; ncpus = 2, mem = 4,
                  walltime = 96, project)
 @everywhere using Pkg;

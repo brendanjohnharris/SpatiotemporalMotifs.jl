@@ -1,4 +1,5 @@
 using DataFrames
+using JLD2, CodecZstd
 using TimeseriesTools
 
 function powerspectra_quality(sessionid, stimulus, structure;
@@ -269,8 +270,6 @@ function _calculations(LFP; pass_θ, pass_γ, ΔT, doupsample, starttimes)
         x = matchdim(x; dims = 1)
         x = stack(Dim{:changetime}(times(x)), x)
     end
-    # a, ϕ, ϕᵧ, ω, k, v, aᵧ, ωᵧ, kᵧ, vₚ, vᵧ = alignmatchcat.([a, ϕ, ϕᵧ, ω, k, v, aᵧ, ωᵧ, kᵧ,
-    #                                                         vₚ, vᵧ])
     V, csd, x, y, a, ϕ, ϕᵧ, ω, k, v, aᵧ, ωᵧ, kᵧ = alignmatchcat.([LFP, csd, θ, γ, a, ϕ, ϕᵧ,
                                                                      ω, k,
                                                                      v,
@@ -284,11 +283,21 @@ end
 function _calculations(session::AN.AbstractSession, structure, stimulus)
     probeid = AN.getprobe(session, structure)
 
-    if stimulus == r"Natural_Images"
-        LFP = AN.formatlfp(session; probeid, structure, stimulus, rectify = false,
-                           epoch = (:longest, :active))
-        trials = AN.getchangetrials(session)
-        starttimes = trials.change_time_with_display_delay
+    if (stimulus == r"Natural_Images") || (stimulus == "Natural_Images_omission")
+        _stimulus = r"Natural_Images"
+        LFP = AN.formatlfp(session; probeid, structure, stimulus = _stimulus,
+                           rectify = false, epoch = (:longest, :active))
+        if stimulus == r"Natural_Images"
+            trials = AN.getchangetrials(session)
+            starttimes = trials.change_time_with_display_delay
+        elseif stimulus == "Natural_Images_omission"
+            stimuli = AN.getstimuli(session)
+            stimuli = stimuli[.!ismissing.(stimuli.omitted), :]
+            stimuli = stimuli[identity.(stimuli.omitted), :] # Just the omission trials
+            stimuli = stimuli[stimuli.active, :] # * just the active-epoch omissions
+            starttimes = stimuli.start_time
+            trials = stimuli
+        end
     elseif stimulus == "Natural_Images_passive"
         _stimulus = r"Natural_Images"
         LFP = AN.formatlfp(session; probeid, structure, stimulus = _stimulus,
@@ -297,8 +306,10 @@ function _calculations(session::AN.AbstractSession, structure, stimulus)
         stimuli = AN.getstimuli(session)
         stimuli = stimuli[stimuli.start_time .∈ [Interval(LFP)], :]
         stimuli = stimuli[.!ismissing.(stimuli.is_change), :]
-        stimuli = stimuli[stimuli.is_change .== 1, :]
+        stimuli = stimuli[identity.(stimuli.is_change), :]
+        stimuli = stimuli[.!stimuli.active, :] # * just the passive changes
         starttimes = stimuli.start_time
+        trials = stimuli
     else
         LFP = AN.formatlfp(session; probeid, structure, stimulus, rectify = false,
                            epoch = :first)
@@ -378,7 +389,7 @@ function send_calculations(D::Dict, session = AN.Session(D[:sessionid]);
                "csd" => csd .|> Float32,
                "x" => x .|> Float32,
                "y" => y .|> Float32,
-               "a" => a .|> Float32,
+               "a" => a .|> ComplexF32,
                "ϕ" => ϕ .|> Float32,
                #    "ϕᵧ" => ϕᵧ,
                "ω" => ω .|> Float32,
@@ -392,7 +403,7 @@ function send_calculations(D::Dict, session = AN.Session(D[:sessionid]);
                "units" => units,
                "spiketimes" => spiketimes,
                "performance_metrics" => performance_metrics)
-    @tagsave outfile out
+    @tagsave outfile out compress=ZstdFrameCompressor()
 
     out = V = csd = x = y = a = ϕ = ϕᵧ = ω = k = v = r = ωᵧ = kᵧ = spiketimes = units = []
     GC.gc()
@@ -465,13 +476,13 @@ function send_thalamus_calculations(D::Dict, session = AN.Session(D[:sessionid])
                "csd" => csd,
                "x" => x .|> Float32,
                "y" => y .|> Float32,
-               "a" => a .|> Float32,
+               "a" => a .|> ComplexF32,
                "ϕ" => ϕ .|> Float32,
                "r" => r .|> Float32,
                "units" => units,
                "spiketimes" => spiketimes,
                "performance_metrics" => performance_metrics)
-    @tagsave outfile out
+    @tagsave outfile out compress=ZstdFrameCompressor()
 
     out = V = csd = x = y = a = ϕ = ϕᵧ = r = spiketimes = []
     GC.gc()
