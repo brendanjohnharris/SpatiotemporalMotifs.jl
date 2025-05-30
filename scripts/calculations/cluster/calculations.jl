@@ -26,8 +26,9 @@ if haskey(ENV, "JULIA_DISTRIBUTED") # ? Should take a night or so
             send_calculations($sessionid; outpath = $outpath, rewrite = $rewrite)
         end
     end
-    USydClusters.Physics.runscripts(exprs; ncpus = 21, mem = 80, walltime = 8,
-                                    project = projectdir())
+    USydClusters.Physics.runscripts(exprs; ncpus = 8, mem = 60, walltime = 8,
+                                    project = projectdir(), exeflags = `+1.10.9`,
+                                    queue = "taiji")
 
     display("All workers submitted")
 else

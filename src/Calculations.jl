@@ -234,52 +234,6 @@ function send_powerspectra(sessionid, stimulus, structure;
     GC.gc()
 end
 
-function _calculations(LFP; pass_θ, pass_γ, ΔT, doupsample, starttimes)
-    θ = bandpass(LFP, pass_θ)
-    doupsample > 0 && (θ = upsample(θ, doupsample, Depth))
-
-    γ = bandpass(LFP, pass_γ)
-    doupsample > 0 && (γ = upsample(γ, doupsample, Depth))
-
-    a = hilbert(θ)
-    aᵧ = hilbert(γ)
-
-    # r = abs.(aᵧ)
-
-    ϕ = angle.(a) # _generalized_phase(ustrip(θ)) #
-    ϕᵧ = angle.(aᵧ) # _generalized_phase(ustrip(γ)) #
-
-    ω = centralderiv(ϕ, dims = 𝑡, grad = phasegrad) # Angular Frequency
-
-    k = -centralderiv(ϕ, dims = Depth, grad = phasegrad) # Wavenumber
-    # We have a minus sign because the hilbert transform uses the convention of ϕ = ωt (for
-    # univariate; phase increases with time for positive frequencies), which implies ϕ = ωt - kx (for multivariate).
-    v = ω ./ k # Phase velocity of theta
-
-    ωᵧ = centralderiv(ϕᵧ, dims = 𝑡, grad = phasegrad) # Frequency
-    kᵧ = -centralderiv(ϕᵧ, dims = Depth, grad = phasegrad) # Wavenumber
-    # ∂ωᵧ = centralderiv(ωᵧ; dims = 𝑡)
-    # ∂kᵧ = centralderiv(kᵧ; dims = 𝑡)
-    # vₚ = ωᵧ ./ kᵧ # Phase velocity
-    # vᵧ = ∂ωᵧ ./ ∂kᵧ # Group velocity
-
-    csd = centralderiv(centralderiv(LFP, dims = Depth); dims = Depth)
-
-    function alignmatchcat(x)
-        x = align(x, starttimes, ΔT)[2:(end - 2)]
-        x = matchdim(x; dims = 1)
-        x = stack(Dim{:changetime}(times(x)), x)
-    end
-    V, csd, x, y, a, ϕ, ϕᵧ, ω, k, v, aᵧ, ωᵧ, kᵧ = alignmatchcat.([LFP, csd, θ, γ, a, ϕ, ϕᵧ,
-                                                                     ω, k,
-                                                                     v,
-                                                                     aᵧ, ωᵧ,
-                                                                     kᵧ])
-    r = abs.(aᵧ) .* unit(eltype(V))
-
-    return V, csd, x, y, a, ϕ, ϕᵧ, ω, k, v, r, ωᵧ, kᵧ
-end
-
 function _calculations(session::AN.AbstractSession, structure, stimulus)
     probeid = AN.getprobe(session, structure)
 
@@ -346,7 +300,63 @@ function _calculations(session::AN.AbstractSession, structure, stimulus)
     tmap = set(tmap .* u"s", 𝑡 => times(tmap) .* u"s")
     LFP = rectify(LFP, dims = Depth)
 
-    return LFP, trials, starttimes, channels, depths, streamlinedepths, spiketimes, units
+    output = @strdict LFP trials starttimes channels depths streamlinedepths spiketimes units
+
+    return output
+end
+
+function aligned_calculations(LFP; pass_θ, pass_γ, ΔT, doupsample, starttimes)
+    θ = bandpass(LFP, pass_θ)
+    doupsample > 0 && (θ = upsample(θ, doupsample, Depth))
+
+    γ = bandpass(LFP, pass_γ)
+    doupsample > 0 && (γ = upsample(γ, doupsample, Depth))
+
+    a = hilbert(θ)
+    aᵧ = hilbert(γ)
+
+    # r = abs.(aᵧ)
+
+    ϕ = angle.(a) # _generalized_phase(ustrip(θ)) #
+    ϕᵧ = angle.(aᵧ) # _generalized_phase(ustrip(γ)) #
+
+    ω = centralderiv(ϕ, dims = 𝑡, grad = phasegrad) # Angular Frequency
+
+    k = -centralderiv(ϕ, dims = Depth, grad = phasegrad) # Wavenumber
+    # We have a minus sign because the hilbert transform uses the convention of ϕ = ωt (for
+    # univariate; phase increases with time for positive frequencies), which implies ϕ = ωt - kx (for multivariate).
+    v = ω ./ k # Phase velocity of theta
+
+    ωᵧ = centralderiv(ϕᵧ, dims = 𝑡, grad = phasegrad) # Frequency
+    kᵧ = -centralderiv(ϕᵧ, dims = Depth, grad = phasegrad) # Wavenumber
+    # ∂ωᵧ = centralderiv(ωᵧ; dims = 𝑡)
+    # ∂kᵧ = centralderiv(kᵧ; dims = 𝑡)
+    # vₚ = ωᵧ ./ kᵧ # Phase velocity
+    # vᵧ = ∂ωᵧ ./ ∂kᵧ # Group velocity
+
+    csd = centralderiv(centralderiv(LFP, dims = Depth); dims = Depth)
+
+    function alignmatchcat(x)
+        x = align(x, starttimes, ΔT)[2:(end - 2)]
+        x = matchdim(x; dims = 1)
+        x = stack(Dim{:changetime}(times(x)), x)
+    end
+
+    output = @strdict LFP csd θ γ a ϕ ϕᵧ ω k v aᵧ ωᵧ kᵧ
+    for k in keys(output)
+        output[k] = alignmatchcat(output[k])
+    end
+    output["r"] = abs.(output["aᵧ"]) .* unit(eltype(output["V"]))
+
+    for k in keys(output)
+        if k == "a"
+            output[k] = map(ComplexF32, output[k])
+        else
+            output[k] = map(Float32, output[k])
+        end
+    end
+
+    return output
 end
 
 function send_calculations(D::Dict, session = AN.Session(D[:sessionid]);
@@ -372,12 +382,16 @@ function send_calculations(D::Dict, session = AN.Session(D[:sessionid]);
     end
 
     performance_metrics = AN.getperformancemetrics(session)
-    LFP, trials, starttimes, channels, depths, streamlinedepths, spiketimes, units = _calculations(session,
-                                                                                                   structure,
-                                                                                                   stimulus)
-    layerinfo = AN.Plots._layerplot(session, channels)
-    V, csd, x, y, a, ϕ, ϕᵧ, ω, k, v, r, ωᵧ, kᵧ = _calculations(LFP; pass_θ, pass_γ, ΔT,
-                                                               doupsample, starttimes)
+
+    outputs = _calculations(session, structure, stimulus)
+
+    layerinfo = AN.Plots._layerplot(session, outputs["channels"])
+
+    aligned_outputs = aligned_calculations(outputs["LFP"]; pass_θ, pass_γ, ΔT,
+                                           doupsample,
+                                           starttimes = outputs["starttimes"])
+
+    @unpack aligned_outputs
 
     out = Dict("channels" => channels,
                "trials" => trials[2:(end - 2), :],
@@ -407,19 +421,31 @@ function send_calculations(D::Dict, session = AN.Session(D[:sessionid]);
 
     out = V = csd = x = y = a = ϕ = ϕᵧ = ω = k = v = r = ωᵧ = kᵧ = spiketimes = units = []
     GC.gc()
-    return true
+    return filenames
 end
 
 function send_calculations(sessionid;
-                           structures = ["VISp", "VISl", "VISrl", "VISal", "VISpm",
-                               "VISam"], kwargs...)
+                           structures = ["VISp", "VISl", "VISrl",
+                               "VISal", "VISpm", "VISam"],
+                           stimuli = ["flash_250ms",
+                               r"Natural_Images",
+                               "Natural_Images_passive"],
+                           outpath = datadir("calculations"),
+                           kwargs...)
     session = AN.Session(sessionid)
     probestructures = AN.getprobestructures(session, structures)
     for (probeid, structure) in probestructures
-        for stimulus in ["flash_250ms", r"Natural_Images"]
+        for stimulus in stimuli
             @info "Saving $(sessionid) $(structure) $(stimulus)"
             D = @dict sessionid structure stimulus
-            send_calculations(D, session; kwargs...)
+            try
+                send_calculations(D, session; outpath, kwargs...)
+            catch e
+                outfile = savepath(D, "jld2", outpath)
+                @warn "Error in $(outfile). Deleting file."
+                rm(outfile)
+                throw(e)
+            end
         end
     end
     return true
@@ -442,9 +468,8 @@ function send_thalamus_calculations(D::Dict, session = AN.Session(D[:sessionid])
     end
 
     performance_metrics = AN.getperformancemetrics(session)
-    LFP, trials, starttimes, channels, depths, spiketimes, units = _calculations(session,
-                                                                                 structure,
-                                                                                 stimulus)
+    output = _calculations(session, structure, stimulus)
+    @unpack output
 
     θ = bandpass(LFP, pass_θ)
     doupsample > 0 && (θ = upsample(θ, doupsample, Depth))
@@ -542,7 +567,28 @@ end
 function _collect_calculations(outfile; sessionid, structure, stimulus, path, subvars)
     filename = savepath((@strdict sessionid structure stimulus), "jld2", path)
     f = jldopen(filename, "r")
-    @unpack streamlinedepths, layerinfo, pass_γ, pass_θ, performance_metrics, spiketimes, trials = f
+    begin
+        # @unpack streamlinedepths, layerinfo, pass_γ, pass_θ, performance_metrics, spiketimes, trials = f
+        streamlinedepths = f["streamlinedepths"]
+        layerinfo = f["layerinfo"]
+        pass_γ = f["pass_γ"]
+        pass_θ = f["pass_θ"]
+        spiketimes = f["spiketimes"]
+
+        performance_metrics = nothing
+        try
+            performance_metrics = f["performance_metrics"]
+        catch
+            @warn "Performance metrics not found in $filename"
+        end
+
+        trials = nothing
+        try
+            trials = f["trials"]
+        catch
+            @warn "Trials table not found in $filename"
+        end
+    end
     ovars = Dict()
     for v in subvars
         push!(ovars, v => f[string(v)])
