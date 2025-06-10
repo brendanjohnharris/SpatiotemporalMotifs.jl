@@ -17,7 +17,7 @@ set_theme!(foresight(:physics))
 Random.seed!(32)
 
 begin # * Parameters
-    vars = [:x, :csd, :k, :ω]
+    vars = [:θ, :csd, :k, :ω]
     INTERVAL = SpatiotemporalMotifs.INTERVAL
     mainstructure = "VISl"
     maincolorrange = [-2.9, 2.9]
@@ -92,7 +92,7 @@ plot_data, data_file = produce_or_load(config, datadir("plots");
                         idxs = (reaction_times .> 0.25) .| isnan.(reaction_times) # NaN means a miss trial
 
                         @assert issorted(lookup(_o[:k], :changetime))
-                        _o[:x] = _o[:x][:, :, idxs] # Remove trials with low reaction time
+                        _o[:θ] = _o[:θ][:, :, idxs] # Remove trials with low reaction time
                         _o[:k] = _o[:k][:, :, idxs]
                         _o[:ω] = _o[:ω][:, :, idxs]
                         _o[:trials] = _o[:trials][idxs, :]
@@ -124,7 +124,7 @@ plot_data, data_file = produce_or_load(config, datadir("plots");
             Olfp = map(layergroups) do ls
                 map(out) do o
                     map(o) do p
-                        k = deepcopy(p[:x])
+                        k = deepcopy(p[:θ])
                         idxs = parselayernum.(metadata(k)[:layernames]) .∈ [ls]
                         k = k[:, parent(idxs), :]
                         N = ZScore(k, dims = 1)

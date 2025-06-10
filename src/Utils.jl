@@ -73,13 +73,12 @@ function calcquality(dirname; suffix = "jld2", connector = connector)
                 fl = jldopen(f)
                 if haskey(fl, "error")
                     continue
-                else
-                    push!(ps, parameters)
                 end
             catch e
                 @warn e
                 continue
             end
+            push!(ps, parameters) # Only add to list of good files if file exists and has no error
         end
     end
     ks = keys.(ps) |> collect

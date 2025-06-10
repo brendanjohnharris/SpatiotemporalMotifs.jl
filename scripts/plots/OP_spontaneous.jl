@@ -52,10 +52,10 @@ begin # * Load spontaneous order parameter
 end
 
 begin # * Extract the probability mass of 'coherent' events; |OP| > 0.75
-    events = map(data) do sR
+    coherent_events = map(data) do sR
         out = map(sR) do y
             out = map(y) do x
-                l = sum(x -> x .< 0.5, x) / length(x)
+                l = sum(x -> x .< -0.5, x) / length(x)
                 u = sum(x -> x .> 0.5, x) / length(x)
                 return [l, u]
             end |> stack
@@ -63,14 +63,14 @@ begin # * Extract the probability mass of 'coherent' events; |OP| > 0.75
     end |> stack
     ds = (Dim{:side}([:l, :u]), SessionID(oursessions), Structure(structures),
           Dim{:stimulus}(stimuli))
-    events = ToolsArray(events, ds)
+    coherent_events = ToolsArray(coherent_events, ds)
 end
 
 begin # * Plot boxplots of probability of coherent events
     f = Figure()
     ax = Axis(f[1, 1], ylabel = "Probability of coherent events",
               xticks = (1.5:1:3.5, string.(stimuli)))
-    levents = events[side = At(:u)]
+    levents = coherent_events[side = At(:l)]
     for (i, stimulus) in enumerate(lookup(levents, :stimulus))
         y = levents[stimulus = At(stimulus)]
         structures = lookup(y, Structure)
@@ -109,7 +109,7 @@ begin # * Omission trials or passive trials?
     path = datadir("calculations")
     Q = calcquality(path)[Structure = At(structures)]
     quality = mean(Q[stimulus = At(stimulus)])
-    vars = [:x, :csd, :k, :ω]
+    vars = [:csd, :k, :ω]
     out = load_calculations(Q; stimulus, vars)
 
     session_table = load(datadir("posthoc_session_table.jld2"), "session_table")

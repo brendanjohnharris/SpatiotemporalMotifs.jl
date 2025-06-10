@@ -16,6 +16,7 @@ oursessions = session_table.ecephys_session_id
 
 outpath = datadir("calculations")
 rewrite = false
+check_quality = true
 
 if haskey(ENV, "JULIA_DISTRIBUTED") # ? Should take a night or so
     exprs = map(oursessions) do sessionid
@@ -26,9 +27,23 @@ if haskey(ENV, "JULIA_DISTRIBUTED") # ? Should take a night or so
             send_calculations($sessionid; outpath = $outpath, rewrite = $rewrite)
         end
     end
+
+    if check_quality && isfile(datadir("posthoc_session_table.jld2"))
+        Q = SM.calcquality(outpath)[Structure = At(SM.structures)]
+        # * Delete bad files
+        filenames = collect(Iterators.product(lookup(Q)...))[.!Q]
+        filenames = map(filenames) do f
+            Dict{String, Any}("structure" => f[1], "stimulus" => f[2], "sessionid" => f[3])
+        end
+        filenames = datadir.(["calculations"], map(SM.savepath, filenames) .* [".jld2"])
+        rm.(filenames; force = true)
+
+        Q = any(.!Q, dims = (SM.Structure, Dim{:stimulus})) # Sessions that have bad files
+        Q = dropdims(Q, dims = (SM.Structure, Dim{:stimulus}))
+        exprs = exprs[Q[SessionID = At(oursessions)]]
+    end
     USydClusters.Physics.runscripts(exprs; ncpus = 8, mem = 60, walltime = 8,
-                                    project = projectdir(), exeflags = `+1.10.9`,
-                                    queue = "taiji")
+                                    project = projectdir(), exeflags = `+1.10.9`)
 
     display("All workers submitted")
 else

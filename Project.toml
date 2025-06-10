@@ -54,9 +54,9 @@ UnPack = "3a884ed6-31ef-47d7-9d2a-63182c4928ed"
 Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
 
 [compat]
-AllenNeuropixels = "=0.2.0"
-AllenNeuropixelsBase = "=0.3.1"
-AllenSDK = "=0.2.0"
+AllenNeuropixels = "=0.3.0"
+AllenNeuropixelsBase = "=0.4.0"
+AllenSDK = "=0.3.1"
 Bootstrap = "2.3"
 Clustering = "0.15"
 ComplexityMeasures = "3"

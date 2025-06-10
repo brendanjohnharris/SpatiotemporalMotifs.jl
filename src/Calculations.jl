@@ -1,6 +1,7 @@
 using DataFrames
 using JLD2, CodecZstd
 using TimeseriesTools
+using UnPack
 
 function powerspectra_quality(sessionid, stimulus, structure;
                               outpath = datadir("power_spectra"),
@@ -234,53 +235,18 @@ function send_powerspectra(sessionid, stimulus, structure;
     GC.gc()
 end
 
-function _calculations(session::AN.AbstractSession, structure, stimulus)
-    probeid = AN.getprobe(session, structure)
-
-    if (stimulus == r"Natural_Images") || (stimulus == "Natural_Images_omission")
-        _stimulus = r"Natural_Images"
-        LFP = AN.formatlfp(session; probeid, structure, stimulus = _stimulus,
-                           rectify = false, epoch = (:longest, :active))
-        if stimulus == r"Natural_Images"
-            trials = AN.getchangetrials(session)
-            starttimes = trials.change_time_with_display_delay
-        elseif stimulus == "Natural_Images_omission"
-            stimuli = AN.getstimuli(session)
-            stimuli = stimuli[.!ismissing.(stimuli.omitted), :]
-            stimuli = stimuli[identity.(stimuli.omitted), :] # Just the omission trials
-            stimuli = stimuli[stimuli.active, :] # * just the active-epoch omissions
-            starttimes = stimuli.start_time
-            trials = stimuli
-        end
-    elseif stimulus == "Natural_Images_passive"
-        _stimulus = r"Natural_Images"
-        LFP = AN.formatlfp(session; probeid, structure, stimulus = _stimulus,
-                           rectify = false,
-                           epoch = (:longest, :active => ByRow(==(false))))
-        stimuli = AN.getstimuli(session)
-        stimuli = stimuli[stimuli.start_time .∈ [Interval(LFP)], :]
-        stimuli = stimuli[.!ismissing.(stimuli.is_change), :]
-        stimuli = stimuli[identity.(stimuli.is_change), :]
-        stimuli = stimuli[.!stimuli.active, :] # * just the passive changes
-        starttimes = stimuli.start_time
-        trials = stimuli
-    else
-        LFP = AN.formatlfp(session; probeid, structure, stimulus, rectify = false,
-                           epoch = :first)
-        trials = AN.stimulusintervals(session, stimulus)
-        starttimes = trials.start_time # For flashes
-    end
-    _tmap = Timeseries(times(LFP), zeros(size(LFP, 1)))
-    tmap = deepcopy(_tmap)
-    tmap[𝑡(Near(starttimes))] .= starttimes
-    tmap = rectify(tmap, dims = 𝑡, tol = 3)
-    dev = tmap[findlast(tmap .> 1)] - times(tmap)[findlast(tmap .> 1)]
+function joint_rectify(LFP, spiketimes, stimulustimes)
+    orig_ts = times(LFP) # Unaligned times
     LFP = rectify(LFP, dims = 𝑡, tol = 3)
+
+    _tmap = Timeseries(orig_ts, zeros(length(orig_ts)))
+    tmap = deepcopy(_tmap)
+    tmap[𝑡(Near(stimulustimes))] .= stimulustimes
+    tmap = rectify(tmap, dims = 𝑡, tol = 3)
     @assert times(LFP) == times(tmap)
-    starttimes = times(tmap[tmap .> 1]) |> collect # * The change times transformed to rectified time coordinates
-    spiketimes = AN.getspiketimes(session, structure)
-    units = AN.getunitmetrics(session)
-    units = units[units.ecephys_unit_id .∈ [keys(spiketimes)], :]
+    # dev = tmap[findlast(tmap .> 1)] - times(tmap)[findlast(tmap .> 1)] # Alignment error
+    stimulustimes = times(tmap[tmap .> 1]) |> collect # * The change times transformed to rectified time coordinates
+
     spiketimes = map(collect(spiketimes)) do (u, ts) # * Rectify the spike times
         tmap = deepcopy(_tmap)
         tmap[𝑡(Near(ts))] .= ts
@@ -289,23 +255,92 @@ function _calculations(session::AN.AbstractSession, structure, stimulus)
         return u => Float32.(ts)
     end |> Dict
 
-    channels = lookup(LFP, Chan)
-    depths = AN.getchanneldepths(session, LFP; method = :probe)
-    streamlinedepths = AN.getchanneldepths(session, LFP; method = :streamlines)
-    LFP = set(LFP, Chan => Depth(depths))
-
-    LFP = set(LFP, 𝑡 => times(LFP) .* u"s")
-    LFP = set(LFP, Depth => lookup(LFP, Depth) .* u"μm")
-    starttimes = starttimes .* u"s"
+    stimulustimes = stimulustimes .* u"s"
     tmap = set(tmap .* u"s", 𝑡 => times(tmap) .* u"s")
-    LFP = rectify(LFP, dims = Depth)
 
-    output = @strdict LFP trials starttimes channels depths streamlinedepths spiketimes units
-
-    return output
+    return LFP, stimulustimes, spiketimes # Aligned to common rectified times
 end
 
-function aligned_calculations(LFP; pass_θ, pass_γ, ΔT, doupsample, starttimes)
+function what_files(stimulus)
+    if stimulus == r"Natural_Images"
+        files = [stimulus, "Natural_Images_omission", "Natural_Images_nochange"]
+    elseif stimulus == "Natural_Images_passive"
+        files = [stimulus, "Natural_Images_passive_nochange"]
+    else
+        files = [stimulus]
+    end
+    return files
+end
+function what_lfp(stimulus, session, structure)
+    probeid = AN.getprobe(session, structure)
+    if stimulus == r"Natural_Images"
+        _stimulus = r"Natural_Images"
+        epoch = (:longest, :active)
+    elseif stimulus == "Natural_Images_passive"
+        _stimulus = r"Natural_Images"
+        epoch = (:longest, :active => ByRow(==(false)))
+    else # Flashes or others
+        _stimulus = stimulus
+        epoch = :longest
+    end
+    LFP = AN.formatlfp(session;
+                       probeid, structure, stimulus = _stimulus, rectify = false, epoch)
+    return LFP
+end
+
+function get_stimulustimes(stimulus, session)
+    if stimulus == r"Natural_Images"
+        trials = AN.getchangetrials(session)
+        stimulustimes = trials.change_time_with_display_delay
+    elseif stimulus == "Natural_Images_omission"
+        stimuli = AN.getstimuli(session)
+        stimuli = stimuli[.!ismissing.(stimuli.omitted), :]
+        stimuli = stimuli[identity.(stimuli.omitted), :] # Just the omission trials
+        stimuli = stimuli[stimuli.active, :] # * just the active-epoch omissions
+        stimulustimes = stimuli.start_time
+        trials = stimuli
+    elseif stimulus == "Natural_Images_nochange"
+        stimuli = AN.getstimuli(session)
+        stimuli = stimuli[.!ismissing.(stimuli.omitted), :]
+        stimuli = stimuli[.!stimuli.omitted, :]
+        stimuli = stimuli[stimuli.active, :] # * just the active-epoch omissions
+        stimuli = stimuli[.!ismissing.(stimuli.is_change), :]
+        stimuli = stimuli[.!stimuli.is_change, :]
+        stimulustimes = stimuli.start_time
+        trials = stimuli
+    elseif stimulus == "Natural_Images_passive"
+        stimuli = AN.getstimuli(session)
+        stimuli = stimuli[stimuli.start_time .∈ [Interval(LFP)], :]
+        stimuli = stimuli[.!ismissing.(stimuli.is_change), :]
+        stimuli = stimuli[identity.(stimuli.is_change), :]
+        stimuli = stimuli[.!stimuli.active, :] # * just the passive changes
+        stimulustimes = stimuli.start_time
+        trials = stimuli
+    elseif stimulus == "Natural_Images_passive_nochange"
+        stimuli = AN.getstimuli(session)
+        stimuli = stimuli[.!ismissing.(stimuli.omitted), :]
+        stimuli = stimuli[.!stimuli.omitted, :]
+        stimuli = stimuli[.!stimuli.active, :] # * just the passive-epoch omissions
+        stimuli = stimuli[.!ismissing.(stimuli.is_change), :]
+        stimuli = stimuli[.!stimuli.is_change, :]
+        stimulustimes = stimuli.start_time
+        trials = stimuli
+    else # Flashes and others
+        trials = AN.stimulusintervals(session, stimulus)
+        stimulustimes = trials.start_time # For flashes
+    end
+    return stimulustimes, trials
+end
+
+function compute_csd(LFP, stimulustimes)
+    prestim = LFP[𝑡 = -0.1u"s" .. 0u"s"]
+    prestim_mean = mean(prestim, dims = (𝑡, :changetime))
+    baseline_LFP = LFP .- prestim_mean # Baseline correct
+    csd = centralderiv(centralderiv(baseline_LFP, dims = Depth); dims = Depth)
+    return csd
+end
+
+function aligned_calculations(LFP; pass_θ, pass_γ, ΔT, doupsample, stimulustimes)
     θ = bandpass(LFP, pass_θ)
     doupsample > 0 && (θ = upsample(θ, doupsample, Depth))
 
@@ -315,10 +350,8 @@ function aligned_calculations(LFP; pass_θ, pass_γ, ΔT, doupsample, starttimes
     a = hilbert(θ)
     aᵧ = hilbert(γ)
 
-    # r = abs.(aᵧ)
-
     ϕ = angle.(a) # _generalized_phase(ustrip(θ)) #
-    ϕᵧ = angle.(aᵧ) # _generalized_phase(ustrip(γ)) #
+    # ϕᵧ = angle.(aᵧ) # _generalized_phase(ustrip(γ)) #
 
     ω = centralderiv(ϕ, dims = 𝑡, grad = phasegrad) # Angular Frequency
 
@@ -327,39 +360,46 @@ function aligned_calculations(LFP; pass_θ, pass_γ, ΔT, doupsample, starttimes
     # univariate; phase increases with time for positive frequencies), which implies ϕ = ωt - kx (for multivariate).
     v = ω ./ k # Phase velocity of theta
 
-    ωᵧ = centralderiv(ϕᵧ, dims = 𝑡, grad = phasegrad) # Frequency
-    kᵧ = -centralderiv(ϕᵧ, dims = Depth, grad = phasegrad) # Wavenumber
+    # ωᵧ = centralderiv(ϕᵧ, dims = 𝑡, grad = phasegrad) # Frequency
+    # kᵧ = -centralderiv(ϕᵧ, dims = Depth, grad = phasegrad) # Wavenumber
     # ∂ωᵧ = centralderiv(ωᵧ; dims = 𝑡)
     # ∂kᵧ = centralderiv(kᵧ; dims = 𝑡)
     # vₚ = ωᵧ ./ kᵧ # Phase velocity
     # vᵧ = ∂ωᵧ ./ ∂kᵧ # Group velocity
 
-    csd = centralderiv(centralderiv(LFP, dims = Depth); dims = Depth)
-
     function alignmatchcat(x)
-        x = align(x, starttimes, ΔT)[2:(end - 2)]
+        x = align(x, stimulustimes, ΔT)[2:(end - 2)]
         x = matchdim(x; dims = 1)
         x = stack(Dim{:changetime}(times(x)), x)
     end
 
-    output = @strdict LFP csd θ γ a ϕ ϕᵧ ω k v aᵧ ωᵧ kᵧ
+    V = LFP
+    output = Dict{String, Any}()
+    @pack! output = V, θ, γ, a, ϕ, ω, k, v, aᵧ
+
+    # * Clean up and shrink size
     for k in keys(output)
         output[k] = alignmatchcat(output[k])
     end
     output["r"] = abs.(output["aᵧ"]) .* unit(eltype(output["V"]))
 
+    csd = compute_csd(output["V"], stimulustimes)
+    output["csd"] = csd
+
     for k in keys(output)
-        if k == "a"
-            output[k] = map(ComplexF32, output[k])
+        if eltype(ustrip(output[k][1])) <: Complex
+            output[k] = ComplexF32.(output[k])
+        elseif eltype(ustrip(output[k][1])) <: Real
+            output[k] = Float32.(output[k])
         else
-            output[k] = map(Float32, output[k])
+            throw(error("Unexpected eltype for $k: $(eltype(output[k]))"))
         end
     end
 
     return output
 end
 
-function send_calculations(D::Dict, session = AN.Session(D[:sessionid]);
+function send_calculations(D::Dict, session = AN.Session(D["sessionid"]);
                            pass_θ = THETA .* u"Hz",
                            pass_γ = GAMMA .* u"Hz",
                            ΔT = -0.5u"s" .. 0.75u"s",
@@ -367,61 +407,88 @@ function send_calculations(D::Dict, session = AN.Session(D[:sessionid]);
                            rewrite = false,
                            outpath)
     @unpack sessionid, structure, stimulus = D
-    outfile = savepath(D, "jld2", outpath)
 
-    @info outfile
-    if !rewrite && isfile(outfile)
-        fl = jldopen(outfile, "r")
-        if !haskey(fl, "error")
-            @info "Calculations already complete for $(sessionid), $(structure), $(stimulus)"
-            close(fl)
-            return GC.gc()
+    # * Infer outfiles
+    files = what_files(stimulus)
+    outfiles = map(files) do file
+        _D = @strdict sessionid structure
+        _D["stimulus"] = file
+        return savepath(_D, "jld2", outpath)
+    end
+
+    complete = map(zip(files, outfiles)) do (file, outfile)
+        if !rewrite && isfile(outfile)
+            return jldopen(outfile, "r") do fl
+                if !haskey(fl, "error")
+                    @info "Calculations already complete for $(sessionid), $(structure), $(file)"
+                    return true
+                else
+                    return false
+                end
+            end
         else
-            close(fl)
+            return false
         end
     end
 
+    files = files[.!complete]
+    outfiles = outfiles[.!complete]
+
     performance_metrics = AN.getperformancemetrics(session)
 
-    outputs = _calculations(session, structure, stimulus)
+    # * Format the LFP for this stimulus and any files we want to save
+    LFP = what_lfp(stimulus, session, structure)
+    depths = AN.getchanneldepths(session, LFP; method = :probe)
+    streamlinedepths = AN.getchanneldepths(session, LFP; method = :streamlines)
+    channels = lookup(LFP, Chan)
+    LFP = set(LFP, Chan => Depth(depths))
+    LFP = set(LFP, Depth => lookup(LFP, Depth) .* u"μm")
+    LFP = rectify(LFP, dims = Depth)
 
-    layerinfo = AN.Plots._layerplot(session, outputs["channels"])
+    layerinfo = AN.Plots._layerplot(session, channels)
+    spiketimes = AN.getspiketimes(session, structure)
+    units = AN.getunitmetrics(session)
+    units = units[units.ecephys_unit_id .∈ [keys(spiketimes)], :]
 
-    aligned_outputs = aligned_calculations(outputs["LFP"]; pass_θ, pass_γ, ΔT,
-                                           doupsample,
-                                           starttimes = outputs["starttimes"])
+    for (file, outfile) in zip(files, outfiles)
+        try
+            stimulustimes, trials = get_stimulustimes(file, session)
 
-    @unpack aligned_outputs
+            LFP_J, stimulustimes_J, spiketimes_J = joint_rectify(LFP, spiketimes,
+                                                                 stimulustimes)
 
-    out = Dict("channels" => channels,
-               "trials" => trials[2:(end - 2), :],
-               "streamlinedepths" => streamlinedepths,
-               "layerinfo" => layerinfo,
-               "pass_θ" => pass_θ,
-               "pass_γ" => pass_γ,
-               "V" => V,
-               "csd" => csd .|> Float32,
-               "x" => x .|> Float32,
-               "y" => y .|> Float32,
-               "a" => a .|> ComplexF32,
-               "ϕ" => ϕ .|> Float32,
-               #    "ϕᵧ" => ϕᵧ,
-               "ω" => ω .|> Float32,
-               "k" => k .|> Float32,
-               "v" => v .|> Float32,
-               "r" => r .|> Float32,
-               "ωᵧ" => ωᵧ .|> Float32,
-               "kᵧ" => kᵧ .|> Float32,
-               #    "vₚ" => vₚ,
-               #    "vᵧ" => vᵧ,
-               "units" => units,
-               "spiketimes" => spiketimes,
-               "performance_metrics" => performance_metrics)
-    @tagsave outfile out compress=ZstdFrameCompressor()
+            # * Format LFP dims
+            LFP_J = set(LFP_J, 𝑡 => times(LFP_J) .* u"s")
 
-    out = V = csd = x = y = a = ϕ = ϕᵧ = ω = k = v = r = ωᵧ = kᵧ = spiketimes = units = []
+            aligned_outputs = aligned_calculations(LFP_J; pass_θ, pass_γ, ΔT,
+                                                   doupsample,
+                                                   stimulustimes = stimulustimes_J)
+
+            out = aligned_outputs
+            out["trials"] = trials[2:(end - 2), :]
+
+            out["channels"] = channels
+            out["streamlinedepths"] = streamlinedepths
+            out["units"] = units
+            out["spiketimes"] = spiketimes_J # The RECTIFIED spiketimes
+            out["layerinfo"] = layerinfo
+            out["pass_θ"] = pass_θ
+            out["pass_γ"] = pass_γ
+            out["performance_metrics"] = performance_metrics
+
+            # * Save
+            @info "Saving $(file) for $(sessionid), $(structure), $(stimulus) to $(outfile)"
+            @tagsave outfile out compress=ZstdFrameCompressor()
+        catch e
+            @error "Error in $(file) for $(sessionid), $(structure), $(stimulus): $(e)"
+            tagsave(outfile, Dict("error" => sprint(showerror, e)))
+            continue
+        end
+    end
+
+    out = LFP = LFP_J = aligned_outputs = []
     GC.gc()
-    return filenames
+    return outfiles
 end
 
 function send_calculations(sessionid;
@@ -445,87 +512,6 @@ function send_calculations(sessionid;
                 @warn "Error in $(outfile). Deleting file."
                 rm(outfile)
                 throw(e)
-            end
-        end
-    end
-    return true
-end
-
-function send_thalamus_calculations(D::Dict, session = AN.Session(D[:sessionid]);
-                                    pass_θ = THETA .* u"Hz",
-                                    pass_γ = GAMMA .* u"Hz",
-                                    ΔT = -0.5u"s" .. 0.75u"s",
-                                    doupsample = 0,
-                                    rewrite = false,
-                                    outpath)
-    @unpack sessionid, structure, stimulus = D
-    outfile = savepath(D, "jld2", outpath)
-
-    @info outfile
-    if !rewrite && isfile(outfile)
-        @info "Calculations already complete for $(sessionid), $(structure), $(stimulus)"
-        return GC.gc()
-    end
-
-    performance_metrics = AN.getperformancemetrics(session)
-    output = _calculations(session, structure, stimulus)
-    @unpack output
-
-    θ = bandpass(LFP, pass_θ)
-    doupsample > 0 && (θ = upsample(θ, doupsample, Depth))
-
-    γ = bandpass(LFP, pass_γ)
-    doupsample > 0 && (γ = upsample(γ, doupsample, Depth))
-
-    a = hilbert(θ)
-    aᵧ = hilbert(γ)
-
-    ϕ = angle.(a)
-    ϕᵧ = angle.(aᵧ)
-
-    csd = centralderiv(centralderiv(LFP, dims = Depth); dims = Depth)
-
-    function alignmatchcat(x)
-        x = align(x, starttimes, ΔT)[2:(end - 2)]
-        x = matchdim(x; dims = 1)
-        x = stack(Dim{:changetime}(times(x)), x)
-    end
-    V, csd, x, y, a, ϕ, ϕᵧ, aᵧ = alignmatchcat.([LFP, csd, θ, γ, a, ϕ, ϕᵧ, aᵧ])
-    r = abs.(aᵧ) .* unit(eltype(V))
-
-    out = Dict("channels" => channels,
-               "trials" => trials[2:(end - 2), :],
-               "pass_θ" => pass_θ,
-               "pass_γ" => pass_γ,
-               "V" => V .|> Float32,
-               "csd" => csd,
-               "x" => x .|> Float32,
-               "y" => y .|> Float32,
-               "a" => a .|> ComplexF32,
-               "ϕ" => ϕ .|> Float32,
-               "r" => r .|> Float32,
-               "units" => units,
-               "spiketimes" => spiketimes,
-               "performance_metrics" => performance_metrics)
-    @tagsave outfile out compress=ZstdFrameCompressor()
-
-    out = V = csd = x = y = a = ϕ = ϕᵧ = r = spiketimes = []
-    GC.gc()
-    return true
-end
-
-function send_thalamus_calculations(sessionid;
-                                    structures = ["LGd-co", "LGd-sh", "LGd"], kwargs...)
-    session = AN.Session(sessionid)
-    probestructures = AN.getprobestructures(session, structures)
-    for (probeid, structure) in probestructures
-        for stimulus in ["flash_250ms", r"Natural_Images"]
-            @info "Saving $(sessionid) $(structure) $(stimulus)"
-            D = @dict sessionid structure stimulus
-            try
-                send_thalamus_calculations(D, session; kwargs...)
-            catch e
-                @warn e
             end
         end
     end
@@ -566,79 +552,90 @@ end
 
 function _collect_calculations(outfile; sessionid, structure, stimulus, path, subvars)
     filename = savepath((@strdict sessionid structure stimulus), "jld2", path)
-    f = jldopen(filename, "r")
-    begin
-        # @unpack streamlinedepths, layerinfo, pass_γ, pass_θ, performance_metrics, spiketimes, trials = f
-        streamlinedepths = f["streamlinedepths"]
-        layerinfo = f["layerinfo"]
-        pass_γ = f["pass_γ"]
-        pass_θ = f["pass_θ"]
-        spiketimes = f["spiketimes"]
+    try
+        jldopen(filename, "r") do f
+            begin
+                # @unpack streamlinedepths, layerinfo, pass_γ, pass_θ, performance_metrics, spiketimes, trials = f
+                streamlinedepths = f["streamlinedepths"]
+                layerinfo = f["layerinfo"]
+                pass_γ = f["pass_γ"]
+                pass_θ = f["pass_θ"]
+                spiketimes = f["spiketimes"]
 
-        performance_metrics = nothing
-        try
-            performance_metrics = f["performance_metrics"]
-        catch
-            @warn "Performance metrics not found in $filename"
+                performance_metrics = nothing
+                try
+                    performance_metrics = f["performance_metrics"]
+                catch
+                    @warn "Performance metrics not found in $filename"
+                end
+
+                trials = nothing
+                try
+                    trials = f["trials"]
+                catch
+                    @warn "Trials table not found in $filename"
+                end
+            end
+            ovars = Dict()
+            for v in subvars
+                push!(ovars, v => f[string(v)])
+            end
+            close(f)
+
+            # Depth and layer info
+            layernames = ToolsArray(layerinfo[1], (Depth(layerinfo[2]),))
+            layernums = ToolsArray(layerinfo[3], (Depth(layerinfo[2]),))
+
+            # Remove poor quality depth estimates
+            idxs = 1:length(streamlinedepths)
+            # try
+            while !issorted(streamlinedepths) # Make sure depths are increasing only
+                idxs = idxs[1:(end - 1)]
+                streamlinedepths = streamlinedepths[idxs]
+                @assert length(streamlinedepths) > 15
+            end
+            # catch e
+            #     return nothing
+            # end
+            layernames = layernames[idxs]
+
+            ovars = map(collect(ovars)) do (v, k)
+                k = k[:, idxs, :] .|> Float32
+
+                # We know the depths are sorted from above
+                k = set(k, Depth(streamlinedepths))
+                k = set(k,
+                        Depth => DimensionalData.Irregular(extrema(streamlinedepths)))
+
+                @assert issorted(lookup(k, Depth))
+                push!(k.metadata.val, :layernames => layernames)
+                return v => k
+            end
+
+            D = @strdict streamlinedepths layernames pass_γ pass_θ trials sessionid performance_metrics spiketimes
+            for (k, v) in pairs(D)
+                outfile[string(structure) * "/" * string(sessionid) * "/" * k] = v
+            end
+            for (k, v) in ovars
+                outfile[string(structure) * "/" * string(sessionid) * "/" * string(k)] = v .|>
+                                                                                         Float32
+            end
         end
-
-        trials = nothing
-        try
-            trials = f["trials"]
-        catch
-            @warn "Trials table not found in $filename"
-        end
-    end
-    ovars = Dict()
-    for v in subvars
-        push!(ovars, v => f[string(v)])
-    end
-    close(f)
-
-    # Depth and layer info
-    layernames = ToolsArray(layerinfo[1], (Depth(layerinfo[2]),))
-    layernums = ToolsArray(layerinfo[3], (Depth(layerinfo[2]),))
-
-    # Remove poor quality depth estimates
-    idxs = 1:length(streamlinedepths)
-    # try
-    while !issorted(streamlinedepths) # Make sure depths are increasing only
-        idxs = idxs[1:(end - 1)]
-        streamlinedepths = streamlinedepths[idxs]
-        @assert length(streamlinedepths) > 15
-    end
-    # catch e
-    #     return nothing
-    # end
-    layernames = layernames[idxs]
-
-    ovars = map(collect(ovars)) do (v, k)
-        k = k[:, idxs, :] .|> Float32
-
-        # We know the depths are sorted from above
-        k = set(k, Depth(streamlinedepths))
-        k = set(k,
-                Depth => DimensionalData.Irregular(extrema(streamlinedepths)))
-
-        @assert issorted(lookup(k, Depth))
-        push!(k.metadata.val, :layernames => layernames)
-        return v => k
-    end
-
-    D = @strdict streamlinedepths layernames pass_γ pass_θ trials sessionid performance_metrics spiketimes
-    for (k, v) in pairs(D)
-        outfile[string(structure) * "/" * string(sessionid) * "/" * k] = v
-    end
-    for (k, v) in ovars
-        outfile[string(structure) * "/" * string(sessionid) * "/" * string(k)] = v .|>
-                                                                                 Float32
+    catch e
+        @error "Error in collecting $(filename): $(e)"
+        E = Dict("error" => sprint(showerror, e))
+        outfile[string(structure) * "/" * string(sessionid)] = E
     end
     return nothing
 end
 
 function collect_calculations(Q; path = datadir("calculations"), stimulus, rewrite = false)
     outfilepath = savepath("out", Dict("stimulus" => stimulus), "jld2", datadir())
-    subvars = sort([:V, :csd, :x, :ϕ, :r, :k, :ω])
+    if contains(stimulus, "nochange")
+        subvars = sort([:csd]) # Only use the LFP for inferring the CSD
+    else
+        subvars = sort([:V, :csd, :θ, :ϕ, :r, :k, :ω])
+    end
     if !isfile(outfilepath) || rewrite
         jldopen(outfilepath, "w") do outfile
             out = map(lookup(Q, Structure)) do structure
@@ -653,18 +650,6 @@ function collect_calculations(Q; path = datadir("calculations"), stimulus, rewri
                 end
             end
         end
-        # out = filter(!isnothing, out)
-        # out = filter(x -> maximum(x[:streamlinedepths]) > 0.90, out) # Remove sessions
-        # that don't have data to a reasonable depth --> Moved to posthoc session filter
-        # if length(unique(length.(out))) != 1
-        #     error("Not all structures returned the same sessions")
-        #     # commonsessions = [[o[:sessionid] for o in O]
-        #     #                   for O in out]
-        #     # commonsessions = intersect(commonsessions...)
-        #     # out = map(out) do O
-        #     #     filter(o -> (o[:sessionid] in commonsessions), O)
-        #     # end
-        # end
     end
     if rewrite == false
         @info "Already calculated: $(stimulus). Checking quality"
@@ -693,7 +678,7 @@ function collect_calculations(Q; path = datadir("calculations"), stimulus, rewri
     return outfilepath
 end
 
-function load_calculations(Q; vars = sort([:V, :csd, :x, :ϕ, :r, :k, :ω]), stimulus,
+function load_calculations(Q; vars = sort([:V, :csd, :θ, :ϕ, :r, :k, :ω]), stimulus,
                            kwargs...)
     commonkeys = [
         :streamlinedepths, :layernames, :pass_γ, :pass_θ, :trials, :sessionid,
@@ -704,7 +689,8 @@ function load_calculations(Q; vars = sort([:V, :csd, :x, :ϕ, :r, :k, :ω]), sti
     jldopen(outfilepath, "r") do outfile
         @assert sort(keys(outfile)) == sort(structures)
         sessionids = unique([keys(outfile[s]) for s in structures]) |> only
-        out = progressmap(structures) do structure
+        out = map(structures) do structure
+            @info "Loading data for structure $(structure)"
             progressmap(sessionids) do sessionid
                 D = Dict()
                 for v in vars
@@ -717,7 +703,7 @@ function load_calculations(Q; vars = sort([:V, :csd, :x, :ϕ, :r, :k, :ω]), sti
     end
 end
 
-function unify_calculations(Q; stimulus, vars = sort([:V, :csd, :x, :ϕ, :r, :k, :ω]),
+function unify_calculations(Q; stimulus, vars = sort([:V, :csd, :θ, :ϕ, :r, :k, :ω]),
                             rewrite = false, kwargs...)
     unifilepath = savepath("uni", Dict("stimulus" => stimulus), "jld2", datadir())
     # * Filter to posthoc sessions
@@ -829,7 +815,7 @@ end
 #     Q = calcquality(path)[Structure = At(structures)]
 #     return produce_out(Q, config; path)
 # end
-function load_uni(; stimulus, vars = sort([:V, :csd, :x, :ϕ, :r, :k, :ω]),
+function load_uni(; stimulus, vars = sort([:V, :csd, :θ, :ϕ, :r, :k, :ω]),
                   path = datadir("calculations"),
                   structures = SpatiotemporalMotifs.structures,
                   kwargs...)
