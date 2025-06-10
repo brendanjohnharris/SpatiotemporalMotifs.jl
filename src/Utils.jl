@@ -456,34 +456,30 @@ function ppc(ϕ::AbstractVector{<:UnivariateTimeSeries}, spikes::AbstractVector)
 end
 
 function initialize_spc_dataframe!(spikes, T)
-    if !("trial_pairwise_phase_consistency" ∈ names(spikes))
-        @debug "Initializing missing columns"
-        spikes[!, :trial_pairwise_phase_consistency] = [Vector{T}()
-                                                        for _ in 1:size(spikes, 1)]
+    trial_ppcs = [:trial_pairwise_phase_consistency,
+        :trial_pairwise_phase_consistency_pvalue,
+        :trial_pairwise_phase_consistency_angle]
+
+    map(trial_ppcs) do col
+        if !(string(col) ∈ names(spikes))
+            spikes[!, col] = [Vector{T}() for _ in 1:size(spikes, 1)]
+        end
     end
-    if !("trial_pairwise_phase_consistency_pvalue" ∈ names(spikes))
-        @debug "Initializing missing columns"
-        spikes[!, :trial_pairwise_phase_consistency_pvalue] = [Vector{T}()
-                                                               for _ in 1:size(spikes,
-                                                                               1)]
-    end
-    if !("trial_pairwise_phase_consistency_angle" ∈ names(spikes))
-        @debug "Initializing missing columns"
-        spikes[!, :trial_pairwise_phase_consistency_angle] = [Vector{T}()
-                                                              for _ in 1:size(spikes,
-                                                                              1)]
-    end
-    if !("pairwise_phase_consistency" ∈ names(spikes))
-        @debug "Initializing missing columns"
-        spikes[!, :pairwise_phase_consistency] .= NaN
-    end
-    if !("pairwise_phase_consistency_pvalue" ∈ names(spikes))
-        @debug "Initializing missing columns"
-        spikes[!, :pairwise_phase_consistency_pvalue] .= NaN
-    end
-    if !("pairwise_phase_consistency_angle" ∈ names(spikes))
-        @debug "Initializing missing columns"
-        spikes[!, :pairwise_phase_consistency_angle] .= NaN
+
+    ppcs = [:pairwise_phase_consistency,
+        :pairwise_phase_consistency_pvalue,
+        :pairwise_phase_consistency_angle,
+        :onset_pairwise_phase_consistency,
+        :onset_pairwise_phase_consistency_pvalue,
+        :onset_pairwise_phase_consistency_angle,
+        :offset_pairwise_phase_consistency,
+        :offset_pairwise_phase_consistency_pvalue,
+        :offset_pairwise_phase_consistency_angle]
+
+    map(ppcs) do col
+        if !(string(col) ∈ names(spikes))
+            spikes[!, col] .= NaN
+        end
     end
 end
 
@@ -516,6 +512,28 @@ function spc!(spikes::AbstractDataFrame, ϕ::AbstractTimeSeries; pbar = nothing)
             spikes.pairwise_phase_consistency[spikes.ecephys_unit_id .== unitid] .= γ
             spikes.pairwise_phase_consistency_pvalue[spikes.ecephys_unit_id .== unitid] .= 𝑝
             spikes.pairwise_phase_consistency_angle[spikes.ecephys_unit_id .== unitid] .= p
+
+            # * PPC for onset periods
+            Δt = 0u"s" .. 0.25u"s"
+            @assert Δt ⊆ times(_ϕ[1])
+            idxs = [any(s .∈ [Δt]) for s in spiketimes]
+            __ϕ = getindex.(_ϕ, [Δt])
+            __ϕ = cat(__ϕ..., dims = 𝑡(vcat(lookup.(__ϕ, 𝑡)...)))
+            γ, p, 𝑝 = ppc(__ϕ, spiketimes)
+            spikes.onset_pairwise_phase_consistency[spikes.ecephys_unit_id .== unitid] .= γ
+            spikes.onset_pairwise_phase_consistency_pvalue[spikes.ecephys_unit_id .== unitid] .= 𝑝
+            spikes.onset_pairwise_phase_consistency_angle[spikes.ecephys_unit_id .== unitid] .= p
+
+            # * PPC for offset periods
+            Δt = 0.25u"s" .. 0.5u"s"
+            @assert Δt ⊆ times(_ϕ[1])
+            idxs = [any(s .∈ [Δt]) for s in spiketimes]
+            __ϕ = getindex.(_ϕ, [Δt])
+            __ϕ = cat(__ϕ..., dims = 𝑡(vcat(lookup.(__ϕ, 𝑡)...)))
+            γ, p, 𝑝 = ppc(__ϕ, spiketimes)
+            spikes.offset_pairwise_phase_consistency[spikes.ecephys_unit_id .== unitid] .= γ
+            spikes.offset_pairwise_phase_consistency_pvalue[spikes.ecephys_unit_id .== unitid] .= 𝑝
+            spikes.offset_pairwise_phase_consistency_angle[spikes.ecephys_unit_id .== unitid] .= p
         end
         !isnothing(pbar) && update!(job)
     end

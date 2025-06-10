@@ -17,13 +17,6 @@ using Random
 set_theme!(foresight(:physics))
 
 begin # * Load the CSD flashes
-    session_table = load(datadir("posthoc_session_table.jld2"), "session_table")
-    oursessions = session_table.ecephys_session_id
-    path = datadir("calculations")
-    Q = calcquality(path)[Structure = At(structures)]
-    Q = Q[SessionID(At(oursessions))]
-    @assert mean(Q[stimulus = At("flash_250ms")]) == 1
-    out = load_calculations(Q; stimulus = "flash_250ms", vars = [:csd])
 end
 # begin # * Load the CSD passive natural images
 #     session_table = load(datadir("posthoc_session_table.jld2"), "session_table")
@@ -49,66 +42,129 @@ end
 #     D = @strdict csd
 #     tagsave(datadir("average_csd.jld2"), D)
 # end
-begin # * Save average CSD for each session for flashes
-    csd = map(out) do out_structure
-        csd = map(out_structure) do out_session
-            csd_session = mapslices(mean, out_session[:csd], dims = :changetime)
-            csd_session = dropdims(csd_session, dims = :changetime)
-            return csd_session
+
+begin # * Save average CSD for each session
+    conf = Dict("stimulus" => "Natural_Images_passive_nochange")
+
+    csd, csd_file = produce_or_load(copy(conf), datadir("plots");
+                                    filename = savepath,
+                                    prefix = "csd") do conf
+        stimulus = conf["stimulus"]
+
+        session_table = load(datadir("posthoc_session_table.jld2"), "session_table")
+        oursessions = session_table.ecephys_session_id
+        path = datadir("calculations")
+        Q = calcquality(path)[Structure = At(structures)]
+        Q = Q[SessionID(At(oursessions))]
+        @assert mean(Q[stimulus = At(stimulus)]) == 1
+        out = load_calculations(Q; stimulus, vars = [:csd])
+
+        csd = map(out) do out_structure
+            csd = map(out_structure) do out_session
+                csd_session = mapslices(mean, out_session[:csd], dims = :changetime)
+                csd_session = dropdims(csd_session, dims = :changetime)
+                return csd_session
+            end
         end
-    end
-    csd = map(csd) do x
-        filter(x) do _x
-            metadata(_x)[:sessionid] in oursessions
+        csd = map(csd) do x
+            filter(x) do _x
+                metadata(_x)[:sessionid] in oursessions
+            end
         end
+        csd = map(csd) do x
+            sessionids = map(x -> metadata(x)[:sessionid], x)
+            x = ToolsArray(x, (SessionID(sessionids),))
+        end
+        return Dict(structures .=> csd)
     end
-    csd = map(csd) do x
-        sessionids = map(x -> metadata(x)[:sessionid], x)
-        x = ToolsArray(x, (SessionID(sessionids),))
-    end
-    csd = ToolsArray(csd, (Structure(structures),))
-    D = @strdict csd
-    tagsave(datadir("average_csd.jld2"), D)
 end
 
 begin # * Try just averaging nochange results
-    csd = load(datadir("average_csd.jld2"), "csd")
-    heatmap(csd[2][15] |> ustripall,
+    heatmap(csd["VISp"][15] |> ustripall,
             axis = (; yreversed = true, limits = ((0, 0.1), nothing)),
-            colorrange = (-2e-8, 2e-8))
+            colorrange = (-1e-8, 1e-8), colormap = :turbo)
 end
 
-function find_L4_center(csd::MultivariateTimeSeries;
-                        window::Tuple{Real, Real} = (0, 50),
-                        fs::Real = 1_000)
-    # # * Sigmoid normalize csd in each depth
-    # N = Sigmoid(csd; dims = 2)
-    # csd = N(csd)
+function find_L4_center(csd::MultivariateTimeSeries, doplot = false)
     # * Get 0-100 ms window
     csd = csd[𝑡 = 0u"s" .. 0.1u"s"]
+    # * Normalize CSD so that proms are meaningful
+    zcsd = ZScore(csd)(csd)
+
     dt = samplingperiod(csd)
-    w = 10u"ms"
+    w = 15u"ms"
     w = ceil(Int, uconvert(NoUnits, w / dt))
-    minima = map(eachslice(.-csd, dims = Depth)) do x
-        findpeaks(x, w)
+    minima = map(eachslice(.-zcsd, dims = Depth)) do x
+        findpeaks(x, w, minprom = 0.3)
     end
     proms = getindex.(minima, 2)
     minima = first.(minima) # 3rd is widths
-    fax = heatmap(csd |> ustripall, colormap = :turbo,
-                  colorrange = symextrema(csd |> ustripall))
-    map(ustripall(minima), lookup(minima)[1] .|> ustrip, ustripall(proms)) do m, depth, prom
-        scatter!(lookup(m)[1], fill(depth, length(m)), color = cornflowerblue,
-                 markersize = prom * 2e9)
+
+    _minima = map(minima, lookup(minima, Depth)) do m, d
+        ts = times(m)
+        idxs = map(ts) do t
+            ustrip(csd[𝑡 = At(t), Depth = At(d)]) < 0 # Only select true 'sinks'
+        end
+        isempty(idxs) ? [] : m[idxs]
     end
-    Colorbar(fax.figure[1, 2], fax.plot)
-    fax.axis.yreversed = true
-    fax.axis.yticks = (lookup(csd, Depth), metadata(csd)[:layernames])
-    display(fax)
+    _minima = filter(!isempty, minima)
+
+    allmins = map(_minima, lookup(_minima, Depth)) do m, d
+        zip(lookup(m, 𝑡), d) |> collect
+    end
+    allmins = vcat(allmins...)
+
+    # * Find the depth of the first sink
+    t, idx = findmin(first.(allmins))
+    if t > 0.05u"s"
+        @warn "No L4 center found in the first 50 ms, using first minimum at $(t)"
+    end
+    L4 = last(allmins[idx])
+
+    # * Cross check against layer names
+    layernames = metadata(csd)[:layernames]
+    if !contains(layernames[idx], "4")
+        @warn "The first minimum at $(t) is not in L4, but in $(layernames[idx])"
+    end
+
+    if doplot
+        fax = heatmap(csd |> ustripall, colormap = :turbo,
+                      colorrange = symextrema(csd |> ustripall))
+        map(ustripall(minima), lookup(minima)[1] .|> ustrip,
+            ustripall(proms)) do m, depth, prom
+            scatter!(lookup(m)[1], fill(depth, length(m)), color = juliapurple,
+                     markersize = prom * 10)
+        end
+        Colorbar(fax.figure[1, 2], fax.plot)
+        fax.axis.yreversed = true
+        fax.axis.yticks = (lookup(csd, Depth), layernames)
+
+        sessionid = metadata(csd)[:sessionid]
+        structure = metadata(csd)[:structure]
+        fax.axis.title = "$(structure) CSD (session $(sessionid))"
+        mkpath(datadir("plots", "csd", "$(sessionid)"))
+        save(datadir("plots", "csd", "$(sessionid)",
+                     "$(structure).pdf"), fax)
+    end
+    return L4
 end
 
 begin # * Identify Layer 4
+    x = csd["VISp"][16]
+    l4 = find_L4_center(x, true)
 end
 
+begin # * Layer identification for all sessions and structures
+    progressmap(structures) do structure
+        csd_structure = csd[structure]
+        l4s = map(csd_structure) do csd_session
+            find_L4_center(csd_session, true)
+        end
+        # l4s = ToolsArray(l4s, (SessionID(lookup(csd_structure, :sessionid)),))
+        # D = @strdict l4s
+        # tagsave(datadir("csd", "l4_depth.jld2"), D; structure = structure)
+    end
+end
 begin
     s = 2
     i = 19

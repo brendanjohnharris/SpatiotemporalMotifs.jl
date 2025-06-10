@@ -333,10 +333,11 @@ function get_stimulustimes(stimulus, session)
 end
 
 function compute_csd(LFP, stimulustimes)
+    # CSD computed as
     prestim = LFP[𝑡 = -0.1u"s" .. 0u"s"]
     prestim_mean = mean(prestim, dims = (𝑡, :changetime))
     baseline_LFP = LFP .- prestim_mean # Baseline correct
-    csd = centralderiv(centralderiv(baseline_LFP, dims = Depth); dims = Depth)
+    csd = .-centralderiv(centralderiv(baseline_LFP, dims = Depth); dims = Depth)
     return csd
 end
 

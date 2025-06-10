@@ -47,10 +47,20 @@ plot_data, data_file = produce_or_load(Dict(), datadir("plots");
         else
             pspikes = deepcopy(spikes)
         end
-        requiredcols = [:pairwise_phase_consistency, :trial_pairwise_phase_consistency,
+
+        requiredcols = [:pairwise_phase_consistency,
+            :trial_pairwise_phase_consistency,
             :pairwise_phase_consistency_pvalue, :trial_pairwise_phase_consistency_pvalue,
-            :pairwise_phase_consistency_angle, :pairwise_phase_consistency_angle,
-            :spike_amplitude_coupling, :trial_spike_amplitude_coupling]
+            :pairwise_phase_consistency_angle,
+            :pairwise_phase_consistency_angle,
+            :spike_amplitude_coupling,
+            :trial_spike_amplitude_coupling,
+            :onset_pairwise_phase_consistency, :offset_pairwise_phase_consistency,
+            :onset_pairwise_phase_consistency_pvalue,
+            :offset_pairwise_phase_consistency_pvalue,
+            :onset_pairwise_phase_consistency_angle,
+            :offset_pairwise_phase_consistency_angle]
+
         if !all(hasproperty.([pspikes], requiredcols))
             for s in eachindex(structures)
                 ϕ = getindex.(out[s], :ϕ)
@@ -61,6 +71,7 @@ plot_data, data_file = produce_or_load(Dict(), datadir("plots");
             save(datadir("spike_lfp.jld2"), "pspikes", pspikes)
         end
     end
+
     pspikes = subset(pspikes, :pairwise_phase_consistency => ByRow(!isnan))
     pspikes = subset(pspikes, :pairwise_phase_consistency => ByRow(>(0)))
     pspikes = subset(pspikes, :spike_amplitude_coupling => ByRow(!isnan))
