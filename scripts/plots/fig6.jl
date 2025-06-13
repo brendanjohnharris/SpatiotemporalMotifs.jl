@@ -39,6 +39,22 @@ plot_data, data_file = produce_or_load(Dict(), datadir("plots");
         filter!(:streamlinedepth => ∈(0 .. 1), spikes) # Cortex only
     end
 
+    begin # * Add trial info to dataframe
+        sessionids = unique(spikes.ecephys_session_id)
+        outfile = datadir("out&stimulus=Natural_Images.jld2")
+        trials = jldopen(outfile, "r") do f
+            map(sessionids) do sessionid
+                trials = f["VISp/$(sessionid)/trials"]
+            end
+        end
+        trials = ToolsArray(trials, (SessionID(sessionids),))
+        spikes.hitmiss = map(eachrow(spikes)) do row
+            # isempty(row[:trial_pairwise_phase_consistency]) && return
+            _trials = trials[SessionID = At(row[:ecephys_session_id])]
+            return _trials.hit
+        end
+    end
+
     begin # * Calculate spike--phase and spike--amplitude coupling across layers. Takes about 30 minutes over 64 cores, 125 GB
         # The idea here is that we have this larger spike_lfp file, and subset it to the
         # relevant data for this plot
@@ -46,6 +62,8 @@ plot_data, data_file = produce_or_load(Dict(), datadir("plots");
             pspikes = load(datadir("spike_lfp.jld2"), "pspikes") # Delete this file to recalculate
         else
             pspikes = deepcopy(spikes)
+            idxs = pspikes.stimulus .== [r"Natural_Images"]
+            pspikes = pspikes[idxs, :]
         end
 
         requiredcols = [:pairwise_phase_consistency,
@@ -55,16 +73,34 @@ plot_data, data_file = produce_or_load(Dict(), datadir("plots");
             :pairwise_phase_consistency_angle,
             :spike_amplitude_coupling,
             :trial_spike_amplitude_coupling,
-            :onset_pairwise_phase_consistency, :offset_pairwise_phase_consistency,
+            :onset_pairwise_phase_consistency,
+            :offset_pairwise_phase_consistency,
             :onset_pairwise_phase_consistency_pvalue,
             :offset_pairwise_phase_consistency_pvalue,
             :onset_pairwise_phase_consistency_angle,
-            :offset_pairwise_phase_consistency_angle]
+            :offset_pairwise_phase_consistency_angle,
+            :hit_onset_pairwise_phase_consistency,
+            :hit_offset_pairwise_phase_consistency,
+            :hit_onset_pairwise_phase_consistency_pvalue,
+            :hit_offset_pairwise_phase_consistency_pvalue,
+            :hit_onset_pairwise_phase_consistency_angle,
+            :hit_offset_pairwise_phase_consistency_angle,
+            :miss_onset_pairwise_phase_consistency,
+            :miss_offset_pairwise_phase_consistency,
+            :miss_onset_pairwise_phase_consistency_pvalue,
+            :miss_offset_pairwise_phase_consistency_pvalue,
+            :miss_onset_pairwise_phase_consistency_angle,
+            :miss_offset_pairwise_phase_consistency_angle]
 
         if !all(hasproperty.([pspikes], requiredcols))
             for s in eachindex(structures)
-                ϕ = getindex.(out[s], :ϕ)
-                r = getindex.(out[s], :r)
+                @info "Calculating spike coupling for $(structures[s])"
+                ϕ = map(out[s]) do o
+                    o[:ϕ][𝑡 = SpatiotemporalMotifs.INTERVAL] # Phase during trial interval
+                end
+                r = map(out[s]) do o
+                    o[:r][𝑡 = SpatiotemporalMotifs.INTERVAL] # Amplitude during trial interval
+                end
                 spc!(pspikes, ustripall.(ϕ)) # * PPC spike--phase coupling
                 sac!(pspikes, ustripall.(r)) # * Mean normalized amplitude spike--amplitude coupling
             end

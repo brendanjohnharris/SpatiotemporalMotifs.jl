@@ -632,7 +632,7 @@ end
 
 function collect_calculations(Q; path = datadir("calculations"), stimulus, rewrite = false)
     outfilepath = savepath("out", Dict("stimulus" => stimulus), "jld2", datadir())
-    if contains(stimulus, "nochange")
+    if contains(stimulus |> string, "nochange")
         subvars = sort([:csd]) # Only use the LFP for inferring the CSD
     else
         subvars = sort([:V, :csd, :θ, :ϕ, :r, :k, :ω])
@@ -692,7 +692,7 @@ function load_calculations(Q; vars = sort([:V, :csd, :θ, :ϕ, :r, :k, :ω]), st
         sessionids = unique([keys(outfile[s]) for s in structures]) |> only
         out = map(structures) do structure
             @info "Loading data for structure $(structure)"
-            progressmap(sessionids) do sessionid
+            map(sessionids) do sessionid
                 D = Dict()
                 for v in vars
                     D[v] = outfile[structure][sessionid][string(v)]

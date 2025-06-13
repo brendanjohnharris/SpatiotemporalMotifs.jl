@@ -90,3 +90,56 @@ begin
     current_axis().ylabel = "Density"
     current_figure() |> display
 end
+
+begin # * Look at onset PPC
+    onset = pspikes.hit_onset_pairwise_phase_consistency_pvalue
+    offset = pspikes.miss_onset_pairwise_phase_consistency_pvalue
+    onset = clamp.(onset, [1e-10 .. Inf])
+    offset = clamp.(offset, [1e-10 .. Inf])
+    onset = log10.(onset)
+    offset = log10.(offset)
+    hist(filter(!isnan, onset))
+    hist!(filter(!isnan, offset))
+    current_figure() |> display
+end
+begin # * Onset preferred phase
+    hit_onset = pspikes.hit_onset_pairwise_phase_consistency
+    miss_onset = pspikes.miss_onset_pairwise_phase_consistency
+    onset = pspikes.onset_pairwise_phase_consistency
+    hit_onset_phase = pspikes.hit_onset_pairwise_phase_consistency_angle
+    miss_onset_phase = pspikes.miss_onset_pairwise_phase_consistency_angle
+
+    sensitive_idxs = pspikes.pairwise_phase_consistency .> 0.25
+
+    begin # * Only use neurons that have significant PPC's in both hit and miss cases
+        ps = pspikes.hit_onset_pairwise_phase_consistency_pvalue
+        ps[isnan.(ps)] .= 1.0
+        ps[ps .< 0] .= 0.0
+        ps = adjust(ps, BenjaminiHochberg())
+        significant_idxs = ps .< 0.01
+
+        ps = pspikes.miss_onset_pairwise_phase_consistency_pvalue
+        ps[isnan.(ps)] .= 1.0
+        ps[ps .< 0] .= 0.0
+        ps = adjust(ps, BenjaminiHochberg())
+        significant_idxs = significant_idxs .& (ps .< 0.01)
+    end
+
+    hit_onset_phase = hit_onset_phase[sensitive_idxs .& significant_idxs]
+    miss_onset_phase = miss_onset_phase[sensitive_idxs .& significant_idxs]
+    hist(filter(!isnan, hit_onset_phase), label = "hit onset phase")
+    hist!(filter(!isnan, miss_onset_phase), label = "miss onset phase")
+    axislegend(; position = :lt)
+    current_figure() |> display
+end
+
+begin # * Polar histogram
+    f = Figure()
+    ax = PolarAxis(f[1, 1])
+    polarhist!(ax, hit_onset_phase, bins = 30, label = "hit onset phase",
+               color = (cornflowerblue, 0.5))
+    polarhist!(ax, miss_onset_phase, bins = 30, label = "miss onset phase",
+               color = (crimson, 0.5))
+
+    f
+end

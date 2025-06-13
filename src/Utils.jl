@@ -474,7 +474,20 @@ function initialize_spc_dataframe!(spikes, T)
         :onset_pairwise_phase_consistency_angle,
         :offset_pairwise_phase_consistency,
         :offset_pairwise_phase_consistency_pvalue,
-        :offset_pairwise_phase_consistency_angle]
+        :offset_pairwise_phase_consistency_angle,
+        :hit_onset_pairwise_phase_consistency,
+        :hit_onset_pairwise_phase_consistency_pvalue,
+        :hit_onset_pairwise_phase_consistency_angle,
+        :hit_offset_pairwise_phase_consistency,
+        :hit_offset_pairwise_phase_consistency_pvalue,
+        :hit_offset_pairwise_phase_consistency_angle,
+        :miss_onset_pairwise_phase_consistency,
+        :miss_onset_pairwise_phase_consistency_pvalue,
+        :miss_onset_pairwise_phase_consistency_angle,
+        :miss_offset_pairwise_phase_consistency,
+        :miss_offset_pairwise_phase_consistency_pvalue,
+        :miss_offset_pairwise_phase_consistency_angle
+    ]
 
     map(ppcs) do col
         if !(string(col) ∈ names(spikes))
@@ -494,46 +507,99 @@ function spc!(spikes::AbstractDataFrame, ϕ::AbstractTimeSeries; pbar = nothing)
     for unit in eachrow(spikes)
         if unit.probe_id == probeid
             unitid = unit.ecephys_unit_id
-            _ϕ = ϕ[Depth(Near(unit.streamlinedepth))]
+            ϕd = ϕ[Depth(Near(unit.streamlinedepth))]
             spiketimes = unit.spiketimes
+            thisunit = spikes.ecephys_unit_id .== unitid
+            hitmiss = spikes[spikes.ecephys_unit_id .== unitid, :hitmiss] |> unique |> only
 
-            _ϕ = map(eachslice(_ϕ, dims = 2)) do x # Individual trial
-                x = set(x, 𝑡 => lookup(x, 𝑡) .+ refdims(x, :changetime))
+            begin # * Trial PPC
+                _ϕ = map(eachslice(ϕd, dims = 2)) do x # Individual trial
+                    toffset = refdims(x, :changetime)
+                    @assert !isempty(toffset)
+                    x = set(x, 𝑡 => lookup(x, 𝑡) .+ toffset)
+                end
+                γ_trial, p_trial, 𝑝_trial = ppc(_ϕ, spiketimes)
+                spikes.trial_pairwise_phase_consistency[thisunit] .= [γ_trial]
+                spikes.trial_pairwise_phase_consistency_pvalue[thisunit] .= [𝑝_trial]
+                spikes.trial_pairwise_phase_consistency_angle[thisunit] .= [p_trial]
             end
-            γ_trial, p_trial, 𝑝_trial = ppc(_ϕ, spiketimes)
-            spikes.trial_pairwise_phase_consistency[spikes.ecephys_unit_id .== unitid] .= [γ_trial]
-            spikes.trial_pairwise_phase_consistency_pvalue[spikes.ecephys_unit_id .== unitid] .= [𝑝_trial]
-            spikes.trial_pairwise_phase_consistency_angle[spikes.ecephys_unit_id .== unitid] .= [p_trial]
+            begin # * PPC for onset periods
+                Δt = 0 .. 0.25 # s Relative to changetime
+                @assert Δt ⊆ Interval(ϕd)
+                __ϕ = map(eachslice(ϕd[𝑡 = Δt], dims = 2)) do x # Individual trial
+                    toffset = refdims(x, :changetime)
+                    @assert !isempty(toffset)
+                    x = set(x, 𝑡 => lookup(x, 𝑡) .+ toffset)
+                end
 
+                _idxs = [any(s .∈ Interval.(__ϕ)) for s in spiketimes]
+                _spiketimes = spiketimes[_idxs]
+
+                # * First, hit/miss
+                ___ϕ = deepcopy(__ϕ)[hitmiss]
+                ___ϕ = cat(___ϕ..., dims = 𝑡(vcat(lookup.(___ϕ, 𝑡)...)))
+                γ, p, 𝑝 = ppc(___ϕ, _spiketimes)
+                spikes.hit_onset_pairwise_phase_consistency[thisunit] .= γ
+                spikes.hit_onset_pairwise_phase_consistency_pvalue[thisunit] .= 𝑝
+                spikes.hit_onset_pairwise_phase_consistency_angle[thisunit] .= p
+
+                ___ϕ = deepcopy(__ϕ)[.!hitmiss]
+                ___ϕ = cat(___ϕ..., dims = 𝑡(vcat(lookup.(___ϕ, 𝑡)...)))
+                γ, p, 𝑝 = ppc(___ϕ, _spiketimes)
+                spikes.miss_onset_pairwise_phase_consistency[thisunit] .= γ
+                spikes.miss_onset_pairwise_phase_consistency_pvalue[thisunit] .= 𝑝
+                spikes.miss_onset_pairwise_phase_consistency_angle[thisunit] .= p
+
+                # * Then all trials
+                __ϕ = cat(__ϕ..., dims = 𝑡(vcat(lookup.(__ϕ, 𝑡)...)))
+                γ, p, 𝑝 = ppc(__ϕ, _spiketimes)
+                spikes.onset_pairwise_phase_consistency[thisunit] .= γ
+                spikes.onset_pairwise_phase_consistency_pvalue[thisunit] .= 𝑝
+                spikes.onset_pairwise_phase_consistency_angle[thisunit] .= p
+            end
+            begin # * PPC for offset periods
+                Δt = 0.25 .. 0.5 # s Relative to changetime
+                @assert Δt ⊆ Interval(ϕd)
+
+                __ϕ = map(eachslice(ϕd[𝑡 = Δt], dims = 2)) do x # Individual trial
+                    toffset = refdims(x, :changetime)
+                    @assert !isempty(toffset)
+                    x = set(x, 𝑡 => lookup(x, 𝑡) .+ toffset)
+                end
+
+                # * First hit/miss
+                ___ϕ = deepcopy(__ϕ)[hitmiss]
+                ___ϕ = cat(___ϕ..., dims = 𝑡(vcat(lookup.(___ϕ, 𝑡)...)))
+                γ, p, 𝑝 = ppc(___ϕ, _spiketimes)
+                spikes.hit_offset_pairwise_phase_consistency[thisunit] .= γ
+                spikes.hit_offset_pairwise_phase_consistency_pvalue[thisunit] .= 𝑝
+                spikes.hit_offset_pairwise_phase_consistency_angle[thisunit] .= p
+
+                ___ϕ = deepcopy(__ϕ)[.!hitmiss]
+                ___ϕ = cat(___ϕ..., dims = 𝑡(vcat(lookup.(___ϕ, 𝑡)...)))
+                γ, p, 𝑝 = ppc(___ϕ, _spiketimes)
+                spikes.miss_offset_pairwise_phase_consistency[thisunit] .= γ
+                spikes.miss_offset_pairwise_phase_consistency_pvalue[thisunit] .= 𝑝
+                spikes.miss_offset_pairwise_phase_consistency_angle[thisunit] .= p
+
+                # * Then all trials
+                _idxs = [any(s .∈ Interval.(__ϕ)) for s in spiketimes]
+                _spiketimes = spiketimes[_idxs]
+                __ϕ = cat(__ϕ..., dims = 𝑡(vcat(lookup.(__ϕ, 𝑡)...)))
+                γ, p, 𝑝 = ppc(__ϕ, _spiketimes)
+
+                spikes.offset_pairwise_phase_consistency[thisunit] .= γ
+                spikes.offset_pairwise_phase_consistency_pvalue[thisunit] .= 𝑝
+                spikes.offset_pairwise_phase_consistency_angle[thisunit] .= p
+            end
+            # * Cat all trials
             idxs = [any(s .∈ Interval.(_ϕ)) for s in spiketimes]
             spiketimes = spiketimes[idxs]
             _ϕ = cat(_ϕ..., dims = 𝑡(vcat(lookup.(_ϕ, 𝑡)...)))
             γ, p, 𝑝 = ppc(_ϕ, spiketimes)
-            spikes.pairwise_phase_consistency[spikes.ecephys_unit_id .== unitid] .= γ
-            spikes.pairwise_phase_consistency_pvalue[spikes.ecephys_unit_id .== unitid] .= 𝑝
-            spikes.pairwise_phase_consistency_angle[spikes.ecephys_unit_id .== unitid] .= p
-
-            # * PPC for onset periods
-            Δt = 0u"s" .. 0.25u"s"
-            @assert Δt ⊆ times(_ϕ[1])
-            idxs = [any(s .∈ [Δt]) for s in spiketimes]
-            __ϕ = getindex.(_ϕ, [Δt])
-            __ϕ = cat(__ϕ..., dims = 𝑡(vcat(lookup.(__ϕ, 𝑡)...)))
-            γ, p, 𝑝 = ppc(__ϕ, spiketimes)
-            spikes.onset_pairwise_phase_consistency[spikes.ecephys_unit_id .== unitid] .= γ
-            spikes.onset_pairwise_phase_consistency_pvalue[spikes.ecephys_unit_id .== unitid] .= 𝑝
-            spikes.onset_pairwise_phase_consistency_angle[spikes.ecephys_unit_id .== unitid] .= p
-
-            # * PPC for offset periods
-            Δt = 0.25u"s" .. 0.5u"s"
-            @assert Δt ⊆ times(_ϕ[1])
-            idxs = [any(s .∈ [Δt]) for s in spiketimes]
-            __ϕ = getindex.(_ϕ, [Δt])
-            __ϕ = cat(__ϕ..., dims = 𝑡(vcat(lookup.(__ϕ, 𝑡)...)))
-            γ, p, 𝑝 = ppc(__ϕ, spiketimes)
-            spikes.offset_pairwise_phase_consistency[spikes.ecephys_unit_id .== unitid] .= γ
-            spikes.offset_pairwise_phase_consistency_pvalue[spikes.ecephys_unit_id .== unitid] .= 𝑝
-            spikes.offset_pairwise_phase_consistency_angle[spikes.ecephys_unit_id .== unitid] .= p
+            spikes.pairwise_phase_consistency[thisunit] .= γ
+            spikes.pairwise_phase_consistency_pvalue[thisunit] .= 𝑝
+            spikes.pairwise_phase_consistency_angle[thisunit] .= p
         end
         !isnothing(pbar) && update!(job)
     end
@@ -594,7 +660,9 @@ function sac!(spikes::AbstractDataFrame, r::AbstractTimeSeries; pbar = nothing,
             spiketimes = unit.spiketimes
 
             _r = map(eachslice(_r, dims = 2)) do x # Individual trial
-                x = set(x, 𝑡 => lookup(x, 𝑡) .+ refdims(x, :changetime))
+                toffset = refdims(x, :changetime)
+                @assert !isempty(toffset)
+                x = set(x, 𝑡 => lookup(x, 𝑡) .+ toffset)
             end
             γ_trial = sac(_r, spiketimes)
             spikes.trial_spike_amplitude_coupling[spikes.ecephys_unit_id .== unitid] .= [γ_trial]
