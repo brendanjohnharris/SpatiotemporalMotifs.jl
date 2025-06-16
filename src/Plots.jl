@@ -396,6 +396,19 @@ function fooof(x; kwargs...)
     AN.aperiodicfit(x, [3, 300]; aperiodic_mode = "fixed", max_n_peaks = 8,
                     peak_threshold = 1, peak_width_limits = [1, 50], kwargs...)
 end
+function trial_1onf(x::UnivariateRegular)
+    minfreq = 10.0u"Hz"
+    maxfreq = 300.0u"Hz" # Should match upper limit of the 'pass' band in Calculations.jl
+    S = spectrum(x, 5u"Hz")
+    S = S[𝑓 = minfreq .. maxfreq] |> ustripall
+    f, D = fooof(S; peak_width_limits = [10, 100], max_n_peaks = 2)
+
+    # lines(freqs(S), S |> parent; axis = (; xscale = log10, yscale = log10),
+    #       label = "spectrum")
+    # lines!(freqs(S), f.(freqs(S)))
+    # current_figure() |> display
+    return D
+end
 function plotspectrum!(ax, s::AbstractToolsArray;
                        textposition = (14, exp10(-2.9)), annotations = [:peaks, :fooof],
                        color = cucumber, label = nothing)

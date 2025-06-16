@@ -9,6 +9,7 @@ using DrWatson
 using SpatiotemporalMotifs
 import TimeseriesTools: freqs
 using SpatiotemporalMotifs
+using Distributed
 
 using Random
 @preamble
@@ -25,19 +26,38 @@ begin # * Load the trial LFP for natural images
 end
 
 begin # * Calculate 1/f exponent for each trial
-    function trial_1onf(x::UnivariateRegular)
-    end
-end
+    addprocs(50)
+    @everywhere using DrWatson
+    @everywhere DrWatson.@quickactivate "SpatiotemporalMotifs"
+    @everywhere using Unitful
+    @everywhere using TimeseriesTools
+    @everywhere using SpatiotemporalMotifs
 
-begin
     x = out[1][1][:V][:, 10, 10]
+    @spawnat 5 SpatiotemporalMotifs.trial_1onf(x)
 end
 
-begin # * 1/f across all sessions
-    oneonf = map(out) do out_structure
-        map(out_structure) do out_session
+begin # * 1/f across all sessions. Should take about 15 minutes over 50 workers
+    oneoneff = map(out) do out_structure
+        @info "Calculating 1/f exponent for $(metadata(out_structure[1][:V])[:structure])"
+        pmap(out_structure) do out_session
             V = out_session[:V]
-            V = V[𝑡 = SpatiotemporalMotif.INTERVAL]
+            V = V[𝑡 = SpatiotemporalMotifs.INTERVAL]
+            map(SpatiotemporalMotifs.trial_1onf, eachslice(V, dims = (:Depth, :changetime)))
         end
     end
+end
+begin
+    χ = map(oneoneff) do oneoneff_structure
+        map(oneoneff_structure) do oneoneff_session
+            getindex.(oneoneff_session, :χ)
+        end
+    end
+    b = map(oneoneff) do oneoneff_structure
+        map(oneoneff_structure) do oneoneff_session
+            getindex.(oneoneff_session, :b)
+        end
+    end
+    D = @strdict χ b
+    tagsave(datadir("trial_1onf.jld2"), D)
 end
