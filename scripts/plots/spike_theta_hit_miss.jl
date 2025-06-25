@@ -143,3 +143,158 @@ begin # * Polar histogram
 
     f
 end
+
+begin # * Filter only for sensitive and significant neurons
+    begin # * Only use neurons that have significant PPC's in both hit and miss cases
+        ps = pspikes.hit_onset_pairwise_phase_consistency_pvalue
+        ps[isnan.(ps)] .= 1.0
+        ps[ps .< 0] .= 0.0
+        ps = adjust(ps, BenjaminiHochberg())
+        significant_idxs = ps .< SpatiotemporalMotifs.PTHR
+
+        ps = pspikes.miss_onset_pairwise_phase_consistency_pvalue
+        ps[isnan.(ps)] .= 1.0
+        ps[ps .< 0] .= 0.0
+        ps = adjust(ps, BenjaminiHochberg())
+        significant_idxs = significant_idxs .& (ps .< SpatiotemporalMotifs.PTHR)
+
+        pspikes = pspikes[significant_idxs, :]
+    end
+
+    begin # * Only neurons that are sensitive to phase
+        cutoff_ppc = 0.1
+        sensitive_idxs = pspikes.pairwise_phase_consistency .> cutoff_ppc
+        pspikes = pspikes[sensitive_idxs, :]
+    end
+end
+
+begin # * Preferred phase, hit vs miss, across layers
+    @info "Plotting preferred spike phases"
+
+    begin # * Set up figure
+        f = Figure()
+        layerints = load(datadir("plots", "grand_unified_layers.jld2"), "layerints")
+        bins = range(0, 1, length = 11)
+    end
+
+    ax = PolarAxis(f[1, 1]; theta_as_x = false, thetalimits = (0, 2pi),
+                   rticks = 0:0.25:1, rtickformat = depthticks,
+                   title = "Layerwise PPC angle", rlimits = (0.0, 0.8))
+
+    for structure in reverse(structures)
+        idxs = pspikes.structure_acronym .== structure
+        allsesh_pspikes = @views pspikes[idxs, :]
+        allangles = map(unique(allsesh_pspikes.ecephys_session_id)) do sesh
+            _pspikes = @views allsesh_pspikes[allsesh_pspikes.ecephys_session_id .== sesh,
+                                              :]
+            _ys = _pspikes.hit_onset_pairwise_phase_consistency
+            ys = _pspikes.hit_onset_pairwise_phase_consistency_angle
+            xs = _pspikes.streamlinedepth .|> Float32
+            ys = ys .|> Float32
+            B = HistBins(xs; bins)
+            _ms = rectify(B(ys), dims = :bin)
+            c = rectify(B(_ys), dims = :bin)
+            return _ms, c
+        end
+        css = last.(allangles)
+        allangles = first.(allangles)
+
+        catppc = cat(allangles...; dims = 2)
+        catppc = map(eachrow(catppc)) do x
+            x = vcat(x...)
+        end
+        _ms = pmap(Base.Fix1(bootstrapaverage, circularmean), catppc)
+        σs = last.(_ms)
+        _ms = first.(_ms)
+        _σl = first.(σs)
+        _σh = last.(σs)
+
+        C = cat(css...; dims = 2)
+        C = map(eachrow(C)) do x
+            x = vcat(x...)
+        end
+        _cs = pmap(bootstrapmean, C)
+        _cs = first.(_cs)
+
+        # _ms, (_σl, _σh) = bootstrapaverage(circularmean, X; dims = 2)
+        idxs = .!isnan.(_ms) .& .!isnan.(_σl) .& .!isnan.(_σh)
+        _ms = _ms[idxs]
+
+        # _cs, _ = bootstrapmedian(C; dims = 2)
+        _cs = _cs[idxs]
+
+        _ls = lookup(_ms, 1)
+
+        x = unwrap(_ms)
+        x = upsample(x, 5)
+        ms = SpatiotemporalMotifs.wrap.(x; domain = (-π, π))
+
+        cs = upsample(_cs, 10)
+        cs = MinMax(cs)(cs)
+
+        c = seethrough(structurecolormap[structure])
+        # band!(ax, lookup(mu, 1), l, h; color = muc |> collect, colormap = c, label = s)
+        lines!(ax, lookup(ms, 1), collect(ms), color = cs |> collect, label = structure,
+               colormap = c,
+               linewidth = 7)
+    end
+    display(f)
+end
+
+begin # * Plot on the same polar axis the hit and miss angles for VISp only
+    structure = "VISl"
+
+    begin # * Set up figure
+        f = Figure()
+        layerints = load(datadir("plots", "grand_unified_layers.jld2"), "layerints")
+        bins = range(0, 1, length = 11)
+    end
+
+    ax = PolarAxis(f[1, 1]; theta_as_x = false, thetalimits = (0, 2pi),
+                   rticks = 0:0.25:1, rtickformat = depthticks,
+                   title = "Layerwise PPC angle", rlimits = (0.0, 0.8))
+    cols = [:hit_onset_pairwise_phase_consistency_angle,
+        :miss_onset_pairwise_phase_consistency_angle]
+    for col in cols
+        idxs = pspikes.structure_acronym .== structure
+        allsesh_pspikes = @views pspikes[idxs, :]
+        allangles = map(unique(allsesh_pspikes.ecephys_session_id)) do sesh
+            _pspikes = @views allsesh_pspikes[allsesh_pspikes.ecephys_session_id .== sesh,
+                                              :]
+            ys = _pspikes[:, col]
+            xs = _pspikes.streamlinedepth .|> Float32
+            ys = ys .|> Float32
+            B = HistBins(xs; bins)
+            _ms = rectify(B(ys), dims = :bin)
+            return _ms
+        end
+
+        catppc = cat(allangles...; dims = 2)
+        catppc = map(eachrow(catppc)) do x
+            x = vcat(x...)
+        end
+        _ms = pmap(Base.Fix1(bootstrapaverage, circularmean), catppc)
+        σs = last.(_ms)
+        _ms = first.(_ms)
+        _σl = first.(σs)
+        _σh = last.(σs)
+
+        idxs = .!isnan.(_ms) .& .!isnan.(_σl) .& .!isnan.(_σh)
+        _ms = _ms[idxs]
+
+        _ls = lookup(_ms, 1)
+
+        x = unwrap(_ms)
+        x = upsample(x, 5)
+        ms = SpatiotemporalMotifs.wrap.(x; domain = (-π, π))
+
+        lines!(ax, lookup(ms, 1), collect(ms), label = structure, linewidth = 7)
+    end
+    display(f)
+end
+
+begin # * How does firing rate vary with depth? Make a psth for each theta-sensitive neuron
+    # ? H: Theta-sensitive neurons in superficial layers should have either delayed or
+    # ? suppressed firing rates in hit trials
+
+end

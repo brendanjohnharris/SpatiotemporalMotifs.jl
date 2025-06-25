@@ -753,7 +753,7 @@ end
 
 function bootstrapaverage(average, x::AbstractVector{T}; confint = 0.95,
                           N = 10000)::Tuple{T, Tuple{T, T}} where {T}
-    sum(!isnan, x) < 5 && return (NaN, (NaN, NaN))
+    sum(!isnan, x; init = 0) < 5 && return (NaN, (NaN, NaN))
 
     # * Estimate a sampling distribution of the average
     x = filter(!isnan, x)

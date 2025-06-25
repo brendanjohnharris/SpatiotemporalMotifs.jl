@@ -390,7 +390,7 @@ begin # * Preferred phases for spontaneous
         _σl = first.(σs)
         _σh = last.(σs)
 
-        C = cat(mss...; dims = 2)
+        C = cat(css...; dims = 2)
         C = map(eachrow(C)) do x
             x = vcat(x...)
         end
