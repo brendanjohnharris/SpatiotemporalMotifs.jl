@@ -4,29 +4,37 @@ using DrWatson.Dates
 using DimensionalData
 using PythonCall
 using Conda
-using StatsBase
+# using StatsBase
 using JLD2
 using CairoMakie
 using Foresight
 set_theme!(foresight(:physics))
 using Statistics
-using IntervalSets
+# using IntervalSets
 using Normalization
 using Distributed
 using DSP
 using Peaks
 using Term
 using TimeseriesSurrogates
-using TimeseriesTools
-using TimeseriesTools.Unitful
+# using TimeseriesTools
+# using TimeseriesTools.Unitful
 using ModulationIndices
 using DataFrames
 using ComplexityMeasures
 using JSON
-using DrWatson
+# using DrWatson
 import AllenNeuropixels as AN
 import AllenNeuropixelsBase as ANB
 using Term.Progress
+
+# * Easier to reexport these for workers
+using Reexport
+@reexport using DimensionalData
+@reexport using StatsBase
+@reexport using DrWatson
+@reexport using Unitful
+@reexport using IntervalSets
 
 import DimensionalData: metadata
 

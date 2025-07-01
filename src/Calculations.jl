@@ -240,6 +240,8 @@ function joint_rectify(LFP, spiketimes, stimulustimes)
     LFP = rectify(LFP, dims = 𝑡, tol = 3)
 
     _tmap = Timeseries(orig_ts, zeros(length(orig_ts)))
+    intrvl = Interval(_tmap)
+
     tmap = deepcopy(_tmap)
     tmap[𝑡(Near(stimulustimes))] .= stimulustimes
     tmap = rectify(tmap, dims = 𝑡, tol = 3)
@@ -248,6 +250,7 @@ function joint_rectify(LFP, spiketimes, stimulustimes)
     stimulustimes = times(tmap[tmap .> 1]) |> collect # * The change times transformed to rectified time coordinates
 
     spiketimes = map(collect(spiketimes)) do (u, ts) # * Rectify the spike times
+        ts = ts[ts .∈ [intrvl]] # Remove spikes outside the LFP interval
         tmap = deepcopy(_tmap)
         tmap[𝑡(Near(ts))] .= ts
         tmap = rectify(tmap, dims = 𝑡, tol = 3)
@@ -471,7 +474,8 @@ function send_calculations(D::Dict, session = AN.Session(D["sessionid"]);
             out["channels"] = channels
             out["streamlinedepths"] = streamlinedepths
             out["units"] = units
-            out["spiketimes"] = spiketimes_J # The RECTIFIED spiketimes
+            out["spiketimes"] = spiketimes_J # ! The RECTIFIED spiketimes
+            out["rectified_change_times"] = stimulustimes_J
             out["layerinfo"] = layerinfo
             out["pass_θ"] = pass_θ
             out["pass_γ"] = pass_γ

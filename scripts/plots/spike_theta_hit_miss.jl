@@ -48,7 +48,7 @@ begin # * Load trial-by-trial spc
     pspikes = load(file, "pspikes")
 end
 
-begin # * Compare distribution of PPC for hit/miss trials
+begin # * Compare distribution of PPC for hit/miss trials. Thi should be moved to calculations. But be careful; we need to use the rectified trial times
     sessionids = unique(pspikes.ecephys_session_id)
     outfile = datadir("out&stimulus=Natural_Images.jld2")
     trials = jldopen(outfile, "r") do f
@@ -61,6 +61,46 @@ begin # * Compare distribution of PPC for hit/miss trials
         isempty(row[:trial_pairwise_phase_consistency]) && return
         _trials = trials[SessionID = At(row[:ecephys_session_id])]
         return _trials.hit
+    end
+end
+
+begin # * Add unit layers and rectified change times
+    pspikes.rectified_change_times = Vector{Vector{<:Quantity}}(undef, nrow(pspikes))
+    pspikes.layer = Vector{String}(undef, nrow(pspikes))
+
+    sessionids = unique(pspikes.ecephys_session_id)
+    structs = unique(pspikes.structure_acronym)
+    jldopen(outfile, "r") do f
+        map(sessionids) do sessionid
+            map(structs) do structure
+                lfp = f["$(structure)/$(sessionid)/V"]
+                rectified_change_times = lookup(lfp, :changetime) |> collect
+                idxs = pspikes.ecephys_session_id .== sessionid
+                idxs = idxs .& (pspikes.structure_acronym .== structure)
+                pspikes[idxs, :rectified_change_times] .= [rectified_change_times]
+
+                layermap = f["$(structure)/$(sessionid)/layernames"]
+                map(findall(idxs)) do idx
+                    depth = pspikes[idx, :probedepth]
+                    layer = layermap[Depth = Near(depth)]
+                    if layer ∈ ["or", "scwm", "cing"]
+                        i = findlast(lookup(layermap, 1) .< depth) |> last
+                        layer = layermap[i] # As in Unify Calculations.
+                    end
+                    pspikes[idx, :layer] = "L" *
+                                           SpatiotemporalMotifs.layers[parselayernum(layer)]
+                end
+            end
+        end
+    end
+end
+
+begin # * Add trial times to pspikes. Move to calculations.
+    pspikes.trial_change_times = map(eachrow(pspikes)) do row
+        isempty(row[:trial_pairwise_phase_consistency]) && return
+        _trials = trials[SessionID = At(row[:ecephys_session_id])]
+        return _trials.change_time_with_display_delay # but be careful...the spiek times are RECTIFIED
+        #!!!! NEED TO USE NON_RECTIFIED SPIKE TIMES MFFFFF
     end
 end
 
@@ -91,58 +131,58 @@ begin
     current_figure() |> display
 end
 
-begin # * Look at onset PPC
-    onset = pspikes.hit_onset_pairwise_phase_consistency_pvalue
-    offset = pspikes.miss_onset_pairwise_phase_consistency_pvalue
-    onset = clamp.(onset, [1e-10 .. Inf])
-    offset = clamp.(offset, [1e-10 .. Inf])
-    onset = log10.(onset)
-    offset = log10.(offset)
-    hist(filter(!isnan, onset))
-    hist!(filter(!isnan, offset))
-    current_figure() |> display
-end
-begin # * Onset preferred phase
-    hit_onset = pspikes.hit_onset_pairwise_phase_consistency
-    miss_onset = pspikes.miss_onset_pairwise_phase_consistency
-    onset = pspikes.onset_pairwise_phase_consistency
-    hit_onset_phase = pspikes.hit_onset_pairwise_phase_consistency_angle
-    miss_onset_phase = pspikes.miss_onset_pairwise_phase_consistency_angle
+# begin # * Look at onset PPC
+#     onset = pspikes.hit_onset_pairwise_phase_consistency_pvalue
+#     offset = pspikes.miss_onset_pairwise_phase_consistency_pvalue
+#     onset = clamp.(onset, [1e-10 .. Inf])
+#     offset = clamp.(offset, [1e-10 .. Inf])
+#     onset = log10.(onset)
+#     offset = log10.(offset)
+#     hist(filter(!isnan, onset))
+#     hist!(filter(!isnan, offset))
+#     current_figure() |> display
+# end
+# begin # * Onset preferred phase
+#     hit_onset = pspikes.hit_onset_pairwise_phase_consistency
+#     miss_onset = pspikes.miss_onset_pairwise_phase_consistency
+#     onset = pspikes.onset_pairwise_phase_consistency
+#     hit_onset_phase = pspikes.hit_onset_pairwise_phase_consistency_angle
+#     miss_onset_phase = pspikes.miss_onset_pairwise_phase_consistency_angle
 
-    sensitive_idxs = pspikes.pairwise_phase_consistency .> 0.25
+#     sensitive_idxs = pspikes.pairwise_phase_consistency .> 0.25
 
-    begin # * Only use neurons that have significant PPC's in both hit and miss cases
-        ps = pspikes.hit_onset_pairwise_phase_consistency_pvalue
-        ps[isnan.(ps)] .= 1.0
-        ps[ps .< 0] .= 0.0
-        ps = adjust(ps, BenjaminiHochberg())
-        significant_idxs = ps .< 0.01
+#     begin # * Only use neurons that have significant PPC's in both hit and miss cases
+#         ps = pspikes.hit_onset_pairwise_phase_consistency_pvalue
+#         ps[isnan.(ps)] .= 1.0
+#         ps[ps .< 0] .= 0.0
+#         ps = adjust(ps, BenjaminiHochberg())
+#         significant_idxs = ps .< 0.01
 
-        ps = pspikes.miss_onset_pairwise_phase_consistency_pvalue
-        ps[isnan.(ps)] .= 1.0
-        ps[ps .< 0] .= 0.0
-        ps = adjust(ps, BenjaminiHochberg())
-        significant_idxs = significant_idxs .& (ps .< 0.01)
-    end
+#         ps = pspikes.miss_onset_pairwise_phase_consistency_pvalue
+#         ps[isnan.(ps)] .= 1.0
+#         ps[ps .< 0] .= 0.0
+#         ps = adjust(ps, BenjaminiHochberg())
+#         significant_idxs = significant_idxs .& (ps .< 0.01)
+#     end
 
-    hit_onset_phase = hit_onset_phase[sensitive_idxs .& significant_idxs]
-    miss_onset_phase = miss_onset_phase[sensitive_idxs .& significant_idxs]
-    hist(filter(!isnan, hit_onset_phase), label = "hit onset phase")
-    hist!(filter(!isnan, miss_onset_phase), label = "miss onset phase")
-    axislegend(; position = :lt)
-    current_figure() |> display
-end
+#     hit_onset_phase = hit_onset_phase[sensitive_idxs .& significant_idxs]
+#     miss_onset_phase = miss_onset_phase[sensitive_idxs .& significant_idxs]
+#     hist(filter(!isnan, hit_onset_phase), label = "hit onset phase")
+#     hist!(filter(!isnan, miss_onset_phase), label = "miss onset phase")
+#     axislegend(; position = :lt)
+#     current_figure() |> display
+# end
 
-begin # * Polar histogram
-    f = Figure()
-    ax = PolarAxis(f[1, 1])
-    polarhist!(ax, hit_onset_phase, bins = 30, label = "hit onset phase",
-               color = (cornflowerblue, 0.5))
-    polarhist!(ax, miss_onset_phase, bins = 30, label = "miss onset phase",
-               color = (crimson, 0.5))
+# begin # * Polar histogram
+#     f = Figure()
+#     ax = PolarAxis(f[1, 1])
+#     polarhist!(ax, hit_onset_phase, bins = 30, label = "hit onset phase",
+#                color = (cornflowerblue, 0.5))
+#     polarhist!(ax, miss_onset_phase, bins = 30, label = "miss onset phase",
+#                color = (crimson, 0.5))
 
-    f
-end
+#     f
+# end
 
 begin # * Filter only for sensitive and significant neurons
     begin # * Only use neurons that have significant PPC's in both hit and miss cases
@@ -168,7 +208,7 @@ begin # * Filter only for sensitive and significant neurons
     end
 end
 
-begin # * Preferred phase, hit vs miss, across layers
+if false # * Preferred phase, hit vs miss, across layers
     @info "Plotting preferred spike phases"
 
     begin # * Set up figure
@@ -293,8 +333,317 @@ begin # * Plot on the same polar axis the hit and miss angles for VISp only
     display(f)
 end
 
+using ProgressMeter
 begin # * How does firing rate vary with depth? Make a psth for each theta-sensitive neuron
-    # ? H: Theta-sensitive neurons in superficial layers should have either delayed or
-    # ? suppressed firing rates in hit trials
+    binwidth = 15u"ms"
+    timebins = range(SpatiotemporalMotifs.INTERVAL, step = binwidth) |> ustripall |>
+               intervals
+    dt0 = ustrip.(extrema(SpatiotemporalMotifs.INTERVAL))
 
+    trial_psth_rates = @showprogress map(eachrow(pspikes)) do row # Takes about 10 minutes. Breaks if distributed...
+        isempty(row[:spiketimes]) && return
+        spiketimes = row[:spiketimes]
+        spiketimes = spiketrain(spiketimes)
+
+        trial_spikes = map(row.rectified_change_times) do t
+            # spike aligned to stimulus onset time
+            dt = IntervalSets.Interval((dt0 .+ ustrip.(t))...)
+            ts = spiketimes[𝑡 = dt] # Extract
+            ts = set(ts, 𝑡 => times(ts) .- ustrip.(t)) # Align to t
+        end
+        trial_psth_rates = map(trial_spikes) do ts
+            if isempty(ts)
+                return nothing
+            else
+                psth = groupby(ts, 𝑡 => Bins(timebins)) .|> sum
+                psth_rates = psth ./ ustrip(uconvert(u"s", binwidth))
+                psth_rates = set(psth_rates, 𝑡 => mean.(times(psth_rates)))
+            end
+        end
+
+        # if isempty(trial_spikes)
+        # psth_rates = nothing
+        # else
+        # psth_rates = mean(trial_spikes) ./ ustrip(binwidth)
+        # psth_rates = set(psth_rates, 𝑡 => mean.(times(psth_rates)))
+        # end
+        return trial_psth_rates
+    end
+    pspikes.trial_psth_rates = trial_psth_rates
+end
+
+begin # * Do a proper hit/miss comparison by removing pre-stimulus baseline
+    pspikes.zscored_trial_psth_rates = map(eachrow(pspikes)) do row
+        isempty(row[:trial_psth_rates]) && return
+        psths = row[:trial_psth_rates]
+        bpsths = filter(!isnothing, psths)
+
+        # * Remove pre-stimulus baseline
+        # bpsth = map(bpsths) do psth
+        #     if !(psth isa RegularTimeSeries)
+        #         psth = rectify(psth, dims = 𝑡)
+        #     end
+        #     psth[𝑡 = (-0.25 .. 0.0)]
+        # end |> mean
+        tpsth = rectify.(bpsths, dims = 𝑡) |> mean # Just mean psth for whole trial
+
+        μ = mean(tpsth)
+        σ = std(tpsth)
+        psths = map(psths) do psth
+            if isnothing(psth)
+                return nothing
+            elseif !(psth isa RegularTimeSeries)
+                psth = rectify(psth, dims = 𝑡)
+            end
+
+            psth = (psth .- μ) ./ σ
+
+            return psth
+        end
+    end
+end
+
+begin # * Plot the mean firing rate of theta-sensitive neurons. For hit vs miss across layers
+    structure = "VISp"
+
+    idxs = pspikes.structure_acronym .== [structure]
+    subspikes = pspikes[idxs, :]
+
+    # * Average psths
+    subspikes.hit_psth = map(eachrow(subspikes)) do row
+        psths = row.zscored_trial_psth_rates
+        psths = psths[row.hitmiss]
+        psths = filter(!isnothing, psths)
+        if isempty(psths)
+            return nothing
+        else
+            return convert.(Float32, mean(psths))
+        end
+    end
+    subspikes.miss_psth = map(eachrow(subspikes)) do row
+        psths = row.zscored_trial_psth_rates
+        psths = psths[.!row.hitmiss]
+        psths = filter(!isnothing, psths)
+        if isempty(psths)
+            return nothing
+        else
+            return convert.(Float32, mean(psths))
+        end
+    end
+end
+
+begin # * Plot hit & miss firing rate in different layers
+    intt = -0.0 .. 0.2
+    f = Figure(size = (800, 300))
+    ax = Axis(f[1, 1], title = "Hit trials", xlabel = "Time (s)",
+              ylabel = "Firing rate (Hz)")
+    ax2 = Axis(f[1, 2], title = "Miss trials", xlabel = "Time (s)",
+               ylabel = "Firing rate (Hz)")
+
+    ics = zip(["Supragranular", "Granular", "Infragranular"],
+              [["L1", "L2/3"], ["L4"], ["L5", "L6"]])
+
+    for (compartment, clayers) in ics
+        lidxs = indexin(clayers, "L" .* SpatiotemporalMotifs.layers)
+        ss = subspikes.layer .∈ [clayers]
+        layer_spikes = subspikes[ss, :]
+        hit_psth = filter(!isnothing, layer_spikes.hit_psth)
+        hit_psth = rectify.(hit_psth, dims = 𝑡)
+        hit_psth = ToolsArray(hit_psth, (Unit(1:size(hit_psth, 1)),)) |> stack
+        hit_psth = hit_psth[𝑡 = intt]
+
+        _μ, (_σl, _σh) = bootstrapmedian(hit_psth, dims = 2)
+
+        # σ = std(hit_psth, dims = 2)
+        # σ = dropdims(σ, dims = 2)
+        # σl = μ .- σ / 2
+        # σh = μ .+ σ / 2
+
+        μ = upsample(_μ, 5)
+        σl = upsample(_σl, 5)
+        σh = upsample(_σh, 5)
+
+        ts = collect(lookup(μ, 𝑡))
+        band!(ax, ts, parent(σl), parent(σh), label = compartment,
+              color = (mean(layercolors[lidxs]), 0.3))
+        lines!(ax, μ, label = compartment,
+               color = mean(layercolors[lidxs]))
+        scatter!(ax, _μ, color = mean(layercolors[lidxs]),
+                 markersize = 15, label = compartment)
+
+        miss_psth = filter(!isnothing, layer_spikes.miss_psth)
+        miss_psth = filter(x -> !any(isnan, x), miss_psth)
+        miss_psth = ToolsArray(miss_psth, (Unit(1:size(miss_psth, 1)),)) |> stack
+        miss_psth = miss_psth[𝑡 = intt]
+        _μ, (_σl, _σh) = bootstrapmedian(miss_psth, dims = 2)
+
+        μ = upsample(_μ, 5)
+        σl = upsample(_σl, 5)
+        σh = upsample(_σh, 5)
+
+        ts = collect(lookup(μ, 𝑡))
+        band!(ax2, ts, parent(σl), parent(σh), label = compartment,
+              color = (mean(layercolors[lidxs]), 0.3))
+        lines!(ax2, μ, label = compartment,
+               color = mean(layercolors[lidxs]))
+        scatter!(ax2, _μ, color = mean(layercolors[lidxs]),
+                 markersize = 15, label = compartment)
+    end
+
+    axislegend(ax; position = :rt, merge = true)
+    axislegend(ax2; position = :rt, merge = true)
+    linkyaxes!([ax, ax2])
+    display(f)
+end
+
+# begin # * Group over depth bins
+#     depthbins = 0.05:0.1:0.95
+#     depths = subspikes.streamlinedepth
+#     hit_psths = ToolsArray(subspikes.hit_psth, (Depth(depths),))
+#     hit_psths = groupby(hit_psths, Depth => Bins(intervals(depthbins)))
+#     hit_psths = set(hit_psths, Depth => mean.(lookup(hit_psths, Depth)))
+#     hit_psths = map(hit_psths) do psth
+#         mean(filter(!isnothing, psth))
+#     end |> stack
+#     hit_psths = rectify(hit_psths, dims = 𝑡)
+#     hit_psths = rectify(hit_psths, dims = Depth)
+
+#     miss_psths = ToolsArray(subspikes.miss_psth, (Depth(depths),))
+#     miss_psths = groupby(miss_psths, Depth => Bins(intervals(depthbins)))
+#     miss_psths = set(miss_psths, Depth => mean.(lookup(miss_psths, Depth)))
+#     miss_psths = map(miss_psths) do psth
+#         mean(filter(!isnothing, psth))
+#     end |> stack
+#     miss_psths = rectify(miss_psths, dims = 𝑡)
+#     miss_psths = rectify(miss_psths, dims = Depth)
+# end
+
+# begin
+#     f = Figure()
+#     ax = Axis(f[1, 1], yreversed = true)
+#     # N = ZScore((hit_psths[𝑡 = -0.05 .. 0.25] .+ miss_psths[𝑡 = -0.05 .. 0.25]) / 2,
+#     #    dims = 1)
+#     # contrast =
+#     contrast = hit_psths .- miss_psths
+#     # contrast = contrast[:, 1:(end - 1)]
+#     heatmap!(ax, contrast, colorrange = (-10, 10), colormap = binarysunset)
+#     f |> display
+# end
+
+# begin
+#     D = 0.1
+#     intt = -0.0 .. 0.2
+#     f = Figure(size = (400, 800))
+#     ax = Axis(f[1, 1])
+#     lines!(ax, hit_psths[𝑡 = intt, Depth = Near(D)])
+#     lines!(ax, miss_psths[𝑡 = intt, Depth = Near(D)], color = crimson)
+#     f |> display
+
+#     D = 1.0
+#     ax = Axis(f[2, 1])
+#     lines!(ax, hit_psths[𝑡 = intt, Depth = Near(D)])
+#     lines!(ax, miss_psths[𝑡 = intt, Depth = Near(D)], color = crimson)
+#     f |> display
+# end
+
+# begin # * Calculate firing rate grouped by layers...
+#     # * select neurons in layer 1
+#     ss = (subspikes.layer .== "L4") .| (subspikes.layer .== "L4")
+#     layer2_spikes = subspikes[ss, :]
+#     layer2_hit_psth = layer2_spikes.hit_psth |> mean
+#     layer2_hit_psth = rectify(layer2_psth, dims = 𝑡)
+#     layer2_miss_psth = filter(!isnothing, layer2_spikes.miss_psth) |> mean
+#     layer2_miss_psth = rectify(layer2_miss_psth, dims = 𝑡)
+
+#     ss = (subspikes.layer .== "L5") .| (subspikes.layer .== "L6")
+#     layer6_spikes = subspikes[ss, :]
+#     layer6_hit_psth = filter(!isnothing, layer6_spikes.hit_psth) |> mean
+#     layer6_hit_psth = rectify(layer6_hit_psth, dims = 𝑡)
+#     layer6_miss_psth = filter(!isnothing, layer6_spikes.miss_psth) |> mean
+#     layer6_miss_psth = rectify(layer6_miss_psth, dims = 𝑡)
+
+#     f = Figure(size = (400, 800))
+#     ax = Axis(f[1, 1])
+#     lines!(ax, layer2_hit_psth[𝑡 = intt], label = "L2/3 Hit")
+#     lines!(ax, layer2_miss_psth[𝑡 = intt], label = "L2/3 Miss")
+#     axislegend(; position = :lt)
+
+#     ax = Axis(f[2, 1])
+#     lines!(ax, layer6_hit_psth[𝑡 = intt], label = "L6 Hit")
+#     lines!(ax, layer6_miss_psth[𝑡 = intt], label = "L6 Miss")
+#     f |> display
+# end
+
+begin
+    begin # * Average psths  +  hit–miss difference (z-scored)
+        structure = "VISp"
+
+        idxs = pspikes.structure_acronym .== [structure]
+        subspikes = pspikes[idxs, :]
+
+        # * Average psths ----------------------------------------------------------
+        subspikes.hit_psth = map(eachrow(subspikes)) do row
+            psths = row.zscored_trial_psth_rates
+            psths = psths[row.hitmiss]
+            psths = filter(!isnothing, psths)
+            isempty(psths) && return nothing
+            return convert.(Float32, mean(psths))
+        end
+
+        subspikes.miss_psth = map(eachrow(subspikes)) do row
+            psths = row.zscored_trial_psth_rates
+            psths = psths[.!row.hitmiss]
+            psths = filter(!isnothing, psths)
+            isempty(psths) && return nothing
+            return convert.(Float32, mean(psths))
+        end
+
+        # * NEW: hit – miss, then per-neuron z-score -------------------------------
+        subspikes.diff_psth_z = map(eachrow(subspikes)) do row
+            h, m = row.hit_psth, row.miss_psth
+            (h === nothing || m === nothing) && return nothing
+            d = h .- m                                    # hit – miss
+            μ, σ = mean(d), std(d)
+            σ == 0.0f0 && return nothing                     # guard flat traces
+            return (d .- μ) ./ σ                           # z-scored difference
+        end
+    end
+
+    begin # * Plot hit – miss firing rate (one axis)
+        intt = -0.0 .. 0.2
+        f = Figure(size = (800, 300))
+        ax = Axis(f[1, 1], title = "Hit − Miss (z)", xlabel = "Time (s)",
+                  ylabel = "Δ rate (z-score)")
+
+        ics = zip(["Supragranular", "Granular", "Infragranular"],
+                  [["L1", "L2/3"], ["L4"], ["L5", "L6"]])
+
+        for (compartment, clayers) in ics
+            lidxs = indexin(clayers, "L" .* SpatiotemporalMotifs.layers)
+            ss = subspikes.layer .∈ [clayers]
+            layer_spikes = subspikes[ss, :]
+
+            diff_psth = filter(!isnothing, layer_spikes.diff_psth_z)
+            diff_psth = filter(x -> !any(isnan, x), diff_psth)
+            diff_psth = ToolsArray(diff_psth, (Unit(1:size(diff_psth, 1)),)) |> stack
+            diff_psth = diff_psth[𝑡 = intt]
+
+            _μ, (_σl, _σh) = bootstrapmedian(diff_psth, dims = 2)
+
+            μ = upsample(_μ, 5)
+            σl = upsample(_σl, 5)
+            σh = upsample(_σh, 5)
+
+            ts = collect(lookup(μ, 𝑡))
+            col = mean(layercolors[lidxs])
+
+            band!(ax, ts, parent(σl), parent(σh), label = compartment,
+                  color = (col, 0.3))
+            lines!(ax, μ, label = compartment, color = col)
+            scatter!(ax, _μ, color = col, markersize = 15, label = compartment)
+        end
+
+        axislegend(ax; position = :rt, merge = true)
+        display(f)
+    end
 end
