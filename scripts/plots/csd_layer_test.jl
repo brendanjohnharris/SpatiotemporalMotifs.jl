@@ -80,7 +80,7 @@ begin # * Save average CSD for each session
 end
 
 begin # * Try just averaging nochange results
-    heatmap(csd["VISp"][15] |> ustripall,
+    heatmap(csd["VISp"][2] |> ustripall,
             axis = (; yreversed = true, limits = ((0, 0.1), nothing)),
             colorrange = (-1e-8, 1e-8), colormap = :turbo)
 end
@@ -150,12 +150,13 @@ function find_L4_center(csd::MultivariateTimeSeries, doplot = false)
 end
 
 begin # * Identify Layer 4
-    x = csd["VISp"][16]
+    x = csd["VISp"][2]
     l4 = find_L4_center(x, true)
 end
 
 begin # * Layer identification for all sessions and structures
-    progressmap(structures) do structure
+    l4s = map(structures) do structure
+        @info "Finding L4 center for $(structure)"
         csd_structure = csd[structure]
         l4s = map(csd_structure) do csd_session
             find_L4_center(csd_session, true)
@@ -165,6 +166,41 @@ begin # * Layer identification for all sessions and structures
         # tagsave(datadir("csd", "l4_depth.jld2"), D; structure = structure)
     end
 end
+begin # * Pull out anatomical l4s
+    session_table = load(datadir("posthoc_session_table.jld2"), "session_table")
+    oursessions = session_table.ecephys_session_id
+    path = datadir("calculations")
+    Q = calcquality(path)[Structure = At(structures)]
+    Q = Q[SessionID(At(oursessions))]
+    @assert mean(Q[stimulus = At(r"Natural_Images")]) == 1
+    out = load_calculations(Q; stimulus = r"Natural_Images", vars = [])
+    true_l4s = map(out) do O
+        l4s = map(O) do o
+            l4 = contains.(o[:layernames], ["4"])
+            l4 = o[:streamlinedepths][l4] |> mean # 'center' of l4
+        end
+        l4s = ToolsArray(l4s, (SessionID(oursessions),))
+    end
+end
+begin # * Compare inferred L4 location to anatomical L4
+    structure = 1
+
+    x = l4s[structure][SessionID = At(oursessions)] |> parent
+    y = true_l4s[structure][SessionID = At(oursessions)] |> parent
+
+    cor(x, y)
+
+    scatter(x, y) |> display
+    f = Figure()
+    ax = Axis(f[1, 1], title = "Inferred vs Anatomical L4 depth")
+    hist!(ax, x,
+          color = :blue, label = "Inferred L4")
+    hist!(ax, y,
+          color = :red, label = "Anatomical L4")
+    axislegend(ax)
+    display(f)
+end
+
 begin
     s = 2
     i = 19

@@ -694,6 +694,7 @@ function load_calculations(Q; vars = sort([:V, :csd, :θ, :ϕ, :r, :k, :ω]), st
     jldopen(outfilepath, "r") do outfile
         @assert sort(keys(outfile)) == sort(structures)
         sessionids = unique([keys(outfile[s]) for s in structures]) |> only
+        sessionids = sessionids[indexin(string.(lookup(Q, SessionID)), sessionids)]
         out = map(structures) do structure
             @info "Loading data for structure $(structure)"
             map(sessionids) do sessionid

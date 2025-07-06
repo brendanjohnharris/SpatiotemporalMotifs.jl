@@ -79,6 +79,36 @@ plot_data, data_file = produce_or_load(config, datadir("plots");
             end
             flashes = @strdict Og
         end
+
+        begin # * Passive trials?
+            stimulus = "Natural_Images_passive_nochange"
+            path = datadir("calculations")
+            Q = calcquality(path)[Structure = At(structures)]
+            quality = mean(Q[stimulus = At(stimulus)])
+            vars = [:csd, :k, :ω]
+            out = load_calculations(Q; stimulus, vars)
+
+            session_table = load(datadir("posthoc_session_table.jld2"), "session_table")
+            oursessions = session_table.ecephys_session_id
+
+            begin # * Calculate a global order parameter and mean LFP at each time point
+                out = map(out) do o
+                    filter(o) do _o
+                        _o[:sessionid] ∈ oursessions
+                    end
+                end
+                Og = map(out) do o
+                    O = map(o) do p
+                        k = p[:k]
+                        ω = p[:ω]
+                        k[ustripall(ω) .< 0] .= NaN * unit(eltype(k))
+                        ret = dropdims(nansafe(mean; dims = Depth)(sign.(k)), dims = Depth) # Ignore negative frequencies
+                        set(ret, Dim{:changetime} => Trial)
+                    end
+                end
+            end
+            omission = @strdict Og
+        end
         begin # * Natural images
             stimulus = r"Natural_Images"
             Q = calcquality(path)[Structure = At(structures)]

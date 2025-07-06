@@ -105,7 +105,7 @@ end
 # end
 
 begin # * Omission trials or passive trials?
-    stimulus = "Natural_Images_passive"
+    stimulus = "Natural_Images_passive_nochange"
     path = datadir("calculations")
     Q = calcquality(path)[Structure = At(structures)]
     quality = mean(Q[stimulus = At(stimulus)])

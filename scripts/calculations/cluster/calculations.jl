@@ -43,7 +43,7 @@ if haskey(ENV, "JULIA_DISTRIBUTED") # ? Should take a night or so
         exprs = exprs[Q[SessionID = At(oursessions)]]
     end
     USydClusters.Physics.runscripts(exprs; ncpus = 8, mem = 60, walltime = 8,
-                                    project = projectdir(), exeflags = `+1.10.9`)
+                                    project = projectdir(), exeflags = `+1.10.10`)
 
     display("All workers submitted")
 else

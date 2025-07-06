@@ -432,13 +432,76 @@ begin # * Plot the mean firing rate of theta-sensitive neurons. For hit vs miss 
     end
 end
 
-begin # * Plot hit & miss firing rate in different layers
-    intt = -0.0 .. 0.2
+begin # * Plot hit & miss firing rate in different layers (onset)
+    intt = -0.02 .. 0.2
     f = Figure(size = (800, 300))
     ax = Axis(f[1, 1], title = "Hit trials", xlabel = "Time (s)",
-              ylabel = "Firing rate (Hz)")
+              ylabel = "Normalized firing rate (Hz)")
     ax2 = Axis(f[1, 2], title = "Miss trials", xlabel = "Time (s)",
-               ylabel = "Firing rate (Hz)")
+               ylabel = "Normalized firing rate (Hz)")
+
+    ics = zip(["Supragranular", "Granular", "Infragranular"],
+              [["L1", "L2/3"], ["L4"], ["L5", "L6"]])
+
+    for (compartment, clayers) in ics
+        lidxs = indexin(clayers, "L" .* SpatiotemporalMotifs.layers)
+        ss = subspikes.layer .∈ [clayers]
+        layer_spikes = subspikes[ss, :]
+        hit_psth = filter(!isnothing, layer_spikes.hit_psth)
+        hit_psth = rectify.(hit_psth, dims = 𝑡)
+        hit_psth = ToolsArray(hit_psth, (Unit(1:size(hit_psth, 1)),)) |> stack
+        hit_psth = hit_psth[𝑡 = intt]
+
+        _μ, (_σl, _σh) = bootstrapmedian(hit_psth, dims = 2)
+
+        # σ = std(hit_psth, dims = 2)
+        # σ = dropdims(σ, dims = 2)
+        # σl = μ .- σ / 2
+        # σh = μ .+ σ / 2
+
+        μ = upsample(_μ, 5)
+        σl = upsample(_σl, 5)
+        σh = upsample(_σh, 5)
+
+        ts = collect(lookup(μ, 𝑡))
+        band!(ax, ts, parent(σl), parent(σh), label = compartment,
+              color = (mean(layercolors[lidxs]), 0.3))
+        lines!(ax, μ, label = compartment,
+               color = mean(layercolors[lidxs]))
+        scatter!(ax, _μ, color = mean(layercolors[lidxs]),
+                 markersize = 15, label = compartment)
+
+        miss_psth = filter(!isnothing, layer_spikes.miss_psth)
+        miss_psth = filter(x -> !any(isnan, x), miss_psth)
+        miss_psth = ToolsArray(miss_psth, (Unit(1:size(miss_psth, 1)),)) |> stack
+        miss_psth = miss_psth[𝑡 = intt]
+        _μ, (_σl, _σh) = bootstrapmedian(miss_psth, dims = 2)
+
+        μ = upsample(_μ, 5)
+        σl = upsample(_σl, 5)
+        σh = upsample(_σh, 5)
+
+        ts = collect(lookup(μ, 𝑡))
+        band!(ax2, ts, parent(σl), parent(σh), label = compartment,
+              color = (mean(layercolors[lidxs]), 0.3))
+        lines!(ax2, μ, label = compartment,
+               color = mean(layercolors[lidxs]))
+        scatter!(ax2, _μ, color = mean(layercolors[lidxs]),
+                 markersize = 15, label = compartment)
+    end
+
+    axislegend(ax; position = :rt, merge = true)
+    axislegend(ax2; position = :rt, merge = true)
+    linkyaxes!([ax, ax2])
+    display(f)
+end
+begin # * Plot hit & miss firing rate in different layers (offset
+    intt = 0.23 .. 0.45
+    f = Figure(size = (800, 300))
+    ax = Axis(f[1, 1], title = "Hit trials", xlabel = "Time (s)",
+              ylabel = "Normalized firing rate (Hz)")
+    ax2 = Axis(f[1, 2], title = "Miss trials", xlabel = "Time (s)",
+               ylabel = "Normalized firing rate (Hz)")
 
     ics = zip(["Supragranular", "Granular", "Infragranular"],
               [["L1", "L2/3"], ["L4"], ["L5", "L6"]])
