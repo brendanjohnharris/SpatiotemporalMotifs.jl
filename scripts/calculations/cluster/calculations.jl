@@ -1,6 +1,6 @@
 #! /bin/bash
 #=
-exec julia +1.10.9 -t auto "${BASH_SOURCE[0]}" "$@"
+exec julia +1.10.10 -t auto "${BASH_SOURCE[0]}" "$@"
 =#
 using DrWatson
 @quickactivate "SpatiotemporalMotifs"
@@ -17,6 +17,7 @@ oursessions = session_table.ecephys_session_id
 outpath = datadir("calculations")
 rewrite = false
 check_quality = true
+mkpath(datadir("calculations"))
 
 if haskey(ENV, "JULIA_DISTRIBUTED") # ? Should take a night or so
     exprs = map(oursessions) do sessionid
@@ -28,7 +29,8 @@ if haskey(ENV, "JULIA_DISTRIBUTED") # ? Should take a night or so
         end
     end
 
-    if check_quality && isfile(datadir("posthoc_session_table.jld2"))
+    if check_quality && isfile(datadir("posthoc_session_table.jld2")) &&
+       !isempty(readdir(datadir("calculations")))
         Q = SM.calcquality(outpath)[Structure = At(SM.structures)]
         # * Delete bad files
         filenames = collect(Iterators.product(lookup(Q)...))[.!Q]
@@ -42,7 +44,7 @@ if haskey(ENV, "JULIA_DISTRIBUTED") # ? Should take a night or so
         Q = dropdims(Q, dims = (SM.Structure, Dim{:stimulus}))
         exprs = exprs[Q[SessionID = At(oursessions)]]
     end
-    USydClusters.Physics.runscripts(exprs; ncpus = 8, mem = 60, walltime = 8,
+    USydClusters.Physics.runscript.(exprs; ncpus = 8, mem = 60, walltime = 8,
                                     project = projectdir(), exeflags = `+1.10.10`)
 
     display("All workers submitted")

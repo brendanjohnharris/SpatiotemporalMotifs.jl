@@ -1,7 +1,7 @@
 #! /bin/bash
 # -*- mode: julia -*-
 #=
-exec julia +1.10.9 -t auto --color=yes "${BASH_SOURCE[0]}" "$@"
+exec julia +1.10.10 -t auto --color=yes "${BASH_SOURCE[0]}" "$@"
 =#
 using DrWatson
 @quickactivate "SpatiotemporalMotifs"
@@ -15,6 +15,11 @@ import SpatiotemporalMotifs.layers
 using Random
 @preamble
 set_theme!(foresight(:physics))
+
+plot_data, data_file = produce_or_load(Dict(), datadir("plots");
+                                       filename = savepath,
+                                       prefix = "figS2") do _
+end
 
 begin # * Load the CSD for the example session
     file = "/taiji1/bhar9988/code/DDC/SpatiotemporalMotifs/data/plots/fig2.jld2"

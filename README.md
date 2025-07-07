@@ -67,7 +67,7 @@ The `data` directory is initially empty, and will contain the calculated results
 The `src` directory contains the main modularized code for the project, whereas the `scripts` directory contains code for running the analyses defined in `src` and plotting the results; inside `scripts` are the `scripts/calculations` and `scripts/plots` directories.
 Broadly, the `scripts` in `scripts/calculations` will produce data required for the scripts in `scripts/plots`, and _all_ scripts in `scripts/calculations` should be run before any scripts in `scripts/plots`.
 In this section we walk through the order in which `scripts/calculations/*` should be run, dealing with `scripts/plots` in [Section 2](#2.-plotting-results).
-Each script can be run as `julia +1.10.9 -t auto <path to script>` or, on Linux, `chmod u+x <path to script>` followed by executing `<path to script>`; ensure you have added the v1.10.9 (current LTS) channel to your [`juliaup`](https://github.com/JuliaLang/juliaup) installation.
+Each script can be run as `julia +1.10.10 -t auto <path to script>` or, on Linux, `chmod u+x <path to script>` followed by executing `<path to script>`; ensure you have added the v1.10.10 (current LTS) channel to your [`juliaup`](https://github.com/JuliaLang/juliaup) installation.
 Please hover over the header links to see the file name for each script.
 
 #### [Selecting sessions](scripts/calculations/session_selection.jl)

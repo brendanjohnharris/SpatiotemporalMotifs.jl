@@ -1,6 +1,6 @@
 #! /bin/bash
 #=
-exec julia +1.10.9 -t auto --heap-size-hint=`grep MemFree /proc/meminfo | awk '{print int($2 * 0.4) "k"}'` "${BASH_SOURCE[0]}" "$@"
+exec julia +1.10.10 -t auto --heap-size-hint=`grep MemFree /proc/meminfo | awk '{print int($2 * 0.4) "k"}'` "${BASH_SOURCE[0]}" "$@"
 =#
 using DrWatson
 @quickactivate "SpatiotemporalMotifs"
@@ -41,10 +41,10 @@ if haskey(ENV, "JULIA_DISTRIBUTED") && !isempty(params)
     end
     nn = length(exprs) ÷ 2
     USydClusters.Physics.runscripts(exprs[1:nn]; ncpus = 12, mem = 80, walltime = 1,
-                                    project = projectdir(), exeflags = `+1.10.9`)#, qsub_flags = "-q yossarian")
+                                    project = projectdir(), exeflags = `+1.10.10`)#, qsub_flags = "-q yossarian")
     USydClusters.Physics.runscripts(exprs[(nn + 1):end]; ncpus = 12, mem = 80,
                                     walltime = 1,
-                                    project = projectdir(), exeflags = `+1.10.9`)#, qsub_flags = "-q yossarian")
+                                    project = projectdir(), exeflags = `+1.10.10`)#, qsub_flags = "-q yossarian")
 else
     for param in _params
         SM.send_powerspectra(param...; rewrite, retry_errors)
