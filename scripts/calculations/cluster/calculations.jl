@@ -42,10 +42,17 @@ if haskey(ENV, "JULIA_DISTRIBUTED") # ? Should take a night or so
 
         Q = any(.!Q, dims = (SM.Structure, Dim{:stimulus})) # Sessions that have bad files
         Q = dropdims(Q, dims = (SM.Structure, Dim{:stimulus}))
-        exprs = exprs[Q[SessionID = At(oursessions)]]
+        donesessions = lookup(Q, :SessionID)[findall(Q)]
+        exprs = exprs[.!(oursessions .∈ [donesessions])]
     end
-    USydClusters.Physics.runscript.(exprs; ncpus = 8, mem = 60, walltime = 8,
-                                    project = projectdir(), exeflags = `+1.10.10`)
+    #?  USydClusters.Physics.runscripts(exprs; ncpus = 8, mem = 30, walltime = 8,
+    #?                                  project = projectdir(), exeflags = `+1.10.10`)
+    USydClusters.Physics.runscripts(exprs[1:35]; ncpus = 8, mem = 30, walltime = 8,
+                                    project = projectdir(), exeflags = `+1.10.10`,
+                                    queue = "l40s")
+    USydClusters.Physics.runscripts(exprs[36:end]; ncpus = 8, mem = 30, walltime = 8,
+                                    project = projectdir(), exeflags = `+1.10.10`,
+                                    queue = "h100")
 
     display("All workers submitted")
 else

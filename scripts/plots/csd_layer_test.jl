@@ -137,6 +137,8 @@ function find_L4_center(csd::MultivariateTimeSeries, doplot = false)
         end
         Colorbar(fax.figure[1, 2], fax.plot)
         fax.axis.yreversed = true
+
+        layerints = ....
         fax.axis.yticks = (lookup(csd, Depth), layernames)
 
         sessionid = metadata(csd)[:sessionid]

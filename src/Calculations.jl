@@ -340,6 +340,9 @@ function compute_csd(LFP, stimulustimes)
     prestim = LFP[𝑡 = -0.1u"s" .. 0u"s"]
     prestim_mean = mean(prestim, dims = (𝑡, :changetime))
     baseline_LFP = LFP .- prestim_mean # Baseline correct
+    if metadata(LFP)[:structure] == "VISp"
+        # Main.@infiltrate
+    end
     csd = .-centralderiv(centralderiv(baseline_LFP, dims = Depth); dims = Depth)
     return csd
 end
@@ -485,7 +488,8 @@ function send_calculations(D::Dict, session = AN.Session(D["sessionid"]);
             @info "Saving $(file) for $(sessionid), $(structure), $(stimulus) to $(outfile)"
             @tagsave outfile out compress=ZstdFrameCompressor()
         catch e
-            @error "Error in $(file) for $(sessionid), $(structure), $(stimulus): $(e)"
+            @error "Error in $(file) for $(sessionid), $(structure), $(stimulus)"
+            @error e
             tagsave(outfile, Dict("error" => sprint(showerror, e)))
             continue
         end
@@ -497,11 +501,8 @@ function send_calculations(D::Dict, session = AN.Session(D["sessionid"]);
 end
 
 function send_calculations(sessionid;
-                           structures = ["VISp", "VISl", "VISrl",
-                               "VISal", "VISpm", "VISam"],
-                           stimuli = ["flash_250ms",
-                               r"Natural_Images",
-                               "Natural_Images_passive"],
+                           structures = ["VISp"],#, "VISl", "VISrl",                               "VISal", "VISpm", "VISam"],
+                           stimuli = ["Natural_Images_passive"], #"flash_250ms",                               r"Natural_Images",
                            outpath = datadir("calculations"),
                            kwargs...)
     session = AN.Session(sessionid)
@@ -627,7 +628,8 @@ function _collect_calculations(outfile; sessionid, structure, stimulus, path, su
             end
         end
     catch e
-        @error "Error in collecting $(filename): $(e)"
+        @error "Error in collecting $(filename)"
+        @error e
         E = Dict("error" => sprint(showerror, e))
         outfile[string(structure) * "/" * string(sessionid)] = E
     end

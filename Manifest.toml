@@ -2684,8 +2684,8 @@ uuid = "6dd1b50a-3aae-11e9-10b5-ef983d2400fa"
 version = "0.9.7"
 
 [[deps.USydClusters]]
-deps = ["ClusterManagers", "Distributed"]
-git-tree-sha1 = "9c29c3b3b2b641aee42a18d66a3b6325c2734e00"
+deps = ["ClusterManagers", "Dates", "Distributed", "Preferences"]
+git-tree-sha1 = "bce448b393b091e45f86d4f09822c6c6d4a97dde"
 repo-rev = "main"
 repo-url = "https://github.com/brendanjohnharris/UsydClusters.jl"
 uuid = "0d53aa51-fded-4285-958f-a79747f7b7b4"

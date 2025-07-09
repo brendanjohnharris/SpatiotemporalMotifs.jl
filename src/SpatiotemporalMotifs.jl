@@ -27,14 +27,11 @@ using JSON
 import AllenNeuropixels as AN
 import AllenNeuropixelsBase as ANB
 using Term.Progress
-
-# * Easier to reexport these for workers
-using Reexport
-@reexport using DimensionalData
-@reexport using StatsBase
-@reexport using DrWatson
-@reexport using Unitful
-@reexport using IntervalSets
+using DimensionalData
+using StatsBase
+using DrWatson
+using Unitful
+using IntervalSets
 
 import DimensionalData: metadata
 
