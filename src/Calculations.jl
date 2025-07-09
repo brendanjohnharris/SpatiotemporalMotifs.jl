@@ -313,7 +313,7 @@ function get_stimulustimes(stimulus, session)
         trials = stimuli
     elseif stimulus == "Natural_Images_passive"
         stimuli = AN.getstimuli(session)
-        stimuli = stimuli[stimuli.start_time .∈ [Interval(LFP)], :]
+        # stimuli = stimuli[stimuli.start_time .∈ [Interval(LFP)], :] # !!!
         stimuli = stimuli[.!ismissing.(stimuli.is_change), :]
         stimuli = stimuli[identity.(stimuli.is_change), :]
         stimuli = stimuli[.!stimuli.active, :] # * just the passive changes
@@ -340,9 +340,6 @@ function compute_csd(LFP, stimulustimes)
     prestim = LFP[𝑡 = -0.1u"s" .. 0u"s"]
     prestim_mean = mean(prestim, dims = (𝑡, :changetime))
     baseline_LFP = LFP .- prestim_mean # Baseline correct
-    if metadata(LFP)[:structure] == "VISp"
-        # Main.@infiltrate
-    end
     csd = .-centralderiv(centralderiv(baseline_LFP, dims = Depth); dims = Depth)
     return csd
 end
@@ -501,8 +498,15 @@ function send_calculations(D::Dict, session = AN.Session(D["sessionid"]);
 end
 
 function send_calculations(sessionid;
-                           structures = ["VISp"],#, "VISl", "VISrl",                               "VISal", "VISpm", "VISam"],
-                           stimuli = ["Natural_Images_passive"], #"flash_250ms",                               r"Natural_Images",
+                           structures = ["VISp",
+                               "VISl",
+                               "VISrl",
+                               "VISal",
+                               "VISpm",
+                               "VISam"],
+                           stimuli = [r"Natural_Images",
+                               "flash_250ms",
+                               "Natural_Images_passive"],
                            outpath = datadir("calculations"),
                            kwargs...)
     session = AN.Session(sessionid)
