@@ -2,6 +2,7 @@
 #=
 exec julia +1.10.10 -t auto "${BASH_SOURCE[0]}" "$@"
 =#
+ENV["SM_THETA"] = (6, 10)
 using DrWatson
 @quickactivate "SpatiotemporalMotifs"
 project = Base.active_project()
@@ -14,7 +15,7 @@ SM.@preamble
 session_table = load(datadir("session_table.jld2"), "session_table")
 oursessions = session_table.ecephys_session_id
 
-outpath = datadir("calculations")
+outpath = datadir("calculations&THETA=$(ENV["SM_THETA"])")
 rewrite = false
 check_quality = true
 mkpath(outpath)
@@ -22,9 +23,11 @@ mkpath(outpath)
 if haskey(ENV, "JULIA_DISTRIBUTED") # ? Should take a night or so
     exprs = map(oursessions) do sessionid
         expr = quote
+            ENV["SM_THETA"] = $(ENV["SM_THETA"])
             using Pkg
             Pkg.instantiate()
-            import SpatiotemporalMotifs: send_calculations
+            import SpatiotemporalMotifs: send_calculations, THETA
+            @info "Running calculations with THETA = $(THETA)"
             send_calculations($sessionid; outpath = $outpath, rewrite = $rewrite)
         end
     end
@@ -45,12 +48,7 @@ if haskey(ENV, "JULIA_DISTRIBUTED") # ? Should take a night or so
         donesessions = lookup(Q, :SessionID)[findall(Q)]
         exprs = exprs[.!(oursessions .∈ [donesessions])]
     end
-    #?  USydClusters.Physics.runscripts(exprs; ncpus = 8, mem = 30, walltime = 8,
-    #?                                  project = projectdir(), exeflags = `+1.10.10`)
-    USydClusters.Physics.runscripts(exprs[1:35]; ncpus = 8, mem = 42, walltime = 8,
-                                    project = projectdir(), exeflags = `+1.10.10`,
-                                    queue = "l40s")
-    USydClusters.Physics.runscripts(exprs[36:end]; ncpus = 8, mem = 42, walltime = 8,
+    USydClusters.Physics.runscripts(exprs; ncpus = 8, mem = 42, walltime = 8,
                                     project = projectdir(), exeflags = `+1.10.10`,
                                     queue = "h100")
 

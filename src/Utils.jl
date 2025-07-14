@@ -50,8 +50,8 @@ macro preamble()
     _preamble()
 end
 @preamble
-const THETA = (3, 10)
-const GAMMA = (30, 100)
+const THETA = haskey(ENV, "SM_THETA") ? eval(Meta.parse(ENV["SM_THETA"])) : (3, 10)
+const GAMMA = haskey(ENV, "SM_GAMMA") ? eval(Meta.parse(ENV["SM_GAMMA"])) : (30, 100)
 const INTERVAL = -0.25u"s" .. 0.75u"s"
 const structures = ["VISp", "VISl", "VISrl", "VISal", "VISpm", "VISam"]
 const PTHR = 1e-2

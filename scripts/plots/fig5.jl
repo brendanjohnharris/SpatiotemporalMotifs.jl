@@ -522,8 +522,11 @@ begin # * Global and spatiotemporal PAC
                 s = dropdims(mean(s, dims = SessionID); dims = SessionID)
                 s = upsample(s, 5, 1)
                 s = upsample(s, 5, 2)
-                p = heatmap!(ax, s; colormap = seethrough(reverse(sunrise)), rasterize = 5)
-                Colorbar(g[1, 2], p; label = "Modulation index")
+                x = s .* 10^4 # Modulation index
+                p = heatmap!(ax, (x); colormap = seethrough(reverse(sunrise)),
+                             rasterize = 5)
+                contour!(ax, log10.(x); levels = 5, colormap = reverse(sunrise))
+                Colorbar(g[1, 2], p; label = "Modulation index (×10⁴)")
             end
             addlabels!(f, labelformat)
             display(f)
@@ -555,19 +558,19 @@ begin # * Global and spatiotemporal PAC
             s = metadata(P)[:structure]
             ax = Axis(g[1, 1]; title = s, yreversed = true,
                       limits = (nothing, (extrema(lookup(P, Depth)))), xlabel = "Time (s)")
-            p = plotlayermap!(ax, ustripall(P[𝑡 = SpatiotemporalMotifs.INTERVAL]), l;
-                              rasterize = 5) |>
-                first
-            Colorbar(g[1, 2], p, label = "PAC")
+            x = ustripall(P[𝑡 = SpatiotemporalMotifs.INTERVAL]) .* 10^3
+            colorrange = (0, maximum(x))
+            p = plotlayermap!(ax, x, l; rasterize = 5, colorrange) |> first
+            Colorbar(g[1, 2], p, label = "PAC (×10³)")
 
             if s == "VISl"
                 ax = Axis(mgs[6][1, 1]; title = "$s spatiotemporal PAC", yreversed = true,
                           limits = (nothing, (extrema(lookup(P, Depth)))),
                           xlabel = "Time (s)")
-                p = plotlayermap!(ax,
-                                  ustripall(P[𝑡 = SpatiotemporalMotifs.INTERVAL]) .* 10^3,
-                                  l; rasterize = 5) |>
-                    first
+
+                x = ustripall(P[𝑡 = SpatiotemporalMotifs.INTERVAL]) .* 10^3
+                colorrange = (0, maximum(x))
+                p = plotlayermap!(ax, x, l; rasterize = 5, colorrange) |> first
                 Colorbar(mgs[6][1, 2], p, label = "PAC (×10³)")
             end
         end
@@ -581,9 +584,10 @@ begin # * Layer-wise PAC
     @info "Plotting layerwise PAC"
     @unpack pacc, peaks = plot_data["layerwise_pac"]
     begin # * Plot layer-wise PAC
-        ax = Axis(mgs[4]; xlabel = "Cortical depth (%)", ylabel = "Median PAC",
-                  xtickformat = depthticks, limits = ((0, 1), nothing),
-                  title = "Layerwise θ-γ PAC")
+        ax = Axis(mgs[4]; ylabel = "Cortical depth (%)",
+                  xlabel = "Median PAC",
+                  ytickformat = depthticks, limits = ((-0.0004, nothing), (0, 1)),
+                  title = "Layerwise θ-γ PAC", yreversed = true)
         for (i, p) in enumerate(pacc)
             s = structures[i]
             # p = p ./ sum(p, dims = 1)
@@ -592,17 +596,18 @@ begin # * Layer-wise PAC
             mu = upsample(μ, 5)
             l = upsample(σl, 5) |> parent
             h = upsample(σh, 5) |> parent
-            band!(ax, lookup(mu, 1), l, h; color = (structurecolormap[s], 0.2),
+            band!(ax, Point2f.(collect(l), lookup(mu, 1)),
+                  Point2f.(collect(h), lookup(mu, 1)); color = (structurecolormap[s], 0.2),
                   label = s)
-            lines!(ax, lookup(mu, 1), collect(mu), color = structurecolormap[s], label = s,
+            lines!(ax, collect(mu), lookup(mu, 1), color = structurecolormap[s], label = s,
                    alpha = 0.8,
                    linewidth = 4)
-            scatter!(ax, lookup(μ, 1), collect(μ), color = structurecolormap[s], label = s,
+            scatter!(ax, collect(μ), lookup(μ, 1), color = structurecolormap[s], label = s,
                      markersize = 10, alpha = 0.8)
         end
-        l = axislegend(ax; merge = true, nbanks = 2, position = :lt, framevisible = true,
+        l = axislegend(ax; merge = true, nbanks = 1, position = :rt, framevisible = true,
                        labelsize = 10)
-        plotlayerints!(ax, grandlayerints; axis = :x, newticks = false, flipside = false)
+        plotlayerints!(ax, grandlayerints; axis = :y, newticks = false, flipside = false)
         f
     end
 
@@ -617,8 +622,8 @@ begin # * Layer-wise PAC
             struc = 1
             tortinset!(gg, peaks[struc][idx],
                        colormap = seethrough(structurecolors[struc], alphamin, 1),
-                       halign = 0.3, valign = 0.6, color = structurecolors[struc])
-            scatter!(ax, [idx.val.val], [μs[struc][idx]], color = structurecolors[struc],
+                       halign = 0.7, valign = 0.7, color = structurecolors[struc])
+            scatter!(ax, [μs[struc][idx]], [idx.val.val], color = structurecolors[struc],
                      markersize = 15,
                      strokecolor = :white, strokewidth = 2)
 
@@ -626,8 +631,8 @@ begin # * Layer-wise PAC
             struc = 2
             tortinset!(gg, peaks[struc][idx],
                        colormap = seethrough(structurecolors[struc], alphamin, 1),
-                       halign = 0.01, valign = 0.4, color = structurecolors[struc])
-            scatter!(ax, [idx.val.val], [μs[struc][idx]], color = structurecolors[struc],
+                       halign = 0.5, valign = 0.55, color = structurecolors[struc])
+            scatter!(ax, [μs[struc][idx]], [idx.val.val], color = structurecolors[struc],
                      markersize = 15,
                      strokecolor = :white, strokewidth = 2)
 
@@ -635,8 +640,8 @@ begin # * Layer-wise PAC
             struc = 6
             tortinset!(gg, peaks[struc][idx],
                        colormap = seethrough(structurecolors[struc], alphamin, 1),
-                       halign = 0.87, valign = 0.95, color = structurecolors[struc])
-            scatter!(ax, [idx.val.val], [μs[struc][idx]], color = structurecolors[struc],
+                       halign = 0.9, valign = 0.1, color = structurecolors[struc])
+            scatter!(ax, [μs[struc][idx]], [idx.val.val], color = structurecolors[struc],
                      markersize = 15,
                      strokecolor = :white, strokewidth = 2)
 
@@ -644,8 +649,8 @@ begin # * Layer-wise PAC
             struc = 3
             tortinset!(gg, peaks[struc][idx],
                        colormap = seethrough(structurecolors[struc], alphamin, 1),
-                       halign = 0.9, valign = 0.48, color = structurecolors[struc])
-            scatter!(ax, [idx.val.val], [μs[struc][idx]], color = structurecolors[struc],
+                       halign = 0.4, valign = 0.1, color = structurecolors[struc])
+            scatter!(ax, [μs[struc][idx]], [idx.val.val], color = structurecolors[struc],
                      markersize = 15,
                      strokecolor = :white, strokewidth = 2)
         end

@@ -48,58 +48,58 @@ begin # * Load trial-by-trial spc
     pspikes = load(file, "pspikes")
 end
 
-begin # * Compare distribution of PPC for hit/miss trials. Thi should be moved to calculations. But be careful; we need to use the rectified trial times
-    sessionids = unique(pspikes.ecephys_session_id)
-    outfile = datadir("out&stimulus=Natural_Images.jld2")
-    trials = jldopen(outfile, "r") do f
-        map(sessionids) do sessionid
-            trials = f["VISp/$(sessionid)/trials"]
-        end
-    end
-    trials = ToolsArray(trials, (SessionID(sessionids),))
-    pspikes.hitmiss = map(eachrow(pspikes)) do row
-        isempty(row[:trial_pairwise_phase_consistency]) && return
-        _trials = trials[SessionID = At(row[:ecephys_session_id])]
-        return _trials.hit
-    end
-end
+# begin # * Compare distribution of PPC for hit/miss trials. Thi should be moved to calculations. But be careful; we need to use the rectified trial times
+#     sessionids = unique(pspikes.ecephys_session_id)
+#     outfile = datadir("out&stimulus=Natural_Images.jld2")
+#     trials = jldopen(outfile, "r") do f
+#         map(sessionids) do sessionid
+#             trials = f["VISp/$(sessionid)/trials"]
+#         end
+#     end
+#     trials = ToolsArray(trials, (SessionID(sessionids),))
+#     pspikes.hitmiss = map(eachrow(pspikes)) do row
+#         isempty(row[:trial_pairwise_phase_consistency]) && return
+#         _trials = trials[SessionID = At(row[:ecephys_session_id])]
+#         return _trials.hit
+#     end
+# end
 
-begin # * Add unit layers and rectified change times
-    pspikes.rectified_change_times = Vector{Vector{<:Quantity}}(undef, nrow(pspikes))
-    pspikes.layer = Vector{String}(undef, nrow(pspikes))
+# begin # * Add unit layers and rectified change times
+#     pspikes.rectified_change_times = Vector{Vector{<:Quantity}}(undef, nrow(pspikes))
+#     pspikes.layer = Vector{String}(undef, nrow(pspikes))
 
-    sessionids = unique(pspikes.ecephys_session_id)
-    structs = unique(pspikes.structure_acronym)
-    jldopen(outfile, "r") do f
-        map(sessionids) do sessionid
-            map(structs) do structure
-                lfp = f["$(structure)/$(sessionid)/V"]
-                rectified_change_times = lookup(lfp, :changetime) |> collect
-                idxs = pspikes.ecephys_session_id .== sessionid
-                idxs = idxs .& (pspikes.structure_acronym .== structure)
-                pspikes[idxs, :rectified_change_times] .= [rectified_change_times]
+#     sessionids = unique(pspikes.ecephys_session_id)
+#     structs = unique(pspikes.structure_acronym)
+#     jldopen(outfile, "r") do f
+#         map(sessionids) do sessionid
+#             map(structs) do structure
+#                 lfp = f["$(structure)/$(sessionid)/V"]
+#                 rectified_change_times = lookup(lfp, :changetime) |> collect
+#                 idxs = pspikes.ecephys_session_id .== sessionid
+#                 idxs = idxs .& (pspikes.structure_acronym .== structure)
+#                 pspikes[idxs, :rectified_change_times] .= [rectified_change_times]
 
-                layermap = f["$(structure)/$(sessionid)/layernames"]
-                map(findall(idxs)) do idx
-                    depth = pspikes[idx, :probedepth]
-                    layer = layermap[Depth = Near(depth)]
-                    if layer ∈ ["or", "scwm", "cing"]
-                        i = findlast(lookup(layermap, 1) .< depth) |> last
-                        layer = layermap[i] # As in Unify Calculations.
-                    end
-                    pspikes[idx, :layer] = "L" *
-                                           SpatiotemporalMotifs.layers[parselayernum(layer)]
-                end
-            end
-        end
-    end
-end
+#                 layermap = f["$(structure)/$(sessionid)/layernames"]
+#                 map(findall(idxs)) do idx
+#                     depth = pspikes[idx, :probedepth]
+#                     layer = layermap[Depth = Near(depth)]
+#                     if layer ∈ ["or", "scwm", "cing"]
+#                         i = findlast(lookup(layermap, 1) .< depth) |> last
+#                         layer = layermap[i] # As in Unify Calculations.
+#                     end
+#                     pspikes[idx, :layer] = "L" *
+#                                            SpatiotemporalMotifs.layers[parselayernum(layer)]
+#                 end
+#             end
+#         end
+#     end
+# end
 
 begin # * Add trial times to pspikes. Move to calculations.
     pspikes.trial_change_times = map(eachrow(pspikes)) do row
         isempty(row[:trial_pairwise_phase_consistency]) && return
         _trials = trials[SessionID = At(row[:ecephys_session_id])]
-        return _trials.change_time_with_display_delay # but be careful...the spiek times are RECTIFIED
+        return _trials.rectified_change_times # but be careful...the spiek times are RECTIFIED
         #!!!! NEED TO USE NON_RECTIFIED SPIKE TIMES MFFFFF
     end
 end
@@ -638,13 +638,11 @@ end
 # end
 
 begin
-    begin # * Average psths  +  hit–miss difference (z-scored)
+    begin # * Average psths + hit-miss difference (z-scored)
         structure = "VISp"
 
         idxs = pspikes.structure_acronym .== [structure]
         subspikes = pspikes[idxs, :]
-
-        # * Average psths ----------------------------------------------------------
         subspikes.hit_psth = map(eachrow(subspikes)) do row
             psths = row.zscored_trial_psth_rates
             psths = psths[row.hitmiss]
@@ -661,18 +659,17 @@ begin
             return convert.(Float32, mean(psths))
         end
 
-        # * NEW: hit – miss, then per-neuron z-score -------------------------------
         subspikes.diff_psth_z = map(eachrow(subspikes)) do row
             h, m = row.hit_psth, row.miss_psth
             (h === nothing || m === nothing) && return nothing
-            d = h .- m                                    # hit – miss
+            d = h .- m                                    # hit - miss
             μ, σ = mean(d), std(d)
             σ == 0.0f0 && return nothing                     # guard flat traces
             return (d .- μ) ./ σ                           # z-scored difference
         end
     end
 
-    begin # * Plot hit – miss firing rate (one axis)
+    begin # * Plot hit - miss firing rate (one axis)
         intt = -0.0 .. 0.2
         f = Figure(size = (800, 300))
         ax = Axis(f[1, 1], title = "Hit − Miss (z)", xlabel = "Time (s)",

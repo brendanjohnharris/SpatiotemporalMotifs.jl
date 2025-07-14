@@ -217,7 +217,7 @@ end
 
 begin # * Plotting
     # * Filter for oursessions....
-    ax = Axis(gs[1][1, 1];
+    ax = Axis(gs[1];
               ylabel = "Cortical depth (%)",
               xlabel = "1/f exponent (hit - miss)",
               ytickformat = depthticks, title = "1/f contrast", yreversed = true,
@@ -252,7 +252,7 @@ begin # * Plotting
 end
 
 begin # * Plot classification accuracy
-    ax = Axis(gs[2][1, 1], ylabel = "Balanced accuracy",
+    ax = Axis(gs[2], ylabel = "Balanced accuracy",
               limits = ((0.5, 4.5), (nothing, 1.0)),
               xticks = ([1.5, 3.5], ["Regional", "Layerwise"]),
               title = "1/f classification")
@@ -275,7 +275,7 @@ begin # * Plot classification accuracy
 end
 
 begin # * Plot weights of lda classifier for full classification
-    ax = Axis(gs[3][1, 1], xlabel = "Weight", ylabel = "Cortical depth (%)",
+    ax = Axis(gs[3], xlabel = "Weight", ylabel = "Cortical depth (%)",
               title = "Classifier weights", yreversed = true, limits = (nothing, (0, 1)))
 
     plotlayerints!(ax, layerints; axis = :y, flipside = false, newticks = false,
@@ -300,8 +300,8 @@ begin # * Plot weights of lda classifier for full classification
 end
 
 begin # * Save figure
-    Legend(gs[4][1, 1], ax; merge = true, title = "Structure")
-    addlabels!(f, ["a", "b", "c"])
-    save(plotdir("figS3.pdf"), f)
+    Legend(gs[4], ax; merge = true, title = "Structure")
+    addlabels!(f, labelformat)
+    save(plotdir("figS3", "figS3.pdf"), f)
     display(f)
 end

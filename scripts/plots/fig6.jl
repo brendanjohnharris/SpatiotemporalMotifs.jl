@@ -15,6 +15,7 @@ plot_data, data_file = produce_or_load(Dict(), datadir("plots");
                                        filename = savepath,
                                        prefix = "fig6") do _
     stimulus = r"Natural_Images"
+    outfile = datadir("out&stimulus=$(stimulus).jld2")
     vars = [:ϕ, :r]
 
     session_table = load(datadir("posthoc_session_table.jld2"), "session_table")
@@ -90,7 +91,8 @@ plot_data, data_file = produce_or_load(Dict(), datadir("plots");
             :miss_onset_pairwise_phase_consistency_pvalue,
             :miss_offset_pairwise_phase_consistency_pvalue,
             :miss_onset_pairwise_phase_consistency_angle,
-            :miss_offset_pairwise_phase_consistency_angle]
+            :miss_offset_pairwise_phase_consistency_angle,
+            :hitmiss]
 
         if !all(hasproperty.([pspikes], requiredcols))
             for s in eachindex(structures)
@@ -104,7 +106,55 @@ plot_data, data_file = produce_or_load(Dict(), datadir("plots");
                 spc!(pspikes, ustripall.(ϕ)) # * PPC spike--phase coupling
                 sac!(pspikes, ustripall.(r)) # * Mean normalized amplitude spike--amplitude coupling
             end
-            save(datadir("spike_lfp.jld2"), "pspikes", pspikes)
+
+            begin # * add trial info
+                sessionids = unique(pspikes.ecephys_session_id)
+                trials = jldopen(outfile, "r") do f
+                    map(sessionids) do sessionid
+                        trials = f["VISp/$(sessionid)/trials"]
+                    end
+                end
+                trials = ToolsArray(trials, (SessionID(sessionids),))
+                pspikes.hitmiss = map(eachrow(pspikes)) do row
+                    isempty(row[:trial_pairwise_phase_consistency]) && return
+                    _trials = trials[SessionID = At(row[:ecephys_session_id])]
+                    return _trials.hit
+                end
+
+                begin # * Add unit layers and rectified change times
+                    pspikes.rectified_change_times = Vector{Vector{<:Quantity}}(undef,
+                                                                                nrow(pspikes))
+                    pspikes.layer = Vector{String}(undef, nrow(pspikes))
+
+                    sessionids = unique(pspikes.ecephys_session_id)
+                    structs = unique(pspikes.structure_acronym)
+                    jldopen(outfile, "r") do f
+                        map(sessionids) do sessionid
+                            map(structs) do structure
+                                lfp = f["$(structure)/$(sessionid)/V"]
+                                rectified_change_times = lookup(lfp, :changetime) |> collect
+                                idxs = pspikes.ecephys_session_id .== sessionid
+                                idxs = idxs .& (pspikes.structure_acronym .== structure)
+                                pspikes[idxs, :rectified_change_times] .= [rectified_change_times]
+
+                                layermap = f["$(structure)/$(sessionid)/layernames"]
+                                map(findall(idxs)) do idx
+                                    depth = pspikes[idx, :probedepth]
+                                    layer = layermap[Depth = Near(depth)]
+                                    if layer ∈ ["or", "scwm", "cing"]
+                                        i = findlast(lookup(layermap, 1) .< depth) |> last
+                                        layer = layermap[i] # As in Unify Calculations.
+                                    end
+                                    pspikes[idx, :layer] = "L" *
+                                                           SpatiotemporalMotifs.layers[parselayernum(layer)]
+                                end
+                            end
+                        end
+                    end
+                end
+
+                save(datadir("spike_lfp.jld2"), "pspikes", pspikes)
+            end
         end
     end
 

@@ -30,7 +30,7 @@ const phasecolormap = cyclic
 const DEFAULT_SESSION_ID = 1140102579
 const DEFAULT_TRIAL_NUM = 14
 
-labelformat(n) = "$(Char(n + 64))"
+labelformat(n) = "$(Char(n + 96))"
 export labelformat
 
 const visual_cortex_layout = Dict("VISp" => [350, 350],

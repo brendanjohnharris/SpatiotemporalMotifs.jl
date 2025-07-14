@@ -461,6 +461,8 @@ function send_calculations(D::Dict, session = AN.Session(D["sessionid"]);
             LFP_J, stimulustimes_J, spiketimes_J = joint_rectify(LFP, spiketimes,
                                                                  stimulustimes)
 
+            trials.rectified_change_times = stimulustimes_J
+
             # * Format LFP dims
             LFP_J = set(LFP_J, 𝑡 => times(LFP_J) .* u"s")
 
@@ -475,7 +477,6 @@ function send_calculations(D::Dict, session = AN.Session(D["sessionid"]);
             out["streamlinedepths"] = streamlinedepths
             out["units"] = units
             out["spiketimes"] = spiketimes_J # ! The RECTIFIED spiketimes
-            out["rectified_change_times"] = stimulustimes_J
             out["layerinfo"] = layerinfo
             out["pass_θ"] = pass_θ
             out["pass_γ"] = pass_γ
@@ -640,8 +641,9 @@ function _collect_calculations(outfile; sessionid, structure, stimulus, path, su
     return nothing
 end
 
-function collect_calculations(Q; path = datadir("calculations"), stimulus, rewrite = false)
-    outfilepath = savepath("out", Dict("stimulus" => stimulus), "jld2", datadir())
+function collect_calculations(Q; path = datadir("calculations"), stimulus, rewrite = false,
+                              outpath = datadir())
+    outfilepath = savepath("out", Dict("stimulus" => stimulus), "jld2", outpath)
     if contains(stimulus |> string, "nochange")
         subvars = sort([:csd]) # Only use the LFP for inferring the CSD
     else
@@ -716,12 +718,12 @@ function load_calculations(Q; vars = sort([:V, :csd, :θ, :ϕ, :r, :k, :ω]), st
 end
 
 function unify_calculations(Q; stimulus, vars = sort([:V, :csd, :θ, :ϕ, :r, :k, :ω]),
-                            rewrite = false, kwargs...)
-    unifilepath = savepath("uni", Dict("stimulus" => stimulus), "jld2", datadir())
+                            rewrite = false, outpath = datadir(), kwargs...)
+    unifilepath = savepath("uni", Dict("stimulus" => stimulus), "jld2", outpath)
     # * Filter to posthoc sessions
     if !isfile(unifilepath) || rewrite
         @info "Loading calculations"
-        out = load_calculations(Q; vars, stimulus, kwargs...)
+        out = load_calculations(Q; vars, stimulus, outpath, kwargs...)
         @info "Loaded calculations, unifying"
         session_table = load(datadir("posthoc_session_table.jld2"), "session_table")
         oursessions = session_table.ecephys_session_id
@@ -832,7 +834,7 @@ function load_uni(; stimulus, vars = sort([:V, :csd, :θ, :ϕ, :r, :k, :ω]),
                   structures = SpatiotemporalMotifs.structures,
                   kwargs...)
     Q = calcquality(path)[Structure = At(structures)]
-    unifilepath = unify_calculations(Q; stimulus)
+    unifilepath = unify_calculations(Q; stimulus, kwargs...)
     @info "Loading unified data $vars for $stimulus"
     commonvars = [:oursessions, :unidepths, :layerints, :layernames, :layernums]
     jldopen(unifilepath, "r") do unifile
