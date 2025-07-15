@@ -20,13 +20,13 @@ set_theme!(foresight(:physics))
 #     stimulus = r"Natural_Images"
 #     vars = [:ϕ, :r]
 
-#     session_table = load(datadir("posthoc_session_table.jld2"), "session_table")
+#     session_table = load(calcdir("posthoc_session_table.jld2"), "session_table")
 #     oursessions = session_table.ecephys_session_id
 
-#     path = datadir("calculations")
+#     path = calcdir("calculations")
 #     Q = calcquality(path)[Structure = At(structures)][SessionID = At(oursessions)]
 #     out = load_calculations(Q; stimulus, vars)
-#     Qs = calcquality(datadir("power_spectra"))[Structure = At(structures)][SessionID = At(oursessions)]
+#     Qs = calcquality(calcdir("power_spectra"))[Structure = At(structures)][SessionID = At(oursessions)]
 #     unitdepths = load_unitdepths(Qs)
 
 #     begin # * Format spikes to depth dataframe. These have already been rectified
@@ -44,13 +44,13 @@ set_theme!(foresight(:physics))
 # end
 
 begin # * Load trial-by-trial spc
-    file = datadir("spike_lfp.jld2")
+    file = calcdir("spike_lfp.jld2")
     pspikes = load(file, "pspikes")
 end
 
 # begin # * Compare distribution of PPC for hit/miss trials. Thi should be moved to calculations. But be careful; we need to use the rectified trial times
 #     sessionids = unique(pspikes.ecephys_session_id)
-#     outfile = datadir("out&stimulus=Natural_Images.jld2")
+#     outfile = calcdir("out&stimulus=Natural_Images.jld2")
 #     trials = jldopen(outfile, "r") do f
 #         map(sessionids) do sessionid
 #             trials = f["VISp/$(sessionid)/trials"]
@@ -94,8 +94,6 @@ end
 #         end
 #     end
 # end
-
-
 
 # begin # * Look at onset PPC
 #     onset = pspikes.hit_onset_pairwise_phase_consistency_pvalue
@@ -149,7 +147,6 @@ end
 
 #     f
 # end
-
 
 # begin # * Group over depth bins
 #     depthbins = 0.05:0.1:0.95

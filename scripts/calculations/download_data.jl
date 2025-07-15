@@ -1,15 +1,15 @@
 #! /bin/bash
 #=
-exec julia -t 1 "${BASH_SOURCE[0]}" "$@"
+exec julia +1.10.10 -t 1 "${BASH_SOURCE[0]}" "$@"
 =#
 using DrWatson
 @quickactivate "SpatiotemporalMotifs"
 import SpatiotemporalMotifs as SM
 
-session_table = load(datadir("session_table.jld2"), "session_table")
+session_table = load(calcdir("session_table.jld2"), "session_table")
 oursessions = session_table.ecephys_session_id
 
-for s in oursessions
+for s in oursessions # * Will take about 10 minutes if files are already downloaded
     @info "Loading session $s"
     session = AN.Session(s)
     probes = AN.getprobes(session)

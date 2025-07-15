@@ -17,11 +17,11 @@ set_theme!(foresight(:physics))
 
 stimulus = r"Natural_Images"
 
-session_table = load(datadir("session_table.jld2"), "session_table")
+session_table = load(calcdir("session_table.jld2"), "session_table")
 oursessions = deepcopy(session_table)
 
 begin
-    path = datadir("calculations")
+    path = calcdir("calculations")
     Q = calcquality(path)[Structure = At(structures)]
     quality = mean(Q[stimulus = At(stimulus)])
     out = load_calculations(Q; stimulus, vars = [:r])
@@ -70,7 +70,7 @@ begin # * Layer consistency
 end
 
 begin # * Task performance
-    path = datadir("calculations")
+    path = calcdir("calculations")
     performance = load_performance(; path)
     performantsessions = performance.sessionid[performance.mean_dprime .> 1]
     goodsessions = [g for g in goodsessions if g in performantsessions]
@@ -85,15 +85,15 @@ end
 
 begin
     newsessions = subset(oursessions, :ecephys_session_id => ByRow(∈(goodsessions)))
-    tagsave(datadir("posthoc_session_table.jld2"), Dict("session_table" => newsessions))
-    write(datadir("posthoc_session_table.json"), JSON.json(newsessions))
-    write(datadir("plots", "posthoc_session_table.json"), JSON.json(newsessions))
+    tagsave(calcdir("posthoc_session_table.jld2"), Dict("session_table" => newsessions))
+    write(calcdir("posthoc_session_table.json"), JSON.json(newsessions))
+    write(calcdir("plots", "posthoc_session_table.json"), JSON.json(newsessions))
 end
 # Read the dataframe as read("$(@__DIR__)/../session_table.json", String) |> JSON.parse |> DataFrame
 
 begin # * Formatted subject table
     using Dates
-    file = datadir("posthoc_session_table.jld2")
+    file = calcdir("posthoc_session_table.jld2")
     newsessions = load(file, "session_table")
     experimental_model_table = newsessions[:,
                                            [:mouse_id,
@@ -138,7 +138,7 @@ begin # * Formatted subject table
     D.var"Dates of acquisition" .= [Dates.format.(d, ["yyyy-mm-dd"])
                                     for d in D.var"Dates of acquisition"]
     D.var"Dates of acquisition" .= join.(D.var"Dates of acquisition", [" to "])
-    open(datadir("experimental_model_table.csv"), "w") do io
+    open(calcdir("experimental_model_table.csv"), "w") do io
         write(io, join(names(D), ","))
         write(io, "\n")
         for d in eachrow(D)

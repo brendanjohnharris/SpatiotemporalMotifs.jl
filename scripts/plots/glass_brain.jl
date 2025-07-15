@@ -49,7 +49,7 @@ end
         file = Dict("sessionid" => sessionid, "stimulus" => stimulus,
                     "structure" => structure)
         file = savepath(file, "jld2")
-        file = jldopen(datadir("calculations", file), "r")
+        file = jldopen(calcdir("calculations", file), "r")
         trials = file["trials"]
         times = trials[trial, :change_time_with_display_delay]
         times = times - 0.25 .. times + 0.75

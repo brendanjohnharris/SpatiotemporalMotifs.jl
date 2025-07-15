@@ -84,4 +84,18 @@ export classifier,
        plotspectrum!, fooof, tortinset!,
        @preamble
 
+function __init__()
+    warnings = pyimport("warnings")
+    warnings.filterwarnings("ignore", message = ".*(Ignoring cached namespace).*")
+    warnings.filterwarnings("ignore", message = ".*(NWBFile.modules has been replaced).*")
+    warnings.filterwarnings("ignore",
+                            message = ".*(get_data_interface will be replaced by get).*")
+    warnings.filterwarnings("ignore",
+                            message = ".*(Unable to parse cre_line from full_genotype).*")
+    warnings.filterwarnings("ignore",
+                            message = ".*(Pkg resources is deprecated as an API).*")
+    warnings.filterwarnings("ignore",
+                            message = ".*(ImportWarning: JuliaCompatHooks.find_spec).*")
+end
+
 end # module

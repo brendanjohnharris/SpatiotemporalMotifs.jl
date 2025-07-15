@@ -11,10 +11,10 @@ set_theme!(foresight(:physics))
 ENV["JULIA_DEBUG"] = "AllenNeuropixelsBase"
 
 stimuli = ["spontaneous", "flash_250ms", r"Natural_Images"]
-session_table = load(datadir("session_table.jld2"), "session_table")
+session_table = load(calcdir("session_table.jld2"), "session_table")
 oursessions = session_table.ecephys_session_id
 
-isdir(datadir("power_spectra")) || mkpath(datadir("power_spectra"))
+isdir(calcdir("power_spectra")) || mkpath(calcdir("power_spectra"))
 
 rewrite = false
 retry_errors = true

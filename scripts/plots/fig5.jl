@@ -22,20 +22,20 @@ config = @strdict thr
 
 stimuli = [r"Natural_Images", "spontaneous", "flash_250ms"]
 
-plot_data, data_file = produce_or_load(config, datadir("plots");
+plot_data, data_file = produce_or_load(config, calcdir("plots");
                                        filename = savepath,
                                        prefix = "fig5") do config
     stimulus = r"Natural_Images" # Stimulus for the final figure
-    session_table = load(datadir("posthoc_session_table.jld2"), "session_table")
+    session_table = load(calcdir("posthoc_session_table.jld2"), "session_table")
     oursessions = session_table.ecephys_session_id
-    layerints = load(datadir("plots", "grand_unified_layers.jld2"), "layerints")
+    layerints = load(calcdir("plots", "grand_unified_layers.jld2"), "layerints")
     @unpack thr = config
 
     begin # * Extract burst mask from each trial. Takes about 20 minutes on 128 cores
         @info "Calculating γ-bursts"
         vars = [:r]
 
-        path = datadir("calculations")
+        path = calcdir("calculations")
         Q = calcquality(path)[Structure = At(structures)]
         quality = mean(Q[stimulus = At(stimulus)])
         out = load_calculations(Q; stimulus, vars)
@@ -115,12 +115,12 @@ plot_data, data_file = produce_or_load(config, datadir("plots");
         @info "Calculating spatiotemporal PAC"
         vars = [:ϕ, :r]
 
-        path = datadir("calculations")
+        path = calcdir("calculations")
         Q = calcquality(path)[Structure = At(structures)]
         Q = Q[SessionID = At(oursessions)]
         quality = mean(Q[stimulus = At(stimulus)])
 
-        pQ = calcquality(datadir("power_spectra"))
+        pQ = calcquality(calcdir("power_spectra"))
         data = map(stimuli) do stimulus
             _Q = pQ[stimulus = At(stimulus), Structure = At(structures)]
             subsessions = intersect(oursessions, lookup(_Q, SessionID))
@@ -136,7 +136,7 @@ plot_data, data_file = produce_or_load(config, datadir("plots");
                         return nothing
                     end
                     filename = savepath((@strdict sessionid structure stimulus), "jld2",
-                                        datadir("power_spectra"))
+                                        calcdir("power_spectra"))
                     C = load(filename, "C")
                     # S = load(filename, "sC")
                     # return (C .- S) ./ median(S)
@@ -263,7 +263,7 @@ begin # * Set up master plot
     mf = SixPanel()
     mgs = subdivide(mf, 3, 2)
     α = 0.9
-    grandlayerints = load(datadir("plots", "grand_unified_layers.jld2"), "layerints")
+    grandlayerints = load(calcdir("plots", "grand_unified_layers.jld2"), "layerints")
     oursessions = plot_data["oursessions"]
 end
 

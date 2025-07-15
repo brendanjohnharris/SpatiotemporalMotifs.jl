@@ -12,7 +12,7 @@
 /docs/build/
 Artifacts.toml
 LocalPreferences.toml
-data
+data*/
 docsb/build/
 docs/site/
 /plots

@@ -11,10 +11,10 @@ import USydClusters.Physics: addprocs, selfdestruct
 using USydClusters
 SM.@preamble
 
-session_table = load(datadir("session_table.jld2"), "session_table")
+session_table = load(calcdir("session_table.jld2"), "session_table")
 oursessions = session_table.ecephys_session_id
 
-outpath = datadir("calculations")
+outpath = calcdir("calculations")
 rewrite = false
 check_quality = true
 mkpath(outpath)
@@ -29,7 +29,7 @@ if haskey(ENV, "JULIA_DISTRIBUTED") # ? Should take a night or so
         end
     end
 
-    if check_quality && isfile(datadir("posthoc_session_table.jld2")) &&
+    if check_quality && isfile(calcdir("posthoc_session_table.jld2")) &&
        !isempty(readdir(outpath))
         Q = SM.calcquality(outpath)[Structure = At(SM.structures)]
         # * Delete bad files
@@ -37,7 +37,7 @@ if haskey(ENV, "JULIA_DISTRIBUTED") # ? Should take a night or so
         filenames = map(filenames) do f
             Dict{String, Any}("structure" => f[1], "stimulus" => f[2], "sessionid" => f[3])
         end
-        filenames = datadir.(["calculations"], map(SM.savepath, filenames) .* [".jld2"])
+        filenames = calcdir.(["calculations"], map(SM.savepath, filenames) .* [".jld2"])
         rm.(filenames; force = true)
 
         Q = any(.!Q, dims = (SM.Structure, Dim{:stimulus})) # Sessions that have bad files
@@ -62,7 +62,7 @@ if haskey(ENV, "JULIA_DISTRIBUTED") # ? Should take a night or so
     display("All workers submitted")
 else
     SM.send_calculations.(reverse(oursessions); outpath, rewrite) # ? This version will take a few days if the above calculations errored, otherwise a few minutes (checks all calculations are correct)
-    Q = SM.calcquality(datadir("calculations"))
+    Q = SM.calcquality(calcdir("calculations"))
     @assert all(oursessions .∈ [lookup(Q, 3)])
     @assert mean(Q) == 1
 end

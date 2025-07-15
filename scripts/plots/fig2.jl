@@ -26,12 +26,12 @@ alpha = 0.8
 bandalpha = 0.2
 mkpath(plotdir("fig2"))
 
-plot_data, data_file = produce_or_load(Dict(), datadir("plots");
+plot_data, data_file = produce_or_load(Dict(), calcdir("plots");
                                        filename = savepath,
                                        prefix = "fig2") do _
-    session_table = load(datadir("posthoc_session_table.jld2"), "session_table")
+    session_table = load(calcdir("posthoc_session_table.jld2"), "session_table")
     oursessions = session_table.ecephys_session_id
-    path = datadir("power_spectra")
+    path = calcdir("power_spectra")
     plot_data = map(stimuli) do stimulus
         Q = calcquality(path)[stimulus = At(stimulus), Structure = At(structures)]
         Q = Q[SessionID(At(oursessions))]
@@ -109,7 +109,7 @@ plot_data, data_file = produce_or_load(Dict(), datadir("plots");
                 N = UnitEnergy(s, dims = 1)
                 N(s) .|> Float32
             end
-            layerints = load(datadir("plots", "grand_unified_layers.jld2"), "layerints")
+            layerints = load(calcdir("plots", "grand_unified_layers.jld2"), "layerints")
         end
 
         plot_data = @strdict S layernames layernums layerints meanlayers S̄ oursessions Q
@@ -196,7 +196,7 @@ for stimulus in stimuli
         end
 
         begin # * Calculate the channel-wise fits. Can take a good 30 minutes
-            file = datadir("plots", "fooof", "fooof$filebase.jld2")
+            file = calcdir("plots", "fooof", "fooof$filebase.jld2")
 
             if isfile(file)
                 χ, b, L = load(file, "χ", "b", "L")

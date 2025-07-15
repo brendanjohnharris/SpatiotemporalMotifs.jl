@@ -11,20 +11,20 @@ using SpatiotemporalMotifs
 set_theme!(foresight(:physics))
 Random.seed!(42)
 
-plot_data, data_file = produce_or_load(Dict(), datadir("plots");
+plot_data, data_file = produce_or_load(Dict(), calcdir("plots");
                                        filename = savepath,
                                        prefix = "fig6") do _
     stimulus = r"Natural_Images"
-    outfile = datadir("out&stimulus=$(stimulus).jld2")
+    outfile = calcdir("out&stimulus=$(stimulus).jld2")
     vars = [:ϕ, :r]
 
-    session_table = load(datadir("posthoc_session_table.jld2"), "session_table")
+    session_table = load(calcdir("posthoc_session_table.jld2"), "session_table")
     oursessions = session_table.ecephys_session_id
 
-    path = datadir("calculations")
+    path = calcdir("calculations")
     Q = calcquality(path)[Structure = At(structures)][SessionID = At(oursessions)]
     out = load_calculations(Q; stimulus, vars)
-    Qs = calcquality(datadir("power_spectra"))[Structure = At(structures)][SessionID = At(oursessions)]
+    Qs = calcquality(calcdir("power_spectra"))[Structure = At(structures)][SessionID = At(oursessions)]
     unitdepths = load_unitdepths(Qs)
 
     begin # * Format spikes to depth dataframe. These have already been rectified
@@ -42,7 +42,7 @@ plot_data, data_file = produce_or_load(Dict(), datadir("plots");
 
     begin # * Add trial info to dataframe
         sessionids = unique(spikes.ecephys_session_id)
-        outfile = datadir("out&stimulus=Natural_Images.jld2")
+        outfile = calcdir("out&stimulus=Natural_Images.jld2")
         trials = jldopen(outfile, "r") do f
             map(sessionids) do sessionid
                 trials = f["VISp/$(sessionid)/trials"]
@@ -59,8 +59,8 @@ plot_data, data_file = produce_or_load(Dict(), datadir("plots");
     begin # * Calculate spike--phase and spike--amplitude coupling across layers. Takes about 30 minutes over 64 cores, 125 GB
         # The idea here is that we have this larger spike_lfp file, and subset it to the
         # relevant data for this plot
-        if isfile(datadir("spike_lfp.jld2"))
-            pspikes = load(datadir("spike_lfp.jld2"), "pspikes") # Delete this file to recalculate
+        if isfile(calcdir("spike_lfp.jld2"))
+            pspikes = load(calcdir("spike_lfp.jld2"), "pspikes") # Delete this file to recalculate
         else
             pspikes = deepcopy(spikes)
             idxs = pspikes.stimulus .== [r"Natural_Images"]
@@ -107,7 +107,7 @@ plot_data, data_file = produce_or_load(Dict(), datadir("plots");
                 sac!(pspikes, ustripall.(r)) # * Mean normalized amplitude spike--amplitude coupling
             end
 
-            save(datadir("spike_lfp.jld2"), "pspikes", pspikes)
+            save(calcdir("spike_lfp.jld2"), "pspikes", pspikes)
         end
     end
     begin # * add trial info
@@ -260,7 +260,7 @@ begin # * Set up figure
         sgs = subdivide(sf[1, 1:2], 1, 3)
         sgss = subdivide(sf[2:3, 1:2], 3, 2)
 
-        layerints = load(datadir("plots", "grand_unified_layers.jld2"), "layerints")
+        layerints = load(calcdir("plots", "grand_unified_layers.jld2"), "layerints")
         bins = range(0, 1, length = 11)
     end
 end
@@ -674,7 +674,7 @@ end
 
 #     begin # * Set up figure
 #         f = Figure()
-#         layerints = load(datadir("plots", "grand_unified_layers.jld2"), "layerints")
+#         layerints = load(calcdir("plots", "grand_unified_layers.jld2"), "layerints")
 #         bins = range(0, 1, length = 11)
 #     end
 

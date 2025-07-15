@@ -110,9 +110,9 @@ oursessions = subset(session_metrics,
                      #  :equipment_name => ByRow(==("NP.1")),
                      :has_target_location => ByRow(==(1)))
 
-tagsave(datadir("session_table.jld2"), Dict("session_table" => oursessions))
-write(datadir("session_table.json"), JSON.json(oursessions))
-mkpath(datadir("plots"))
-write(datadir("plots", "session_table.json"), JSON.json(oursessions))
+tagsave(calcdir("session_table.jld2"), Dict("session_table" => oursessions))
+write(calcdir("session_table.json"), JSON.json(oursessions))
+mkpath(calcdir("plots"))
+write(calcdir("plots", "session_table.json"), JSON.json(oursessions))
 
 # Read the dataframe as read("$(@__DIR__)/../session_table.json", String) |> JSON.parse |> DataFrame

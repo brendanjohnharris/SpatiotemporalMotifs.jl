@@ -4,8 +4,8 @@ using TimeseriesTools
 using UnPack
 
 function powerspectra_quality(sessionid, stimulus, structure;
-                              outpath = datadir("power_spectra"),
-                              plotpath = datadir("plots", "power_spectra_plots"),
+                              outpath = calcdir("power_spectra"),
+                              plotpath = calcdir("plots", "power_spectra_plots"),
                               rewrite = false, retry_errors = true)
     plotfile = joinpath(plotpath, "$(sessionid)",
                         "$(stimulus)_$(structure)_pac.pdf")
@@ -17,8 +17,8 @@ function powerspectra_quality(sessionid, stimulus, structure;
 end
 
 function send_powerspectra(sessionid, stimulus, structure;
-                           outpath = datadir("power_spectra"),
-                           plotpath = datadir("plots", "power_spectra_plots"),
+                           outpath = calcdir("power_spectra"),
+                           plotpath = calcdir("plots", "power_spectra_plots"),
                            rewrite = false, retry_errors = true)
     params = (;
               sessionid,
@@ -421,81 +421,101 @@ function send_calculations(D::Dict, session = AN.Session(D["sessionid"]);
     end
 
     complete = map(zip(files, outfiles)) do (file, outfile)
-        if !rewrite && isfile(outfile)
-            return jldopen(outfile, "r") do fl
-                if !haskey(fl, "error")
-                    @info "Calculations already complete for $(sessionid), $(structure), $(file)"
-                    return true
-                else
+        rewrite && return false # * If we are rewriting, we always recalculate
+        if !isfile(outfile)
+            @info "Creating $(outfile)"
+            return false
+        end
+        try
+            jldopen(outfile, "r") do fl
+                # * Check error
+                if haskey(fl, "error")
+                    @info "Error in $(file)"
+                    @warn fl["error"]
                     return false
                 end
+
+                # * Check loading
+                try
+                    fl["performance_metrics"]
+                catch
+                    @warn "Error loading from $(file) "
+                    return false
+                end
+                return true
             end
-        else
+        catch
+            @warn "Error opening $(file)"
             return false
         end
     end
 
-    files = files[.!complete]
-    outfiles = outfiles[.!complete]
+    if all(complete)
+        @info "All calculations already complete for $(file)"
+        return outfiles
+    else
+        files = files[.!complete]
+        outfiles = outfiles[.!complete]
 
-    performance_metrics = AN.getperformancemetrics(session)
+        performance_metrics = AN.getperformancemetrics(session)
 
-    # * Format the LFP for this stimulus and any files we want to save
-    LFP = what_lfp(stimulus, session, structure)
-    depths = AN.getchanneldepths(session, LFP; method = :probe)
-    streamlinedepths = AN.getchanneldepths(session, LFP; method = :streamlines)
-    channels = lookup(LFP, Chan)
-    LFP = set(LFP, Chan => Depth(depths))
-    LFP = set(LFP, Depth => lookup(LFP, Depth) .* u"μm")
-    LFP = rectify(LFP, dims = Depth)
+        # * Format the LFP for this stimulus and any files we want to save
+        LFP = what_lfp(stimulus, session, structure)
+        depths = AN.getchanneldepths(session, LFP; method = :probe)
+        streamlinedepths = AN.getchanneldepths(session, LFP; method = :streamlines)
+        channels = lookup(LFP, Chan)
+        LFP = set(LFP, Chan => Depth(depths))
+        LFP = set(LFP, Depth => lookup(LFP, Depth) .* u"μm")
+        LFP = rectify(LFP, dims = Depth)
 
-    layerinfo = AN.Plots._layerplot(session, channels)
-    spiketimes = AN.getspiketimes(session, structure)
-    units = AN.getunitmetrics(session)
-    units = units[units.ecephys_unit_id .∈ [keys(spiketimes)], :]
+        layerinfo = AN.Plots._layerplot(session, channels)
+        spiketimes = AN.getspiketimes(session, structure)
+        units = AN.getunitmetrics(session)
+        units = units[units.ecephys_unit_id .∈ [keys(spiketimes)], :]
 
-    for (file, outfile) in zip(files, outfiles)
-        try
-            stimulustimes, trials = get_stimulustimes(file, session)
+        for (file, outfile) in zip(files, outfiles)
+            try
+                stimulustimes, trials = get_stimulustimes(file, session)
 
-            LFP_J, stimulustimes_J, spiketimes_J = joint_rectify(LFP, spiketimes,
-                                                                 stimulustimes)
+                LFP_J, stimulustimes_J, spiketimes_J = joint_rectify(LFP, spiketimes,
+                                                                     stimulustimes)
 
-            trials.rectified_change_times = stimulustimes_J
+                trials.rectified_change_times = stimulustimes_J
 
-            # * Format LFP dims
-            LFP_J = set(LFP_J, 𝑡 => times(LFP_J) .* u"s")
+                # * Format LFP dims
+                LFP_J = set(LFP_J, 𝑡 => times(LFP_J) .* u"s")
 
-            aligned_outputs = aligned_calculations(LFP_J; pass_θ, pass_γ, ΔT,
-                                                   doupsample,
-                                                   stimulustimes = stimulustimes_J)
+                aligned_outputs = aligned_calculations(LFP_J; pass_θ, pass_γ, ΔT,
+                                                       doupsample,
+                                                       stimulustimes = stimulustimes_J)
 
-            out = aligned_outputs
-            out["trials"] = trials[2:(end - 2), :]
+                out = aligned_outputs
+                out["trials"] = trials[2:(end - 2), :]
 
-            out["channels"] = channels
-            out["streamlinedepths"] = streamlinedepths
-            out["units"] = units
-            out["spiketimes"] = spiketimes_J # ! The RECTIFIED spiketimes
-            out["layerinfo"] = layerinfo
-            out["pass_θ"] = pass_θ
-            out["pass_γ"] = pass_γ
-            out["performance_metrics"] = performance_metrics
+                out["channels"] = channels
+                out["streamlinedepths"] = streamlinedepths
+                out["units"] = units
+                out["spiketimes"] = spiketimes_J # ! The RECTIFIED spiketimes
+                out["layerinfo"] = layerinfo
+                out["pass_θ"] = pass_θ
+                out["pass_γ"] = pass_γ
+                out["performance_metrics"] = performance_metrics
 
-            # * Save
-            @info "Saving $(file) for $(sessionid), $(structure), $(stimulus) to $(outfile)"
-            @tagsave outfile out compress=ZstdFrameCompressor()
-        catch e
-            @error "Error in $(file) for $(sessionid), $(structure), $(stimulus)"
-            @error e
-            tagsave(outfile, Dict("error" => sprint(showerror, e)))
-            continue
+                # * Save
+                @info "Saving $(outfile)"
+                @tagsave outfile out compress=ZstdFrameCompressor()
+            catch e
+                @error "Error saving $(file)"
+                @error e
+                tagsave(outfile, Dict("error" => sprint(showerror, e)))
+                continue
+            end
         end
-    end
 
-    out = LFP = LFP_J = aligned_outputs = []
-    GC.gc()
-    return outfiles
+        out = LFP = LFP_J = aligned_outputs = []
+        GC.gc()
+        return outfiles
+    end
 end
 
 function send_calculations(sessionid;
@@ -508,13 +528,13 @@ function send_calculations(sessionid;
                            stimuli = [r"Natural_Images",
                                "flash_250ms",
                                "Natural_Images_passive"],
-                           outpath = datadir("calculations"),
+                           outpath = calcdir("calculations"),
                            kwargs...)
     session = AN.Session(sessionid)
     probestructures = AN.getprobestructures(session, structures)
     for (probeid, structure) in probestructures
         for stimulus in stimuli
-            @info "Saving $(sessionid) $(structure) $(stimulus)"
+            @info "Calculating $(sessionid) $(structure) $(stimulus)"
             D = @dict sessionid structure stimulus
             try
                 send_calculations(D, session; outpath, kwargs...)
@@ -539,7 +559,7 @@ function test_calculations(args...; N = 10, kwargs...)
     end
 end
 
-function load_performance(; path = datadir("calculations"), stimulus = r"Natural_Images")
+function load_performance(; path = calcdir("calculations"), stimulus = r"Natural_Images")
     Q = calcquality(path)[Structure = At(structures)]
     out = map([lookup(Q, Structure) |> first]) do structure
         out = map(lookup(Q, SessionID)) do sessionid
@@ -548,7 +568,12 @@ function load_performance(; path = datadir("calculations"), stimulus = r"Natural
             end
             filename = savepath((@strdict sessionid structure stimulus), "jld2", path)
             f = jldopen(filename, "r")
-            @unpack performance_metrics = f
+            try
+                aa = f["performance_metrics"]
+            catch e
+                Main.@infiltrate
+            end
+            @unpack performance_metrics = f # Problem with 1055415082
             close(f)
             return performance_metrics
         end
@@ -641,8 +666,8 @@ function _collect_calculations(outfile; sessionid, structure, stimulus, path, su
     return nothing
 end
 
-function collect_calculations(Q; path = datadir("calculations"), stimulus, rewrite = false,
-                              outpath = datadir())
+function collect_calculations(Q; path = calcdir("calculations"), stimulus, rewrite = false,
+                              outpath = calcdir())
     outfilepath = savepath("out", Dict("stimulus" => stimulus), "jld2", outpath)
     if contains(stimulus |> string, "nochange")
         subvars = sort([:csd]) # Only use the LFP for inferring the CSD
@@ -719,14 +744,14 @@ function load_calculations(Q; vars = sort([:V, :csd, :θ, :ϕ, :r, :k, :ω]), st
 end
 
 function unify_calculations(Q; stimulus, vars = sort([:V, :csd, :θ, :ϕ, :r, :k, :ω]),
-                            rewrite = false, outpath = datadir(), kwargs...)
+                            rewrite = false, outpath = calcdir(), kwargs...)
     unifilepath = savepath("uni", Dict("stimulus" => stimulus), "jld2", outpath)
     # * Filter to posthoc sessions
     if !isfile(unifilepath) || rewrite
         @info "Loading calculations"
         out = load_calculations(Q; vars, stimulus, outpath, kwargs...)
         @info "Loaded calculations, unifying"
-        session_table = load(datadir("posthoc_session_table.jld2"), "session_table")
+        session_table = load(calcdir("posthoc_session_table.jld2"), "session_table")
         oursessions = session_table.ecephys_session_id
         out = map(out) do O
             filter(o -> (o[:sessionid] in oursessions), O)
@@ -819,19 +844,19 @@ function unify_calculations(Q; stimulus, vars = sort([:V, :csd, :θ, :ϕ, :r, :k
     return unifilepath
 end
 
-# function produce_out(Q::AbstractToolsArray, config; path = datadir("calculations"))
+# function produce_out(Q::AbstractToolsArray, config; path = calcdir("calculations"))
 #     out = load_calculations(Q; path, stimulus = config["stimulus"], vars = config["vars"])
 #     @strdict out
 # end
 # produce_out(Q::AbstractToolsArray; kwargs...) = config -> produce_out(Q, config; kwargs...)
 # produce_out(; kwargs...) = config -> produce_out(config; kwargs...)
-# function produce_out(config; path = datadir("calculations"),
+# function produce_out(config; path = calcdir("calculations"),
 #                      structures = SpatiotemporalMotifs.structures)
 #     Q = calcquality(path)[Structure = At(structures)]
 #     return produce_out(Q, config; path)
 # end
 function load_uni(; stimulus, vars = sort([:V, :csd, :θ, :ϕ, :r, :k, :ω]),
-                  path = datadir("calculations"),
+                  path = calcdir("calculations"),
                   structures = SpatiotemporalMotifs.structures,
                   kwargs...)
     Q = calcquality(path)[Structure = At(structures)]
@@ -903,7 +928,7 @@ function produce_unitdepths(sessionids)
     return vcat(Ds...)
 end
 
-function load_unitdepths(Q::AbstractDimArray; path = datadir("power_spectra"))
+function load_unitdepths(Q::AbstractDimArray; path = calcdir("power_spectra"))
     if !all(Q)
         @warn "The quality matrix indicates missing values. Please be cautious."
     end
@@ -929,7 +954,7 @@ function load_unitdepths(Q::AbstractDimArray; path = datadir("power_spectra"))
     D = vcat(D...)
     return D
 end
-function load_unitdepths(; path = datadir("power_spectra"), kwargs...)
+function load_unitdepths(; path = calcdir("power_spectra"), kwargs...)
     Q = calcquality(path)
     load_unitdepths(Q; path, kwargs...)
 end

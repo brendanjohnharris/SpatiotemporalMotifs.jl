@@ -18,14 +18,14 @@ begin # * Parameters
     config = @strdict stimulus sessionid trial
 end
 
-plot_data, data_file = produce_or_load(copy(config), datadir("plots"); filename = savepath,
+plot_data, data_file = produce_or_load(copy(config), calcdir("plots"); filename = savepath,
                                        prefix = "fig1") do config
     @unpack stimulus, sessionid, trial = config
-    Q = calcquality(datadir("power_spectra"))
+    Q = calcquality(calcdir("power_spectra"))
 
     plot_data = map(structures) do structure
         file = savepath((; sessionid, stimulus, structure), "jld2")
-        file = datadir("calculations", file)
+        file = calcdir("calculations", file)
         out = jldopen(file, "r") do file
             layernames = ToolsArray(file["layerinfo"][1],
                                     (Depth(file["streamlinedepths"]),))
@@ -487,7 +487,7 @@ begin # ? Figure 1: C--G
             ff = Figure()
             D = @strdict sessionid structure
             push!(D, "stimulus" => "spontaneous")
-            sfilename = savepath(D, "jld2", datadir("power_spectra"))
+            sfilename = savepath(D, "jld2", calcdir("power_spectra"))
             S = load(sfilename, "S")[:, 4:end]
             depths = lookup(S, Depth)
 

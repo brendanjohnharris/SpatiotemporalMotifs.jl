@@ -22,7 +22,7 @@ begin
     vars = [:ϕ, :ω]
 end
 
-if !isfile(datadir("plots", "fig4.jld2")) # * Use extra workers if we can
+if !isfile(calcdir("plots", "fig4.jld2")) # * Use extra workers if we can
     if haskey(ENV, "JULIA_DISTRIBUTED") && length(procs()) == 1
         using USydClusters
         USydClusters.Physics.addprocs(8; mem = 16, ncpus = 4,
@@ -32,13 +32,13 @@ if !isfile(datadir("plots", "fig4.jld2")) # * Use extra workers if we can
     end
 end
 
-plot_data, data_file = produce_or_load(Dict(), datadir("plots");
+plot_data, data_file = produce_or_load(Dict(), calcdir("plots");
                                        filename = savepath,
                                        prefix = "fig4") do config
-    session_table = load(datadir("posthoc_session_table.jld2"), "session_table")
+    session_table = load(calcdir("posthoc_session_table.jld2"), "session_table")
     oursessions = session_table.ecephys_session_id
 
-    path = datadir("calculations")
+    path = calcdir("calculations")
     Q = calcquality(path)[Structure = At(structures)]
     out = load_calculations(Q; stimulus, vars)
     out = map(out) do O
@@ -236,7 +236,7 @@ begin # * Plots
     @unpack unidepths, FF_score, ∂h̄, ∂f̄, ∂h̄_sur, ∂f̄_sur, 𝑝_h, 𝑝_f = plot_data
     f = FourPanel()
     gs = subdivide(f, 2, 2)
-    layerints = load(datadir("plots", "grand_unified_layers.jld2"), "layerints")
+    layerints = load(calcdir("plots", "grand_unified_layers.jld2"), "layerints")
     begin # * Schematic of hierarchy
         ax = Axis(gs[1], yreversed = true, aspect = DataAspect(),
                   title = "Anatomical hierarchy")

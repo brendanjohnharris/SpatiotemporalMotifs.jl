@@ -22,8 +22,8 @@ begin # * Parameters
     maincolorrange = [-2.9, 2.9]
     csdcolorrange = [-1, 1]
     ylims = (0.05, 0.95)
-    datafile = datadir("plots", "theta_order_parameter.jld2")
-    hyperfile = datadir("plots", "hyperparameters", "theta_waves_task.jld2")
+    datafile = calcdir("plots", "theta_order_parameter.jld2")
+    hyperfile = calcdir("plots", "hyperparameters", "theta_waves_task.jld2")
 
     regcoef = 0.5 # Set approximately after inspecting the hyperparameter search
     folds = 5
@@ -45,15 +45,15 @@ if !(isfile(hyperfile) && isfile(datafile)) # * Use extra workers if we can
     end
 end
 
-plot_data, data_file = produce_or_load(config, datadir("plots");
+plot_data, data_file = produce_or_load(config, calcdir("plots");
                                        filename = savepath,
                                        prefix = "fig3") do config
     @unpack regcoef, folds, repeats, path = config
-    session_table = load(datadir("posthoc_session_table.jld2"), "session_table")
+    session_table = load(calcdir("posthoc_session_table.jld2"), "session_table")
     oursessions = session_table.ecephys_session_id
     # vars = [:csd, :k, :ω]
     vars = [:θ, :csd, :k, :ω]
-    path = datadir(path)
+    path = calcdir(path)
     mkpath(plotdir("fig3"))
     statsfile = plotdir("fig3", "$mainstructure.txt")
     close(open(statsfile, "w"))
@@ -90,7 +90,7 @@ plot_data, data_file = produce_or_load(config, datadir("plots");
             quality = mean(Q[stimulus = At(stimulus)])
             out = load_calculations(Q; stimulus, vars, path)
 
-            session_table = load(datadir("posthoc_session_table.jld2"), "session_table")
+            session_table = load(calcdir("posthoc_session_table.jld2"), "session_table")
             oursessions = session_table.ecephys_session_id
 
             begin # * Calculate a global order parameter and mean LFP at each time point
@@ -222,7 +222,7 @@ plot_data, data_file = produce_or_load(config, datadir("plots");
                         error("Calculations must be run on a cluster, set ENV[\"JULIA_DISTRIBUTED\"] to confirm this.")
                     end
                     begin # * Get a rough estimate for a good hyperparameter. Currently on pre-offset data. This gives us ~0.5 as a good estimate
-                        hfile = datadir("plots", "hyperparameters", "theta_waves_task.jld2")
+                        hfile = calcdir("plots", "hyperparameters", "theta_waves_task.jld2")
                         hyperr = pmap(SpatiotemporalMotifs.tuneclassifier, H)
                         tagsave(hfile, @strdict hyperr)
                         if isfile(hyperfile)
@@ -233,7 +233,7 @@ plot_data, data_file = produce_or_load(config, datadir("plots");
                                       title = "Hyperparameter tuning")
                             scatter!(ax, first.(hyperr), last.(hyperr))
                             f
-                            save(datadir("plots", "hyperparameters",
+                            save(calcdir("plots", "hyperparameters",
                                          "theta_waves_task.pdf"), f)
                         end
                     end

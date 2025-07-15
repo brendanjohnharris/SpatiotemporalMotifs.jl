@@ -20,10 +20,10 @@ config = (; shuffles = 1000,
           repeats = 5,
           folds = 20,
           nsur = 10)
-layerints = load(datadir("plots", "grand_unified_layers.jld2"), "layerints")
+layerints = load(calcdir("plots", "grand_unified_layers.jld2"), "layerints")
 
 if haskey(ENV, "JULIA_DISTRIBUTED") && ENV["JULIA_DISTRIBUTED"] == "true" &&
-   nprocs() == 1 && !isfile(datadir("plots", "figS3_" * savepath(config, "jld2"))) # * Initialize workers
+   nprocs() == 1 && !isfile(calcdir("plots", "figS3_" * savepath(config, "jld2"))) # * Initialize workers
     addprocs(15)
     @everywhere using DrWatson
     @everywhere DrWatson.@quickactivate "SpatiotemporalMotifs"
@@ -31,14 +31,14 @@ if haskey(ENV, "JULIA_DISTRIBUTED") && ENV["JULIA_DISTRIBUTED"] == "true" &&
     @everywhere @preamble
 end
 
-plot_data, data_file = produce_or_load(config, datadir("plots");
+plot_data, data_file = produce_or_load(config, calcdir("plots");
                                        filename = savepath,
                                        prefix = "figS3") do config
     @unpack shuffles, regcoef, repeats, folds, nsur = config
     begin # * Load the trial LFP for natural images
-        session_table = load(datadir("posthoc_session_table.jld2"), "session_table")
+        session_table = load(calcdir("posthoc_session_table.jld2"), "session_table")
         oursessions = session_table.ecephys_session_id
-        path = datadir("calculations")
+        path = calcdir("calculations")
         Q = calcquality(path)[Structure = At(structures)]
         Q = Q[SessionID(At(oursessions))]
         @assert mean(Q[stimulus = At(r"Natural_Images")]) == 1

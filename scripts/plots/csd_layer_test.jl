@@ -19,9 +19,9 @@ set_theme!(foresight(:physics))
 begin # * Load the CSD flashes
 end
 # begin # * Load the CSD passive natural images
-#     session_table = load(datadir("posthoc_session_table.jld2"), "session_table")
+#     session_table = load(calcdir("posthoc_session_table.jld2"), "session_table")
 #     oursessions = session_table.ecephys_session_id
-#     path = datadir("calculations")
+#     path = calcdir("calculations")
 #     Q = calcquality(path)[Structure = At(structures)]
 #     Q = Q[SessionID(At(oursessions))]
 #     @assert mean(Q[stimulus = At("Natural_Images_passive_nochange")]) == 1
@@ -40,20 +40,20 @@ end
 #     end
 #     csd = ToolsArray(csd, (Structure(structures),))
 #     D = @strdict csd
-#     tagsave(datadir("average_csd.jld2"), D)
+#     tagsave(calcdir("average_csd.jld2"), D)
 # end
 
 begin # * Save average CSD for each session
     conf = Dict("stimulus" => "Natural_Images_passive_nochange")
 
-    csd, csd_file = produce_or_load(copy(conf), datadir("plots");
+    csd, csd_file = produce_or_load(copy(conf), calcdir("plots");
                                     filename = savepath,
                                     prefix = "csd") do conf
         stimulus = conf["stimulus"]
 
-        session_table = load(datadir("posthoc_session_table.jld2"), "session_table")
+        session_table = load(calcdir("posthoc_session_table.jld2"), "session_table")
         oursessions = session_table.ecephys_session_id
-        path = datadir("calculations")
+        path = calcdir("calculations")
         Q = calcquality(path)[Structure = At(structures)]
         Q = Q[SessionID(At(oursessions))]
         @assert mean(Q[stimulus = At(stimulus)]) == 1
@@ -144,8 +144,8 @@ function find_L4_center(csd::MultivariateTimeSeries, doplot = false)
         sessionid = metadata(csd)[:sessionid]
         structure = metadata(csd)[:structure]
         fax.axis.title = "$(structure) CSD (session $(sessionid))"
-        mkpath(datadir("plots", "csd", "$(sessionid)"))
-        save(datadir("plots", "csd", "$(sessionid)",
+        mkpath(calcdir("plots", "csd", "$(sessionid)"))
+        save(calcdir("plots", "csd", "$(sessionid)",
                      "$(structure).pdf"), fax)
     end
     return L4
@@ -165,13 +165,13 @@ begin # * Layer identification for all sessions and structures
         end
         # l4s = ToolsArray(l4s, (SessionID(lookup(csd_structure, :sessionid)),))
         # D = @strdict l4s
-        # tagsave(datadir("csd", "l4_depth.jld2"), D; structure = structure)
+        # tagsave(calcdir("csd", "l4_depth.jld2"), D; structure = structure)
     end
 end
 begin # * Pull out anatomical l4s
-    session_table = load(datadir("posthoc_session_table.jld2"), "session_table")
+    session_table = load(calcdir("posthoc_session_table.jld2"), "session_table")
     oursessions = session_table.ecephys_session_id
-    path = datadir("calculations")
+    path = calcdir("calculations")
     Q = calcquality(path)[Structure = At(structures)]
     Q = Q[SessionID(At(oursessions))]
     @assert mean(Q[stimulus = At(r"Natural_Images")]) == 1

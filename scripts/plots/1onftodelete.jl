@@ -16,7 +16,7 @@ using Random
 @preamble
 set_theme!(foresight(:physics))
 
-plot_data, data_file = produce_or_load(Dict(), datadir("plots");
+plot_data, data_file = produce_or_load(Dict(), calcdir("plots");
                                        filename = savepath,
                                        prefix = "figS2") do _
 end

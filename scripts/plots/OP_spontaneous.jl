@@ -15,9 +15,9 @@ using SpatiotemporalMotifs
 set_theme!(foresight(:physics))
 
 begin # * Load spontaneous order parameter
-    pQ = calcquality(datadir("power_spectra"))
+    pQ = calcquality(calcdir("power_spectra"))
     stimuli = [r"Natural_Images", "flash_250ms", "spontaneous"]
-    session_table = load(datadir("posthoc_session_table.jld2"), "session_table")
+    session_table = load(calcdir("posthoc_session_table.jld2"), "session_table")
     oursessions = session_table.ecephys_session_id
 
     data = map(stimuli) do stimulus
@@ -35,7 +35,7 @@ begin # * Load spontaneous order parameter
                     return nothing
                 end
                 filename = savepath((@strdict sessionid structure stimulus), "jld2",
-                                    datadir("power_spectra"))
+                                    calcdir("power_spectra"))
                 sR = load(filename, "sR")[1:5:end] # Downsample to keep things manageable
                 # S = load(filename, "sC")
                 # return (C .- S) ./ median(S)
@@ -106,13 +106,13 @@ end
 
 begin # * Omission trials or passive trials?
     stimulus = "Natural_Images_passive_nochange"
-    path = datadir("calculations")
+    path = calcdir("calculations")
     Q = calcquality(path)[Structure = At(structures)]
     quality = mean(Q[stimulus = At(stimulus)])
     vars = [:csd, :k, :ω]
     out = load_calculations(Q; stimulus, vars)
 
-    session_table = load(datadir("posthoc_session_table.jld2"), "session_table")
+    session_table = load(calcdir("posthoc_session_table.jld2"), "session_table")
     oursessions = session_table.ecephys_session_id
 
     begin # * Calculate a global order parameter and mean LFP at each time point
