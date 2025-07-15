@@ -132,7 +132,7 @@ This file simply runs all of the plot scripts in the order listed in [step 2](#2
 
 
 ### 4. Calculations over different frequency bands
-You can rerun calculations with different theta and gamma bands by setting the following environment variables before loading this project (see the `scripts/calculations/cluster/lower_theta_calculations.jl`).
+You can rerun calculations with different theta and gamma bands by setting the following environment variables before loading this project (see the [`lower_theta_calculations.jl`](scripts/calculations/cluster/lower_theta_calculations.jl)).
 The most reliable way to set these is in your shell startup script.
 These variables, and their default values, are:
 ```julia
@@ -140,3 +140,4 @@ ENV["SM_THETA"] = (3, 10) # theta band
 ENV["SM_GAMMA"] = (30, 100) # gamma band
 ENV["SM_CALCDIR"] = "data" # directory for calculations
 ```
+

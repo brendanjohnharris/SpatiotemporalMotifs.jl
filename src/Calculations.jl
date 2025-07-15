@@ -1,5 +1,5 @@
 using DataFrames
-using JLD2, CodecZstd
+using JLD2, CodecZlib
 using TimeseriesTools
 using UnPack
 
@@ -430,7 +430,7 @@ function send_calculations(D::Dict, session = AN.Session(D["sessionid"]);
             jldopen(outfile, "r") do fl
                 # * Check error
                 if haskey(fl, "error")
-                    @info "Error in $(file)"
+                    @info "Error in $(outfile)"
                     @warn fl["error"]
                     return false
                 end
@@ -438,20 +438,22 @@ function send_calculations(D::Dict, session = AN.Session(D["sessionid"]);
                 # * Check loading
                 try
                     fl["performance_metrics"]
-                catch
-                    @warn "Error loading from $(file) "
+                catch e
+                    @info "Error loading from $(outfile) "
+                    @warn e
                     return false
                 end
                 return true
             end
-        catch
-            @warn "Error opening $(file)"
+        catch e
+            @info "Error opening $(outfile)"
+            @warn e
             return false
         end
     end
 
     if all(complete)
-        @info "All calculations already complete for $(file)"
+        @info "All calculations already complete for $(stimulus) in $(structure) for session $(sessionid)"
         return outfiles
     else
         files = files[.!complete]
@@ -499,13 +501,13 @@ function send_calculations(D::Dict, session = AN.Session(D["sessionid"]);
                 out["layerinfo"] = layerinfo
                 out["pass_θ"] = pass_θ
                 out["pass_γ"] = pass_γ
-                out["performance_metrics"] = performance_metrics
+                out["performance_metrics"] = performance_metrics # Can't save dicts with Zstd compression, beware! Use Zlib instead
 
                 # * Save
                 @info "Saving $(outfile)"
-                @tagsave outfile out compress=ZstdFrameCompressor()
+                @tagsave outfile out compress=true
             catch e
-                @error "Error saving $(file)"
+                @error "Error saving $(outfile)"
                 @error e
                 tagsave(outfile, Dict("error" => sprint(showerror, e)))
                 continue
@@ -568,12 +570,7 @@ function load_performance(; path = calcdir("calculations"), stimulus = r"Natural
             end
             filename = savepath((@strdict sessionid structure stimulus), "jld2", path)
             f = jldopen(filename, "r")
-            try
-                aa = f["performance_metrics"]
-            catch e
-                Main.@infiltrate
-            end
-            @unpack performance_metrics = f # Problem with 1055415082
+            performance_metrics = f["performance_metrics"]
             close(f)
             return performance_metrics
         end
@@ -676,7 +673,7 @@ function collect_calculations(Q; path = calcdir("calculations"), stimulus, rewri
     end
     @info path
     if !isfile(outfilepath) || rewrite
-        jldopen(outfilepath, "w") do outfile
+        jldopen(outfilepath, "w"; compress = true) do outfile
             out = map(lookup(Q, Structure)) do structure
                 @info "Collecting data for structure $(structure)"
                 map(lookup(Q, SessionID)) do sessionid
@@ -692,7 +689,7 @@ function collect_calculations(Q; path = calcdir("calculations"), stimulus, rewri
     end
     if rewrite == false
         @info "Already calculated: $(stimulus). Checking quality"
-        jldopen(outfilepath, "a+") do outfile
+        jldopen(outfilepath, "a+"; compress = true) do outfile
             sessionids = [keys(outfile[s]) for s in structures]
             if length(unique(sessionids)) > 1
                 @warn "Not all structures returned the same sessions. Attempting to repair"

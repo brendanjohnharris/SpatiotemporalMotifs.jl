@@ -62,4 +62,3 @@ else
     @assert all(oursessions .∈ [lookup(Q, 3)])
     @assert mean(Q) == 1
 end
-# @sync selfdestruct()
