@@ -45,14 +45,19 @@ if haskey(ENV, "JULIA_DISTRIBUTED") # ? Should take a night or so
         donesessions = lookup(Q, :SessionID)[findall(Q)]
         exprs = exprs[.!(oursessions .∈ [donesessions])]
     end
-    #?  USydClusters.Physics.runscripts(exprs; ncpus = 8, mem = 30, walltime = 8,
-    #?                                  project = projectdir(), exeflags = `+1.10.10`)
-    USydClusters.Physics.runscripts(exprs[1:35]; ncpus = 8, mem = 42, walltime = 8,
+
+    N3 = length(exprs) ÷ 3
+    USydClusters.Physics.runscripts(exprs[1:N3]; ncpus = 8, mem = 42, walltime = 8,
                                     project = projectdir(), exeflags = `+1.10.10`,
                                     queue = "l40s")
-    USydClusters.Physics.runscripts(exprs[36:end]; ncpus = 8, mem = 42, walltime = 8,
+    USydClusters.Physics.runscripts(exprs[(N3 + 1):(2 * N3)]; ncpus = 8, mem = 42,
+                                    walltime = 8,
                                     project = projectdir(), exeflags = `+1.10.10`,
                                     queue = "h100")
+    USydClusters.Physics.runscripts(exprs[(2 * N3 + 1):end]; ncpus = 8, mem = 42,
+                                    walltime = 8,
+                                    project = projectdir(), exeflags = `+1.10.10`,
+                                    qsub_flags = `-l node=cmt01`)
 
     display("All workers submitted")
 else

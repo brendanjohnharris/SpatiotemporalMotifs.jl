@@ -17,7 +17,6 @@ set_theme!(foresight(:physics))
 Random.seed!(32)
 
 begin # * Parameters
-    vars = [:θ, :csd, :k, :ω]
     INTERVAL = SpatiotemporalMotifs.INTERVAL
     mainstructure = "VISl"
     maincolorrange = [-2.9, 2.9]
@@ -29,15 +28,18 @@ begin # * Parameters
     regcoef = 0.5 # Set approximately after inspecting the hyperparameter search
     folds = 5
     repeats = 20
+    path = "calculations&THETA=(3, 5)" # * Change if needed
 
-    config = @strdict regcoef folds repeats
+    config = @strdict regcoef folds repeats path
 end
 
 if !(isfile(hyperfile) && isfile(datafile)) # * Use extra workers if we can
     if haskey(ENV, "JULIA_DISTRIBUTED") && length(procs()) == 1 &&
        using USydClusters
-        ourprocs = USydClusters.Physics.addprocs(10; mem = 22, ncpus = 4,
-                                                 project = projectdir()) # ? Lower this for a smaller cluster
+        ourprocs = USydClusters.Physics.addprocs(10; mem = 20, ncpus = 8,
+                                                 project = projectdir(),
+                                                 queue = "l40s")
+        @everywhere include(joinpath(homedir(), ".julia", "config", "startup.jl"))
         @everywhere using SpatiotemporalMotifs
         @everywhere SpatiotemporalMotifs.@preamble
     end
@@ -46,10 +48,12 @@ end
 plot_data, data_file = produce_or_load(config, datadir("plots");
                                        filename = savepath,
                                        prefix = "fig3") do config
-    @unpack regcoef, folds, repeats = config
+    @unpack regcoef, folds, repeats, path = config
     session_table = load(datadir("posthoc_session_table.jld2"), "session_table")
     oursessions = session_table.ecephys_session_id
-    path = datadir("calculations")
+    # vars = [:csd, :k, :ω]
+    vars = [:θ, :csd, :k, :ω]
+    path = datadir(path)
     mkpath(plotdir("fig3"))
     statsfile = plotdir("fig3", "$mainstructure.txt")
     close(open(statsfile, "w"))
@@ -59,7 +63,7 @@ plot_data, data_file = produce_or_load(config, datadir("plots");
             stimulus = "flash_250ms"
             Q = calcquality(path)[Structure = At(structures)]
             quality = mean(Q[stimulus = At(stimulus)])
-            out = load_calculations(Q; stimulus, vars)
+            out = load_calculations(Q; stimulus, vars, path)
 
             begin # * Calculate a global order parameter and mean LFP at each time point
                 out = map(out) do o
@@ -82,11 +86,9 @@ plot_data, data_file = produce_or_load(config, datadir("plots");
 
         begin # * Passive trials?
             stimulus = "Natural_Images_passive_nochange"
-            path = datadir("calculations")
             Q = calcquality(path)[Structure = At(structures)]
             quality = mean(Q[stimulus = At(stimulus)])
-            vars = [:csd, :k, :ω]
-            out = load_calculations(Q; stimulus, vars)
+            out = load_calculations(Q; stimulus, vars, path)
 
             session_table = load(datadir("posthoc_session_table.jld2"), "session_table")
             oursessions = session_table.ecephys_session_id
@@ -113,7 +115,7 @@ plot_data, data_file = produce_or_load(config, datadir("plots");
             stimulus = r"Natural_Images"
             Q = calcquality(path)[Structure = At(structures)]
             quality = mean(Q[stimulus = At(stimulus)])
-            out = load_calculations(Q; stimulus, vars)
+            out = load_calculations(Q; stimulus, vars, path)
 
             map(out) do o # * Remove trials with a reaction time < 0.25s (so we can reliably divide trial periods into 'pre-reaction' and 'post-reaction' based on the timestamps. There are typically only a few of these per session.
                 filter!(o) do _o

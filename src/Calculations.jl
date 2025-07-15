@@ -649,6 +649,7 @@ function collect_calculations(Q; path = datadir("calculations"), stimulus, rewri
     else
         subvars = sort([:V, :csd, :θ, :ϕ, :r, :k, :ω])
     end
+    @info path
     if !isfile(outfilepath) || rewrite
         jldopen(outfilepath, "w") do outfile
             out = map(lookup(Q, Structure)) do structure
