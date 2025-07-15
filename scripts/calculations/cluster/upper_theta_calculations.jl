@@ -53,7 +53,7 @@ if haskey(ENV, "JULIA_DISTRIBUTED") # ? Should take a night or so
     end
     USydClusters.Physics.runscripts(exprs; ncpus = 8, mem = 42, walltime = 8,
                                     project = projectdir(), exeflags = `+1.10.10`,
-                                    queue = "h100")
+                                    queue = "l40s")
 
     display("All workers submitted")
 else
