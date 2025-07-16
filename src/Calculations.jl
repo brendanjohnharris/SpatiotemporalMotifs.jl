@@ -150,7 +150,7 @@ function send_powerspectra(sessionid, stimulus, structure;
             LFP = set(LFP, Chan => Depth(depths))
             origts = deepcopy(times(LFP))
             LFP = rectify(LFP; dims = Depth)
-            θ = bandpass(LFP, SpatiotemporalMotifs.THETA .* u"Hz")
+            θ = bandpass(LFP, SpatiotemporalMotifs.THETA() .* u"Hz")
             ϕ = analyticphase(θ)
             ω = centralderiv(ϕ, dims = 𝑡, grad = phasegrad)
 
@@ -177,7 +177,7 @@ function send_powerspectra(sessionid, stimulus, structure;
             units = units[units.ecephys_unit_id .∈ [keys(spiketimes)], :]
             unitdepths = unitdepths[unitdepths.ecephys_unit_id .∈ [units.id], :]
 
-            γ = bandpass(LFP, SpatiotemporalMotifs.GAMMA .* u"Hz")
+            γ = bandpass(LFP, SpatiotemporalMotifs.GAMMA() .* u"Hz")
             r = abs.(hilbert(γ))
             r[ω .< 0u"Hz"] .= NaN * unit(eltype(r))
             ϕ[ω .< 0u"Hz"] .= NaN * unit(eltype(ϕ))
@@ -403,9 +403,23 @@ function aligned_calculations(LFP; pass_θ, pass_γ, ΔT, doupsample, stimulusti
     return output
 end
 
+function render_complete(outfiles, complete)
+    map(complete, outfiles) do c, outfile
+        _, params, _ = parse_savename(outfile; connector)
+        desc = " | $(params["sessionid"]) | $(params["stimulus"]) | $(params["structure"])"
+        if c
+            printstyled("\n✓" * desc; color = :green)
+        else
+            printstyled("\n✗" * desc; color = :yellow)
+        end
+    end
+    println("\n")
+    return all(complete)
+end
+
 function send_calculations(D::Dict, session = AN.Session(D["sessionid"]);
-                           pass_θ = THETA .* u"Hz",
-                           pass_γ = GAMMA .* u"Hz",
+                           pass_θ = THETA() .* u"Hz",
+                           pass_γ = GAMMA() .* u"Hz",
                            ΔT = -0.5u"s" .. 0.75u"s",
                            doupsample = 0,
                            rewrite = false,
@@ -430,8 +444,8 @@ function send_calculations(D::Dict, session = AN.Session(D["sessionid"]);
             jldopen(outfile, "r") do fl
                 # * Check error
                 if haskey(fl, "error")
-                    @info "Error in $(outfile)"
-                    @warn fl["error"]
+                    @warn "Error in $(outfile)"
+                    @error fl["error"]
                     return false
                 end
 
@@ -439,23 +453,19 @@ function send_calculations(D::Dict, session = AN.Session(D["sessionid"]);
                 try
                     fl["performance_metrics"]
                 catch e
-                    @info "Error loading from $(outfile) "
-                    @warn e
+                    @warn "Error loading from $(outfile) "
+                    @error e
                     return false
                 end
                 return true
             end
         catch e
-            @info "Error opening $(outfile)"
-            @warn e
+            @warn "Error opening $(outfile)"
+            @error e
             return false
         end
     end
-
-    if all(complete)
-        @info "All calculations already complete for $(stimulus) in $(structure) for session $(sessionid)"
-        return outfiles
-    else
+    if !render_complete(outfiles, complete)
         files = files[.!complete]
         outfiles = outfiles[.!complete]
 
@@ -501,11 +511,11 @@ function send_calculations(D::Dict, session = AN.Session(D["sessionid"]);
                 out["layerinfo"] = layerinfo
                 out["pass_θ"] = pass_θ
                 out["pass_γ"] = pass_γ
-                out["performance_metrics"] = performance_metrics # Can't save dicts with Zstd compression, beware! Use Zlib instead
+                out["performance_metrics"] = performance_metrics # Can't save dicts with compression reliably, beware!
 
                 # * Save
                 @info "Saving $(outfile)"
-                @tagsave outfile out compress=true
+                @tagsave outfile out compress=false
             catch e
                 @error "Error saving $(outfile)"
                 @error e
@@ -534,9 +544,11 @@ function send_calculations(sessionid;
                            kwargs...)
     session = AN.Session(sessionid)
     probestructures = AN.getprobestructures(session, structures)
-    for (probeid, structure) in probestructures
-        for stimulus in stimuli
-            @info "Calculating $(sessionid) $(structure) $(stimulus)"
+    N = length(probestructures) * length(stimuli)
+    for (i, (probeid, structure)) in enumerate(probestructures)
+        for (j, stimulus) in enumerate(stimuli)
+            n = j + (i - 1) * length(stimuli)
+            @info "Calculating $(sessionid), $(structure), $(stimulus) ($n/$N)"
             D = @dict sessionid structure stimulus
             try
                 send_calculations(D, session; outpath, kwargs...)

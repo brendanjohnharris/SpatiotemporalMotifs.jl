@@ -10,7 +10,6 @@ using SpatiotemporalMotifs
 import TimeseriesTools: freqs
 using Peaks
 using FileIO
-using SpatiotemporalMotifs
 import SpatiotemporalMotifs.layers
 using Random
 @preamble

@@ -20,8 +20,8 @@ set_theme!(foresight(:physics))
 
 stimuli = [r"Natural_Images", "spontaneous", "flash_250ms"]
 xtickformat = x -> string.(round.(Int, x))
-theta = Interval(SpatiotemporalMotifs.THETA...)
-gamma = Interval(SpatiotemporalMotifs.GAMMA...)
+theta = Interval(SpatiotemporalMotifs.THETA()...)
+gamma = Interval(SpatiotemporalMotifs.GAMMA()...)
 alpha = 0.8
 bandalpha = 0.2
 mkpath(plotdir("fig2"))

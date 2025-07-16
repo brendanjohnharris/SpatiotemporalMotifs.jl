@@ -30,7 +30,7 @@ if haskey(ENV, "JULIA_DISTRIBUTED") # ? Should take a night or so
             using Pkg
             Pkg.instantiate()
             import SpatiotemporalMotifs: send_calculations, THETA
-            @info "Running calculations with THETA = $(THETA)"
+            @info "Running calculations with THETA = $(THETA())"
             send_calculations($sessionid; outpath = $outpath, rewrite = $rewrite)
         end
     end
@@ -51,9 +51,21 @@ if haskey(ENV, "JULIA_DISTRIBUTED") # ? Should take a night or so
         donesessions = lookup(Q, :SessionID)[findall(Q)]
         exprs = exprs[.!(oursessions .∈ [donesessions])]
     end
-    USydClusters.Physics.runscripts(exprs; ncpus = 8, mem = 42, walltime = 8,
+
+    N3 = length(exprs) ÷ 3
+    shuffle!(exprs) # ? Shuffle so restarted calcs are more even
+    USydClusters.Physics.runscripts(exprs[1:N3]; ncpus = 8, mem = 42,
+                                    walltime = 8,
                                     project = projectdir(), exeflags = `+1.10.10`,
-                                    queue = "h100")
+                                    queue = `h100`)
+    USydClusters.Physics.runscripts(exprs[(N3 + 1):(N3 * 2)]; ncpus = 8, mem = 42,
+                                    walltime = 8,
+                                    project = projectdir(), exeflags = `+1.10.10`,
+                                    queue = `l40s`)
+    USydClusters.Physics.runscripts(exprs[(2 * N3 + 1):end]; ncpus = 8, mem = 42,
+                                    walltime = 8,
+                                    project = projectdir(), exeflags = `+1.10.10`,
+                                    queue = `taiji`)
 
     display("All workers submitted")
 else

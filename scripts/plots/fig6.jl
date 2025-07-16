@@ -791,7 +791,7 @@ begin # * Plot on the same polar axis the hit and miss angles for VISl only
 end
 
 begin # * Plot the mean firing rate of theta-sensitive neurons. For hit vs miss across layers
-    structure = "VISp"
+    structure = "VISp" # !! Change to VISl
 
     idxs = pspikes.structure_acronym .== [structure]
     subspikes = pspikes[idxs, :]

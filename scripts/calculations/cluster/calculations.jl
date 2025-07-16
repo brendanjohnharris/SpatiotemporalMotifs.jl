@@ -46,15 +46,20 @@ if haskey(ENV, "JULIA_DISTRIBUTED") # ? Should take a night or so
         exprs = exprs[.!(oursessions .∈ [donesessions])]
     end
 
-    N2 = length(exprs) ÷ 2
-    USydClusters.Physics.runscripts(exprs[1:N2]; ncpus = 8, mem = 42,
+    N3 = length(exprs) ÷ 3
+    shuffle!(exprs) # ? Shuffle so restarted calcs are more even
+    USydClusters.Physics.runscripts(exprs[1:N3]; ncpus = 8, mem = 42,
                                     walltime = 8,
                                     project = projectdir(), exeflags = `+1.10.10`,
                                     queue = `h100`)
-    USydClusters.Physics.runscripts(exprs[(N2 + 1):end]; ncpus = 8, mem = 42,
+    USydClusters.Physics.runscripts(exprs[(N3 + 1):(N3 * 2)]; ncpus = 8, mem = 42,
                                     walltime = 8,
                                     project = projectdir(), exeflags = `+1.10.10`,
                                     queue = `l40s`)
+    USydClusters.Physics.runscripts(exprs[(2 * N3 + 1):end]; ncpus = 8, mem = 42,
+                                    walltime = 8,
+                                    project = projectdir(), exeflags = `+1.10.10`,
+                                    queue = `taiji`)
 
     display("All workers submitted")
 else
