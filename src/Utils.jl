@@ -7,6 +7,7 @@ import Bootstrap
 using MultipleTesting
 using Optim
 using IntervalSets
+using USydClusters
 
 function _preamble()
     quote
@@ -51,9 +52,20 @@ macro preamble()
     _preamble()
 end
 
-CALCDIR() = haskey(ENV, "SM_CALCDIR") ? ENV["SM_CALCDIR"] : "data"
-calcdir(args...) = projectdir(CALCDIR(), args...)
-export calcdir
+function _DIR()
+    dir = ""
+    if (first(THETA()) != 3) || (last(THETA()) != 10)
+        dir *= "&THETA=$(THETA())"
+    end
+    if (first(GAMMA()) != 30) || (last(GAMMA()) != 100)
+        dir *= "&GAMMA=$(GAMMA())"
+    end
+    return dir
+end
+
+calcdir(args...; kwargs...) = projectdir("data" * _DIR(), args...; kwargs...)
+figdir(args...; kwargs...) = projectdir("plots" * _DIR(), args...; kwargs...)
+export calcdir, figdir
 
 THETA() = haskey(ENV, "SM_THETA") ? eval(Meta.parse(ENV["SM_THETA"])) : (3, 10)
 GAMMA() = haskey(ENV, "SM_GAMMA") ? eval(Meta.parse(ENV["SM_GAMMA"])) : (30, 100)
@@ -68,17 +80,35 @@ DimensionalData.@dim Structure ToolsDim "Structure"
 const Freq = TimeseriesTools.𝑓
 export SessionID, Trial, Structure, Freq
 
+using ProgressLogging, TerminalLoggers, Logging
+global_logger(TerminalLogger())
+
+function check_calc_keys(D)
+    required_keys = [
+        "trials",
+        "channels",
+        "streamlinedepths",
+        "units",
+        "spiketimes",
+        "layerinfo",
+        "pass_θ",
+        "pass_γ",
+        "performance_metrics"
+    ]
+    return all(haskey.([D], required_keys))
+end
+
 function calcquality(dirname; suffix = "jld2", connector = connector)
     files = readdir(dirname)
     ps = []
-    for f in files
+    @progress for f in files
         f = joinpath(dirname, f)
         _, parameters, _suffix = parse_savename(f; connector)
         if _suffix == suffix
             try
                 fl = jldopen(f)
                 fl["performance_metrics"] # Can load
-                if haskey(fl, "error")
+                if haskey(fl, "error") || !check_calc_keys(fl)
                     continue
                 end
             catch e
@@ -124,6 +154,31 @@ function calcquality(dirname; suffix = "jld2", connector = connector)
         Q = Q[Structure = At(structures)] # * Sort to global structures order
     end
     return Q
+end
+
+function submit_calculations(exprs)
+    exprs = deepcopy(exprs)
+    if length(exprs) > 2
+        N3 = (length(exprs) ÷ 3)
+        shuffle!(exprs) # ? Shuffle so restarted calcs are more even
+        USydClusters.Physics.runscripts(exprs[1:N3]; ncpus = 8, mem = 50,
+                                        walltime = 8,
+                                        project = projectdir(), exeflags = `+1.10.10`,
+                                        queue = `h100`)
+        USydClusters.Physics.runscripts(exprs[(N3 + 1):(N3 * 2)]; ncpus = 8, mem = 50,
+                                        walltime = 8,
+                                        project = projectdir(), exeflags = `+1.10.10`,
+                                        queue = `l40s`)
+        USydClusters.Physics.runscripts(exprs[(2 * N3 + 1):end]; ncpus = 8, mem = 50,
+                                        walltime = 8,
+                                        project = projectdir(), exeflags = `+1.10.10`,
+                                        queue = `taiji`)
+    else
+        USydClusters.Physics.runscript.(exprs; ncpus = 8, mem = 50,
+                                        walltime = 8,
+                                        project = projectdir(), exeflags = `+1.10.10`,
+                                        queue = `h100`)
+    end
 end
 
 function commondepths(depths)

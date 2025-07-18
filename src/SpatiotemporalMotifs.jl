@@ -95,7 +95,7 @@ function __init__()
     warnings.filterwarnings("ignore",
                             message = ".*(Pkg resources is deprecated as an API).*")
     warnings.filterwarnings("ignore",
-                            message = ".*(ImportWarning: JuliaCompatHooks.find_spec).*")
+                            message = ".*(JuliaCompatHooks.find_spec).*")
 end
 
 end # module

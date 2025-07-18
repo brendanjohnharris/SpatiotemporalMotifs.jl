@@ -1,5 +1,5 @@
 using DataFrames
-using JLD2, CodecZlib
+using JLD2, CodecZstd
 using TimeseriesTools
 using UnPack
 
@@ -449,6 +449,12 @@ function send_calculations(D::Dict, session = AN.Session(D["sessionid"]);
                     return false
                 end
 
+                # * Check required keys
+                if !check_calc_keys(fl)
+                    @error "Missing keys in $(outfile)"
+                    return false
+                end
+
                 # * Check loading
                 try
                     fl["performance_metrics"]
@@ -457,6 +463,7 @@ function send_calculations(D::Dict, session = AN.Session(D["sessionid"]);
                     @error e
                     return false
                 end
+
                 return true
             end
         catch e
@@ -659,11 +666,12 @@ function _collect_calculations(outfile; sessionid, structure, stimulus, path, su
 
             D = @strdict streamlinedepths layernames pass_γ pass_θ trials sessionid performance_metrics spiketimes
             for (k, v) in pairs(D)
-                outfile[string(structure) * "/" * string(sessionid) * "/" * k] = v
+                key = string(structure) * "/" * string(sessionid) * "/" * string(k)
+                outfile[key] = v
             end
             for (k, v) in ovars
-                outfile[string(structure) * "/" * string(sessionid) * "/" * string(k)] = v .|>
-                                                                                         Float32
+                key = string(structure) * "/" * string(sessionid) * "/" * string(k)
+                outfile[key] = v .|> Float32
             end
         end
     catch e
@@ -685,7 +693,7 @@ function collect_calculations(Q; path = calcdir("calculations"), stimulus, rewri
     end
     @info path
     if !isfile(outfilepath) || rewrite
-        jldopen(outfilepath, "w"; compress = true) do outfile
+        jldopen(outfilepath, "w"; compress = false) do outfile
             out = map(lookup(Q, Structure)) do structure
                 @info "Collecting data for structure $(structure)"
                 map(lookup(Q, SessionID)) do sessionid
@@ -701,7 +709,7 @@ function collect_calculations(Q; path = calcdir("calculations"), stimulus, rewri
     end
     if rewrite == false
         @info "Already calculated: $(stimulus). Checking quality"
-        jldopen(outfilepath, "a+"; compress = true) do outfile
+        jldopen(outfilepath, "a+"; compress = false) do outfile
             sessionids = [keys(outfile[s]) for s in structures]
             if length(unique(sessionids)) > 1
                 @warn "Not all structures returned the same sessions. Attempting to repair"

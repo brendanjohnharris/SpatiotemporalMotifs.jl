@@ -35,8 +35,7 @@ if haskey(ENV, "JULIA_DISTRIBUTED") # ? Should take a night or so
         end
     end
 
-    if check_quality && isfile(calcdir("posthoc_session_table.jld2")) &&
-       !isempty(readdir(outpath))
+    if check_quality && !isempty(readdir(outpath))
         Q = SM.calcquality(outpath)[Structure = At(SM.structures)]
         # * Delete bad files
         filenames = collect(Iterators.product(lookup(Q)...))[.!Q]
@@ -44,29 +43,15 @@ if haskey(ENV, "JULIA_DISTRIBUTED") # ? Should take a night or so
             Dict{String, Any}("structure" => f[1], "stimulus" => f[2], "sessionid" => f[3])
         end
         filenames = calcdir.(["calculations"], map(SM.savepath, filenames) .* [".jld2"])
-        rm.(filenames; force = true)
+        # rm.(filenames; force = true)
 
         Q = any(.!Q, dims = (SM.Structure, Dim{:stimulus})) # Sessions that have bad files
         Q = dropdims(Q, dims = (SM.Structure, Dim{:stimulus}))
-        donesessions = lookup(Q, :SessionID)[findall(Q)]
-        exprs = exprs[.!(oursessions .∈ [donesessions])]
+        notgood = lookup(Q, :SessionID)[findall(Q)] |> collect
+        Base.Fix1(push!, notgood).(setdiff(oursessions, lookup(Q, 1)))
+        exprs = exprs[(oursessions .∈ [notgood])]
     end
-
-    N3 = length(exprs) ÷ 3
-    shuffle!(exprs) # ? Shuffle so restarted calcs are more even
-    USydClusters.Physics.runscripts(exprs[1:N3]; ncpus = 8, mem = 42,
-                                    walltime = 8,
-                                    project = projectdir(), exeflags = `+1.10.10`,
-                                    queue = `h100`)
-    USydClusters.Physics.runscripts(exprs[(N3 + 1):(N3 * 2)]; ncpus = 8, mem = 42,
-                                    walltime = 8,
-                                    project = projectdir(), exeflags = `+1.10.10`,
-                                    queue = `l40s`)
-    USydClusters.Physics.runscripts(exprs[(2 * N3 + 1):end]; ncpus = 8, mem = 42,
-                                    walltime = 8,
-                                    project = projectdir(), exeflags = `+1.10.10`,
-                                    queue = `taiji`)
-
+    SM.submit_calculations(exprs)
     display("All workers submitted")
 else
     SM.send_calculations.(reverse(oursessions); outpath, rewrite) # ? This version will take a few days if the above calculations errored, otherwise a few minutes (checks all calculations are correct)
