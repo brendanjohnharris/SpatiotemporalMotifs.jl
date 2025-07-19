@@ -56,6 +56,7 @@ begin # * Save average CSD for each session
         Q = calcquality(path)[Structure = At(structures)]
         Q = Q[SessionID(At(oursessions))]
         @assert mean(Q[stimulus = At(stimulus)]) == 1
+
         out = load_calculations(Q; stimulus, vars = [:csd])
 
         csd = map(out) do out_structure

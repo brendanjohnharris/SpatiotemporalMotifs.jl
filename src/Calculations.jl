@@ -1,5 +1,5 @@
 using DataFrames
-using JLD2, CodecZstd
+using JLD2
 using TimeseriesTools
 using UnPack
 
@@ -110,7 +110,7 @@ function send_powerspectra(sessionid, stimulus, structure;
             # rowsize!(f.layout, 1, Relative(0.8))
             mkpath(joinpath(plotpath, "$(_params[:sessionid])"))
             wsave(plotfile, f)
-            @info "Saved plot to $plotfile"
+            @info "Saved plot to `$plotfile`"
         end
 
         # * Calculate a comodulogram for these time series
@@ -139,7 +139,7 @@ function send_powerspectra(sessionid, stimulus, structure;
             plotfile = joinpath(plotpath, "$(_params[:sessionid])",
                                 "$(_params[:stimulus])_$(_params[:structure])_pac.pdf")
             wsave(plotfile, f)
-            @info "Saved plot to $plotfile"
+            @info "Saved plot to `$plotfile`"
         end
 
         # * Format data for saving
@@ -437,14 +437,14 @@ function send_calculations(D::Dict, session = AN.Session(D["sessionid"]);
     complete = map(zip(files, outfiles)) do (file, outfile)
         rewrite && return false # * If we are rewriting, we always recalculate
         if !isfile(outfile)
-            @info "Creating $(outfile)"
+            @info "Creating `$(outfile)`"
             return false
         end
         try
             jldopen(outfile, "r") do fl
                 # * Check error
                 if haskey(fl, "error")
-                    @warn "Error in $(outfile)"
+                    @warn "Error in `$(outfile)`"
                     @error fl["error"]
                     return false
                 end
@@ -521,10 +521,10 @@ function send_calculations(D::Dict, session = AN.Session(D["sessionid"]);
                 out["performance_metrics"] = performance_metrics # Can't save dicts with compression reliably, beware!
 
                 # * Save
-                @info "Saving $(outfile)"
-                @tagsave outfile out compress=false
+                @info "Saving `$outfile`"
+                @tagsave outfile out
             catch e
-                @error "Error saving $(outfile)"
+                @error "Error saving `$outfile`"
                 @error e
                 tagsave(outfile, Dict("error" => sprint(showerror, e)))
                 continue
@@ -555,7 +555,8 @@ function send_calculations(sessionid;
     for (i, (probeid, structure)) in enumerate(probestructures)
         for (j, stimulus) in enumerate(stimuli)
             n = j + (i - 1) * length(stimuli)
-            @info "Calculating $(sessionid), $(structure), $(stimulus) ($n/$N)"
+            printstyled("\n\nCalculating $(sessionid), $(structure), $(stimulus) ($n/$N)\n",
+                        color = :green)
             D = @dict sessionid structure stimulus
             try
                 send_calculations(D, session; outpath, kwargs...)
@@ -691,12 +692,23 @@ function collect_calculations(Q; path = calcdir("calculations"), stimulus, rewri
     else
         subvars = sort([:V, :csd, :θ, :ϕ, :r, :k, :ω])
     end
-    @info path
-    if !isfile(outfilepath) || rewrite
-        jldopen(outfilepath, "w"; compress = false) do outfile
-            out = map(lookup(Q, Structure)) do structure
+    @info "`$path`"
+    if isfile(outfilepath)
+        jldopen(outfilepath, "r") do outfile
+            if !all(structures .∈ [keys(outfile)])
+                @warn "Not all structures found in $(outfilepath). Recalculating."
+                rewrite = true
+            end
+        end
+    end
+    if rewrite
+        rm(outfilepath, force = true)
+    end
+    if !isfile(outfilepath)
+        for structure in lookup(Q, Structure)
+            jldopen(outfilepath, "a+") do outfile
                 @info "Collecting data for structure $(structure)"
-                map(lookup(Q, SessionID)) do sessionid
+                @progress for sessionid in lookup(Q, SessionID)
                     if Q[SessionID = At(sessionid), Structure = At(structure),
                          stimulus = At(stimulus)] == 0
                         return nothing
@@ -705,11 +717,12 @@ function collect_calculations(Q; path = calcdir("calculations"), stimulus, rewri
                                           subvars)
                 end
             end
+            GC.gc()
         end
     end
     if rewrite == false
         @info "Already calculated: $(stimulus). Checking quality"
-        jldopen(outfilepath, "a+"; compress = false) do outfile
+        jldopen(outfilepath, "a+") do outfile
             sessionids = [keys(outfile[s]) for s in structures]
             if length(unique(sessionids)) > 1
                 @warn "Not all structures returned the same sessions. Attempting to repair"

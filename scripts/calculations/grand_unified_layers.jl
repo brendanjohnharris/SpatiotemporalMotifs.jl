@@ -17,7 +17,6 @@ set_theme!(foresight(:physics))
 Random.seed!(32)
 
 stimulus = r"Natural_Images"
-datafile = calcdir("theta_waves_task.jld2")
 
 session_table = load(calcdir("posthoc_session_table.jld2"), "session_table")
 oursessions = session_table.ecephys_session_id

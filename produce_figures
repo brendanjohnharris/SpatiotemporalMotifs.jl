@@ -1,8 +1,21 @@
 #!/bin/bash
+
+# ? This script produces all figures from the full set of "data/calculations" files.
+# ? It expects that you have already run the following scripts:
+# 1. `scripts/calculations/download_data.jl`
+# 2. `scripts/calculations/session_selection.jl`
+# 3. `scripts/calculations/calculations.jl`
+
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 chmod -R u+x "$DIR/scripts/plots/"
 
 start=$(date +%s)
+
+echo "Filtering sessions and checking quality"
+"$DIR/scripts/calculations/posthoc_session_filter.jl"
+
+echo "Producing grand unified layers"
+"$DIR/scripts/calculations/grand_unified_layers.jl"
 
 echo "Producing Fig. 1"
 "$DIR/scripts/plots/fig1.jl"
@@ -21,6 +34,9 @@ echo "Producing Fig. 5"
 
 echo "Producing Fig. 6"
 "$DIR/scripts/plots/fig6.jl"
+
+echo "Producing Fig. S3"
+"$DIR/scripts/plots/figS3.jl"
 
 end=$(date +%s)
 elapsed=$((end - start))

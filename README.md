@@ -138,6 +138,5 @@ These variables, and their default values, are:
 ```julia
 ENV["SM_THETA"] = (3, 10) # theta band
 ENV["SM_GAMMA"] = (30, 100) # gamma band
-ENV["SM_CALCDIR"] = "data" # directory for calculations
 ```
 

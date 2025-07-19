@@ -3,7 +3,6 @@
 exec julia +1.10.10 -t auto "${BASH_SOURCE[0]}" "$@"
 =#
 ENV["SM_THETA"] = (3, 5)
-ENV["SM_CALCDIR"] = "data&THETA=$(ENV["SM_THETA"])"
 
 using DrWatson
 @quickactivate "SpatiotemporalMotifs"
@@ -26,7 +25,6 @@ if haskey(ENV, "JULIA_DISTRIBUTED") # ? Should take a night or so
     exprs = map(oursessions) do sessionid
         expr = quote
             ENV["SM_THETA"] = $(ENV["SM_THETA"])
-            ENV["SM_CALCDIR"] = $(ENV["SM_CALCDIR"])
             using Pkg
             Pkg.instantiate()
             import SpatiotemporalMotifs: send_calculations, THETA

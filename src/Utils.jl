@@ -46,6 +46,9 @@ function _preamble()
         using Term.Progress
         import AllenNeuropixels: Chan, Unit, Depth, Log𝑓
         import SpatiotemporalMotifs.calcdir
+        using TerminalLoggers, Logging
+        global_logger(TerminalLogger())
+        using ProgressLogging
     end
 end
 macro preamble()
@@ -64,8 +67,8 @@ function _DIR()
 end
 
 calcdir(args...; kwargs...) = projectdir("data" * _DIR(), args...; kwargs...)
-figdir(args...; kwargs...) = projectdir("plots" * _DIR(), args...; kwargs...)
-export calcdir, figdir
+plotdir(args...; kwargs...) = projectdir("plots" * _DIR(), args...; kwargs...)
+export calcdir, plotdir
 
 THETA() = haskey(ENV, "SM_THETA") ? eval(Meta.parse(ENV["SM_THETA"])) : (3, 10)
 GAMMA() = haskey(ENV, "SM_GAMMA") ? eval(Meta.parse(ENV["SM_GAMMA"])) : (30, 100)
@@ -79,9 +82,6 @@ DimensionalData.@dim Trial ToolsDim "Trial"
 DimensionalData.@dim Structure ToolsDim "Structure"
 const Freq = TimeseriesTools.𝑓
 export SessionID, Trial, Structure, Freq
-
-using ProgressLogging, TerminalLoggers, Logging
-global_logger(TerminalLogger())
 
 function check_calc_keys(D)
     required_keys = [
@@ -99,9 +99,10 @@ function check_calc_keys(D)
 end
 
 function calcquality(dirname; suffix = "jld2", connector = connector)
+    @info "Checking quality of calculations in `$dirname`"
     files = readdir(dirname)
     ps = []
-    @progress for f in files
+    Threads.@threads for f in files
         f = joinpath(dirname, f)
         _, parameters, _suffix = parse_savename(f; connector)
         if _suffix == suffix
@@ -153,26 +154,34 @@ function calcquality(dirname; suffix = "jld2", connector = connector)
        all(lookup(Q, Structure) .∈ [structures])
         Q = Q[Structure = At(structures)] # * Sort to global structures order
     end
+    @info "Mean quality: $(mean(Q))"
     return Q
 end
 
-function submit_calculations(exprs)
+function submit_calculations(exprs; queue = ``)
     exprs = deepcopy(exprs)
     if length(exprs) > 2
         N3 = (length(exprs) ÷ 3)
         shuffle!(exprs) # ? Shuffle so restarted calcs are more even
-        USydClusters.Physics.runscripts(exprs[1:N3]; ncpus = 8, mem = 50,
-                                        walltime = 8,
-                                        project = projectdir(), exeflags = `+1.10.10`,
-                                        queue = `h100`)
-        USydClusters.Physics.runscripts(exprs[(N3 + 1):(N3 * 2)]; ncpus = 8, mem = 50,
-                                        walltime = 8,
-                                        project = projectdir(), exeflags = `+1.10.10`,
-                                        queue = `l40s`)
-        USydClusters.Physics.runscripts(exprs[(2 * N3 + 1):end]; ncpus = 8, mem = 50,
-                                        walltime = 8,
-                                        project = projectdir(), exeflags = `+1.10.10`,
-                                        queue = `taiji`)
+        if isempty(queue)
+            USydClusters.Physics.runscripts(exprs[1:N3]; ncpus = 8, mem = 50,
+                                            walltime = 8,
+                                            project = projectdir(), exeflags = `+1.10.10`,
+                                            queue = `h100`)
+            USydClusters.Physics.runscripts(exprs[(N3 + 1):(N3 * 2)]; ncpus = 8, mem = 50,
+                                            walltime = 8,
+                                            project = projectdir(), exeflags = `+1.10.10`,
+                                            queue = `l40s`)
+            USydClusters.Physics.runscripts(exprs[(2 * N3 + 1):end]; ncpus = 8, mem = 50,
+                                            walltime = 8,
+                                            project = projectdir(), exeflags = `+1.10.10`,
+                                            queue = `taiji`)
+        else
+            USydClusters.Physics.runscripts(exprs; ncpus = 8, mem = 50,
+                                            walltime = 8,
+                                            project = projectdir(), exeflags = `+1.10.10`,
+                                            queue = queue)
+        end
     else
         USydClusters.Physics.runscript.(exprs; ncpus = 8, mem = 50,
                                         walltime = 8,
@@ -251,7 +260,7 @@ function isbad(outfile; retry_errors = true, check_other_file = false)
             return true
         end
     else
-        @info "File $outfile exists but contains an error. It will not be overwritten as $retry_errors is `false`."
+        @info "File `$outfile` exists but contains an error. It will not be overwritten as $retry_errors is `false`."
         return false
     end
 end

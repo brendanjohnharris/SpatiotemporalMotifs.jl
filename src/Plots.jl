@@ -5,9 +5,6 @@ using LinearAlgebra
 using JSON
 import TimeseriesTools: freqs
 
-plotdir(args...) = projectdir("plots", args...)
-export plotdir
-
 const connector = "&"
 const layers = ["1", "2/3", "4", "5", "6"]
 # const layercolors = reverse(binarysunset[range(start = 0, stop = 1,
