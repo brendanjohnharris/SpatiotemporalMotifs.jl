@@ -13,7 +13,7 @@ set_theme!(; fontsize = 15)
 begin # * Parameters
     stimulus = r"Natural_Images"
     sessionid = SpatiotemporalMotifs.DEFAULT_SESSION_ID
-    trial = 14 #10# SpatiotemporalMotifs.DEFAULT_TRIAL_NUM
+    trial = SpatiotemporalMotifs.DEFAULT_TRIAL_NUM
 
     config = @strdict stimulus sessionid trial
 end
@@ -59,7 +59,7 @@ end
 begin # ? Figure 1A
     @info "Plotting wave schematic"
     structure = "VISl"
-    ΔT = (-0.02u"s" .. 0.5u"s") |> 𝑡
+    ΔT = (-0.0u"s" .. 0.52u"s") |> 𝑡
     ΔD = Depth(0.15 .. 0.8)
     depth_colormap = SpatiotemporalMotifs.layercolormap
     begin
@@ -106,7 +106,7 @@ begin # ? Figure 1A
         end
 
         begin # * Normalization and gamma patches
-            # θ = θ # for visualization
+            θ = .-θ # for visualization
             γ = set(γ, ZScore(γ |> parent; dims = 1)(γ))
             r = set(r, MinMax(r |> parent; dims = 1)(r))
 

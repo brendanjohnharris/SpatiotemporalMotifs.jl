@@ -49,7 +49,9 @@ if haskey(ENV, "JULIA_DISTRIBUTED") # ? Should take a night or so
         Base.Fix1(push!, notgood).(setdiff(oursessions, lookup(Q, 1)))
         exprs = exprs[(oursessions .∈ [notgood])]
     end
+
     SM.submit_calculations(exprs)
+
     display("All workers submitted")
 else
     SM.send_calculations.(reverse(oursessions); outpath, rewrite) # ? This version will take a few days if the above calculations errored, otherwise a few minutes (checks all calculations are correct)

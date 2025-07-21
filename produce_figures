@@ -5,17 +5,15 @@
 # 1. `scripts/calculations/download_data.jl`
 # 2. `scripts/calculations/session_selection.jl`
 # 3. `scripts/calculations/calculations.jl`
+# 4. `scripts/calculations/collect_calculations.jl`
+# 5. `scripts/calculations/posthoc_session_filter.jl`
+# 6. `scripts/calculations/grand_unified_layers.jl`
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 chmod -R u+x "$DIR/scripts/plots/"
 
 start=$(date +%s)
 
-echo "Filtering sessions and checking quality"
-"$DIR/scripts/calculations/posthoc_session_filter.jl"
-
-echo "Producing grand unified layers"
-"$DIR/scripts/calculations/grand_unified_layers.jl"
 
 echo "Producing Fig. 1"
 "$DIR/scripts/plots/fig1.jl"

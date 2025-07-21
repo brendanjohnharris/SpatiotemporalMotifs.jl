@@ -101,6 +101,7 @@ end
 function calcquality(dirname; suffix = "jld2", connector = connector)
     @info "Checking quality of calculations in `$dirname`"
     files = readdir(dirname)
+    lk = ReentrantLock()
     ps = []
     Threads.@threads for f in files
         f = joinpath(dirname, f)
@@ -116,7 +117,9 @@ function calcquality(dirname; suffix = "jld2", connector = connector)
                 @warn e
                 continue
             end
-            push!(ps, parameters) # Only add to list of good files if file exists and has no error
+            lock(lk) do
+                push!(ps, parameters) # Only add to list of good files if file exists and has no error
+            end
         end
     end
     ks = keys.(ps) |> collect
@@ -143,9 +146,8 @@ function calcquality(dirname; suffix = "jld2", connector = connector)
     end
     ddims = Tuple([map2dims(d)(s) for (s, d) in zip(uvs, dims)])
 
-    Q = Array{Bool}(undef, length.(uvs)...)
+    Q = falses(length.(uvs)...)
     Q = ToolsArray(Q, ddims)
-    Q .= false
     for v in eachcol(vs)
         ds = [map2dims(d)(At(s)) for (s, d) in zip(v, dims)]
         Q[ds...] = true

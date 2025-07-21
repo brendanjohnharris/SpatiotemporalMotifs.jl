@@ -533,8 +533,8 @@ function send_calculations(D::Dict, session = AN.Session(D["sessionid"]);
 
         out = LFP = LFP_J = aligned_outputs = []
         GC.gc()
-        return outfiles
     end
+    return outfiles
 end
 
 function send_calculations(sessionid;
@@ -603,7 +603,8 @@ function load_performance(; path = calcdir("calculations"), stimulus = r"Natural
     return newsessions
 end
 
-function _collect_calculations(outfile; sessionid, structure, stimulus, path, subvars)
+function _collect_calculations(; sessionid, structure, stimulus, path, subvars)
+    outdict = Dict{String, Any}()
     filename = savepath((@strdict sessionid structure stimulus), "jld2", path)
     try
         jldopen(filename, "r") do f
@@ -667,83 +668,136 @@ function _collect_calculations(outfile; sessionid, structure, stimulus, path, su
 
             D = @strdict streamlinedepths layernames pass_γ pass_θ trials sessionid performance_metrics spiketimes
             for (k, v) in pairs(D)
-                key = string(structure) * "/" * string(sessionid) * "/" * string(k)
-                outfile[key] = v
+                outdict[string(k)] = v
             end
             for (k, v) in ovars
-                key = string(structure) * "/" * string(sessionid) * "/" * string(k)
-                outfile[key] = v .|> Float32
+                outdict[string(k)] = v .|> Float32
             end
         end
     catch e
         @error "Error in collecting $(filename)"
         @error e
         E = Dict("error" => sprint(showerror, e))
-        outfile[string(structure) * "/" * string(sessionid)] = E
+        outdict[string(k)] = E
     end
-    return nothing
+    return outdict
 end
 
-function collect_calculations(Q; path = calcdir("calculations"), stimulus, rewrite = false,
+recursive_merge(x::AbstractDict...) = merge(recursive_merge, x...)
+
+function collect_calculations(Q; path = calcdir("calculations"), stimulus,
+                              rewrite = false,
                               outpath = calcdir())
+    sessionids = lookup(Q, SessionID) .|> string
     outfilepath = savepath("out", Dict("stimulus" => stimulus), "jld2", outpath)
     if contains(stimulus |> string, "nochange")
         subvars = sort([:csd]) # Only use the LFP for inferring the CSD
     else
         subvars = sort([:V, :csd, :θ, :ϕ, :r, :k, :ω])
     end
-    @info "`$path`"
+    @info "Collecting `$stimulus` from `$path`"
     if isfile(outfilepath)
-        jldopen(outfilepath, "r") do outfile
-            if !all(structures .∈ [keys(outfile)])
+        rewrite = jldopen(outfilepath, "r") do outfile
+            good = all(structures .∈ [keys(outfile)])
+            if !good
                 @warn "Not all structures found in $(outfilepath). Recalculating."
-                rewrite = true
+                return !good
             end
+            # * Check if all structures have sessions
+            for structure in structures
+                grp = outfile.root_group[structure]
+                _good = isempty(setdiff(sessionids, keys(grp)))
+                if !_good
+                    @warn "Missing session IDs in $(structure) for `$(stimulus)`"
+                    good = good && _good
+                    break
+                end
+                for sessionid in sessionids
+                    subgrp = grp[sessionid]
+                    _good = all(subvars .∈ [keys(subgrp)])
+                    if !_good
+                        @warn "Missing variable $(subvars) in $(sessionid) for $(structure) during `$(stimulus)`"
+                        good = good && _good
+                        break
+                    end
+                end
+            end
+            return !good
         end
     end
     if rewrite
+        @info "Rewriting collected calculations for `$(stimulus)` from `$path`"
         rm(outfilepath, force = true)
     end
-    if !isfile(outfilepath)
-        for structure in lookup(Q, Structure)
+    if !isfile(outfilepath) # * This uses a lot of memory; use ~200 to be safe.
+        begin # * Construct groups
             jldopen(outfilepath, "a+") do outfile
-                @info "Collecting data for structure $(structure)"
-                @progress for sessionid in lookup(Q, SessionID)
-                    if Q[SessionID = At(sessionid), Structure = At(structure),
-                         stimulus = At(stimulus)] == 0
-                        return nothing
+                map(lookup(Q, Structure)) do structure
+                    gs = JLD2.Group(outfile, string(structure);
+                                    est_num_entries = size(Q, SessionID),
+                                    est_link_name_len = 10)
+                    map(lookup(Q, SessionID)) do sessionid
+                        g = JLD2.Group(gs, string(sessionid);
+                                       est_num_entries = size(Q, SessionID))
                     end
-                    _collect_calculations(outfile; sessionid, structure, stimulus, path,
-                                          subvars)
+                end
+                return nothing
+            end
+        end
+        @progress for structure in lookup(Q, Structure)
+            @info "Collecting data for structure $(structure)"
+            out = Vector{Dict{String, Any}}(undef, size(Q, SessionID))
+            Threads.@threads for (i, sessionid) in collect(enumerate(lookup(Q, SessionID)))
+                if hasdim(Q, :stimulus)
+                    q = Q[SessionID = At(sessionid), Structure = At(structure),
+                          stimulus = At(stimulus)]
+                else
+                    q = Q[SessionID = At(sessionid), Structure = At(structure)]
+                end
+                if q == 0
+                    throw(error("Bad-quality data for $(sessionid), $(structure), $(stimulus)"))
+                end
+                out[i] = _collect_calculations(; sessionid, structure, stimulus, path,
+                                               subvars)
+            end
+            # * Write groups recursively
+            jldopen(outfilepath, "a+") do outfile
+                for (i, sessionid) in enumerate(lookup(Q, SessionID))
+                    _out = out[i]
+                    for k in keys(_out)
+                        key = join([string(structure), string(sessionid), string(k)], '/')
+                        outfile[key] = _out[k]
+                    end
                 end
             end
             GC.gc()
         end
+        @info "Finished collecting data, saving to `$outfilepath`"
     end
-    if rewrite == false
-        @info "Already calculated: $(stimulus). Checking quality"
-        jldopen(outfilepath, "a+") do outfile
-            sessionids = [keys(outfile[s]) for s in structures]
-            if length(unique(sessionids)) > 1
-                @warn "Not all structures returned the same sessions. Attempting to repair"
-            end
-            sessionids = unique(vcat(sessionids...))
-            for sessionid in sessionids
-                for structure in structures
-                    if !haskey(outfile[structure], sessionid)
-                        @warn "Missing $(structure) $(sessionid)"
-                        sessionid = tryparse(Int, sessionid)
-                        if Q[SessionID = At(sessionid), Structure = At(structure),
-                             stimulus = At(stimulus)] == 0
-                            return nothing
-                        end
-                        _collect_calculations(outfile; sessionid, structure, stimulus, path,
-                                              subvars)
-                    end
-                end
-            end
-        end
-    end
+    # if rewrite == false
+    #     @info "Already calculated: $(stimulus). Checking quality"
+    #     jldopen(outfilepath, "a+") do outfile
+    #         sessionids = [keys(outfile[s]) for s in structures]
+    #         if length(unique(sessionids)) > 1
+    #             throw(error("Not all structures returned the same sessions. Attempting to repair"))
+    #         end
+    #         # sessionids = unique(vcat(sessionids...))
+    #         # for sessionid in sessionids
+    #         #     for structure in structures
+    #         #         if !haskey(outfile[structure], sessionid)
+    #         #             @warn "Missing $(structure) $(sessionid)"
+    #         #             sessionid = tryparse(Int, sessionid)
+    #         #             if Q[SessionID = At(sessionid), Structure = At(structure),
+    #         #                  stimulus = At(stimulus)] == 0
+    #         #                 return nothing
+    #         #             end
+    #         #             _collect_calculations(outfile; sessionid, structure, stimulus, path,
+    #         #                                   subvars)
+    #         #         end
+    #         #     end
+    #         # end
+    #     end
+    # end
     return outfilepath
 end
 
