@@ -21,8 +21,7 @@ session_table = load(calcdir("session_table.jld2"), "session_table")
 oursessions = deepcopy(session_table)
 
 begin
-    path = calcdir("calculations")
-    Q = calcquality(path)[Structure = At(structures)]
+    Q = calcquality()[Structure = At(structures)]
     quality = mean(Q[stimulus = At(stimulus)])
     out = load_calculations(Q; stimulus, vars = [:r])
 end
@@ -87,9 +86,10 @@ begin
     newsessions = subset(oursessions, :ecephys_session_id => ByRow(∈(goodsessions)))
     tagsave(calcdir("posthoc_session_table.jld2"), Dict("session_table" => newsessions))
     write(calcdir("posthoc_session_table.json"), JSON.json(newsessions))
+    mkpath(calcdir("plots"))
     write(calcdir("plots", "posthoc_session_table.json"), JSON.json(newsessions))
 end
-# Read the dataframe as read("$(@__DIR__)/../session_table.json", String) |> JSON.parse |> DataFrame
+# Read the dataframe as read("$(@__DIR__)/../plots/session_table.json", String) |> JSON.parse |> DataFrame
 
 begin # * Formatted subject table
     using Dates

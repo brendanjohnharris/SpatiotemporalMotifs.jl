@@ -27,8 +27,7 @@ bandalpha = 0.2
 mkpath(plotdir("fig2"))
 
 plot_data, data_file = produce_or_load(Dict(), calcdir("plots");
-                                       filename = savepath,
-                                       prefix = "fig2") do _
+                                       filename = savepath("fig2")) do _
     session_table = load(calcdir("posthoc_session_table.jld2"), "session_table")
     oursessions = session_table.ecephys_session_id
     path = calcdir("power_spectra")

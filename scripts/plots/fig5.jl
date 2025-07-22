@@ -23,8 +23,7 @@ config = @strdict thr
 stimuli = [r"Natural_Images", "spontaneous", "flash_250ms"]
 
 plot_data, data_file = produce_or_load(config, calcdir("plots");
-                                       filename = savepath,
-                                       prefix = "fig5") do config
+                                       filename = savepath("fig5")) do config
     stimulus = r"Natural_Images" # Stimulus for the final figure
     session_table = load(calcdir("posthoc_session_table.jld2"), "session_table")
     oursessions = session_table.ecephys_session_id

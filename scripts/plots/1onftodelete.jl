@@ -17,8 +17,7 @@ using Random
 set_theme!(foresight(:physics))
 
 plot_data, data_file = produce_or_load(Dict(), calcdir("plots");
-                                       filename = savepath,
-                                       prefix = "figS2") do _
+                                       filename = savepath("figS2")) do _
 end
 
 begin # * Load the CSD for the example session

@@ -441,7 +441,7 @@ function send_calculations(D::Dict, session = AN.Session(D["sessionid"]);
             return false
         end
         try
-            jldopen(outfile, "r") do fl
+            jldopen(outfile, "r"; iotype = IOStream) do fl
                 # * Check error
                 if haskey(fl, "error")
                     @warn "Error in `$(outfile)`"
@@ -582,32 +582,38 @@ function test_calculations(args...; N = 10, kwargs...)
 end
 
 function load_performance(; path = calcdir("calculations"), stimulus = r"Natural_Images")
-    Q = calcquality(path)[Structure = At(structures)]
-    out = map([lookup(Q, Structure) |> first]) do structure
-        out = map(lookup(Q, SessionID)) do sessionid
-            if Q[SessionID = At(sessionid), Structure = At(structure)] == 0
-                return nothing
+    data, pfile = produce_or_load(Dict("stimulus" => stimulus),
+                                  calcdir();
+                                  filename = savepath("performance")) do conf
+        stimulus = conf["stimulus"]
+        Q = calcquality(path)[Structure = At(structures)]
+        out = map([lookup(Q, Structure) |> first]) do structure
+            out = map(lookup(Q, SessionID)) do sessionid
+                if Q[SessionID = At(sessionid), Structure = At(structure)] == 0
+                    return nothing
+                end
+                filename = savepath((@strdict sessionid structure stimulus), "jld2", path)
+                f = jldopen(filename, "r"; iotype = IOStream)
+                performance_metrics = f["performance_metrics"]
+                close(f)
+                return performance_metrics
             end
-            filename = savepath((@strdict sessionid structure stimulus), "jld2", path)
-            f = jldopen(filename, "r")
-            performance_metrics = f["performance_metrics"]
-            close(f)
-            return performance_metrics
+            out = filter(!isnothing, out)
         end
-        out = filter(!isnothing, out)
+        performance = only(out)
+        newsessions = performance |> DataFrame
+        newsessions.sessionid = lookup(Q, SessionID) .|> Int
+        return Dict("performance" => newsessions)
     end
-    performance = only(out)
-
-    newsessions = performance |> DataFrame
-    newsessions.sessionid = lookup(Q, SessionID) .|> Int
-    return newsessions
+    display(pfile)
+    return data["performance"]
 end
 
 function _collect_calculations(; sessionid, structure, stimulus, path, subvars)
     outdict = Dict{String, Any}()
     filename = savepath((@strdict sessionid structure stimulus), "jld2", path)
     try
-        jldopen(filename, "r") do f
+        jldopen(filename, "r"; iotype = IOStream) do f
             begin
                 # @unpack streamlinedepths, layerinfo, pass_γ, pass_θ, performance_metrics, spiketimes, trials = f
                 streamlinedepths = f["streamlinedepths"]
@@ -677,8 +683,7 @@ function _collect_calculations(; sessionid, structure, stimulus, path, subvars)
     catch e
         @error "Error in collecting $(filename)"
         @error e
-        E = Dict("error" => sprint(showerror, e))
-        outdict[string(k)] = E
+        outdict["error"] = sprint(showerror, e)
     end
     return outdict
 end
@@ -695,13 +700,12 @@ function collect_calculations(Q; path = calcdir("calculations"), stimulus,
     else
         subvars = sort([:V, :csd, :θ, :ϕ, :r, :k, :ω])
     end
-    @info "Collecting `$stimulus` from `$path`"
     if isfile(outfilepath)
-        rewrite = jldopen(outfilepath, "r") do outfile
+        good = jldopen(outfilepath, "r"; iotype = IOStream) do outfile
             good = all(structures .∈ [keys(outfile)])
             if !good
                 @warn "Not all structures found in $(outfilepath). Recalculating."
-                return !good
+                return good
             end
             # * Check if all structures have sessions
             for structure in structures
@@ -714,22 +718,26 @@ function collect_calculations(Q; path = calcdir("calculations"), stimulus,
                 end
                 for sessionid in sessionids
                     subgrp = grp[sessionid]
-                    _good = all(subvars .∈ [keys(subgrp)])
+                    _good = all(string.(subvars) .∈ [keys(subgrp)])
                     if !_good
-                        @warn "Missing variable $(subvars) in $(sessionid) for $(structure) during `$(stimulus)`"
+                        @warn "Missing variables $(subvars) in $(sessionid) for $(structure) during `$(stimulus)`"
                         good = good && _good
                         break
                     end
                 end
             end
-            return !good
+            return good
         end
+    else
+        good = false
     end
-    if rewrite
+    if rewrite && !good
         @info "Rewriting collected calculations for `$(stimulus)` from `$path`"
         rm(outfilepath, force = true)
     end
+
     if !isfile(outfilepath) # * This uses a lot of memory; use ~200 to be safe.
+        @info "Collecting `$stimulus` from `$path`"
         begin # * Construct groups
             jldopen(outfilepath, "a+") do outfile
                 map(lookup(Q, Structure)) do structure
@@ -772,7 +780,7 @@ function collect_calculations(Q; path = calcdir("calculations"), stimulus,
             end
             GC.gc()
         end
-        @info "Finished collecting data, saving to `$outfilepath`"
+        @info "Finished collecting data, saved to `$outfilepath`"
     end
     # if rewrite == false
     #     @info "Already calculated: $(stimulus). Checking quality"
@@ -809,22 +817,40 @@ function load_calculations(Q; vars = sort([:V, :csd, :θ, :ϕ, :r, :k, :ω]), st
     ]
     vars = vcat(vars, commonkeys)
     outfilepath = collect_calculations(Q; stimulus, kwargs...)
-    jldopen(outfilepath, "r") do outfile
+    sessionids = jldopen(outfilepath, "r"; iotype = IOStream) do outfile
+        grp = outfile.root_group
         @assert sort(keys(outfile)) == sort(structures)
-        sessionids = unique([keys(outfile[s]) for s in structures]) |> only
+        sessionids = map(structures) do structure
+                         keys(grp[string(structure)]) |> sort
+                     end |> unique |> only
         sessionids = sessionids[indexin(string.(lookup(Q, SessionID)), sessionids)]
-        out = map(structures) do structure
-            @info "Loading data for structure $(structure)"
-            map(sessionids) do sessionid
-                D = Dict()
-                for v in vars
-                    D[v] = outfile[structure][sessionid][string(v)]
+        return sessionids
+    end
+
+    out = Vector{Vector{Dict{Symbol, Any}}}(undef, length(structures))
+    @withprogress name="Loading calculations" begin
+        threadlog = Threads.Atomic{Int}(0)
+        threadmax = length(structures) * length(sessionids)
+        lk = Threads.ReentrantLock()
+        for (s, structure) in collect(enumerate(structures))
+            out[s] = Vector{Dict{Symbol, Any}}(undef, length(sessionids))
+            jldopen(outfilepath, "r"; iotype = IOStream) do outfile
+                for (i, sessionid) in enumerate(sessionids)
+                    out[s][i] = Dict{Symbol, Any}()
+
+                    for v in vars
+                        k = join([string(structure), string(sessionid), string(v)], '/')
+                        out[s][i][v] = outfile[k]
+                    end
+                    lock(lk) do
+                        Threads.atomic_add!(threadlog, 1)
+                        @logprogress threadlog[] / threadmax
+                    end
                 end
-                return D
             end
         end
-        return out
     end
+    return out
 end
 
 function unify_calculations(Q; stimulus, vars = sort([:V, :csd, :θ, :ϕ, :r, :k, :ω]),
@@ -947,15 +973,17 @@ function load_uni(; stimulus, vars = sort([:V, :csd, :θ, :ϕ, :r, :k, :ω]),
     unifilepath = unify_calculations(Q; stimulus, kwargs...)
     @info "Loading unified data $vars for $stimulus"
     commonvars = [:oursessions, :unidepths, :layerints, :layernames, :layernums]
-    jldopen(unifilepath, "r") do unifile
+    jldopen(unifilepath, "r"; iotype = IOStream) do unifile
         @assert sort(keys(unifile)) == sort(structures)
         out = progressmap(structures) do structure
             D = Dict()
             for v in vars
-                D[v] = unifile[structure][string(v)]
+                k = join([string(structure), string(v)], '/')
+                D[v] = unifile[k]
             end
             for v in commonvars
-                D[v] = unifile[structure][string(v)]
+                k = join([string(structure), string(v)], '/')
+                D[v] = unifile[k]
             end
             return D
         end

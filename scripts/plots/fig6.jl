@@ -12,8 +12,7 @@ set_theme!(foresight(:physics))
 Random.seed!(42)
 
 plot_data, data_file = produce_or_load(Dict(), calcdir("plots");
-                                       filename = savepath,
-                                       prefix = "fig6") do _
+                                       filename = savepath("fig6")) do _
     stimulus = r"Natural_Images"
     outfile = calcdir("out&stimulus=$(stimulus).jld2")
     vars = [:ϕ, :r]

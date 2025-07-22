@@ -11,6 +11,7 @@ import DataFrames.groupby
 using PythonCall
 import AllenNeuropixels as AN
 import SpatiotemporalMotifs as SM
+import SpatiotemporalMotifs.calcdir
 session_table = AN.VisualBehavior.getsessiontable()
 probes = AN.VisualBehavior.getprobes()
 
@@ -111,8 +112,7 @@ oursessions = subset(session_metrics,
                      :has_target_location => ByRow(==(1)))
 
 tagsave(calcdir("session_table.jld2"), Dict("session_table" => oursessions))
-write(calcdir("session_table.json"), JSON.json(oursessions))
 mkpath(calcdir("plots"))
 write(calcdir("plots", "session_table.json"), JSON.json(oursessions))
 
-# Read the dataframe as read("$(@__DIR__)/../session_table.json", String) |> JSON.parse |> DataFrame
+# Read the dataframe as read("$(@__DIR__)/../plots/session_table.json", String) |> JSON.parse |> DataFrame

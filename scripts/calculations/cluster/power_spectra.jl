@@ -19,12 +19,12 @@ isdir(calcdir("power_spectra")) || mkpath(calcdir("power_spectra"))
 rewrite = false
 retry_errors = true
 
-structures = deepcopy(SM.structures)
+pstructures = deepcopy(SM.structures)
 # Add thalamic regions
-push!(structures, "LGd")
-push!(structures, "LGd-sh")
-push!(structures, "LGd-co")
-_params = Iterators.product(oursessions, stimuli, unique(structures)) |> collect
+push!(pstructures, "LGd")
+push!(pstructures, "LGd-sh")
+push!(pstructures, "LGd-co")
+_params = Iterators.product(oursessions, stimuli, unique(pstructures)) |> collect
 idxs = map(xy -> SM.powerspectra_quality(xy...; rewrite,
                                          retry_errors), _params)
 params = _params[.!idxs]
@@ -39,12 +39,7 @@ if haskey(ENV, "JULIA_DISTRIBUTED") && !isempty(params)
                                  retry_errors = $retry_errors)
         end
     end
-    nn = length(exprs) ÷ 2
-    USydClusters.Physics.runscripts(exprs[1:nn]; ncpus = 12, mem = 80, walltime = 1,
-                                    project = projectdir(), exeflags = `+1.10.10`)#, qsub_flags = "-q yossarian")
-    USydClusters.Physics.runscripts(exprs[(nn + 1):end]; ncpus = 12, mem = 80,
-                                    walltime = 1,
-                                    project = projectdir(), exeflags = `+1.10.10`)#, qsub_flags = "-q yossarian")
+    SM.submit_calculations(exprs, mem = 100)
 else
     for param in _params
         SM.send_powerspectra(param...; rewrite, retry_errors)

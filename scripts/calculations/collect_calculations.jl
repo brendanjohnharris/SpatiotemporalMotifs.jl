@@ -3,6 +3,7 @@
 #=
 exec julia +1.10.10 -t auto --color=yes "${BASH_SOURCE[0]}" "$@"
 =#
+
 using DrWatson
 @quickactivate "SpatiotemporalMotifs"
 
@@ -35,7 +36,7 @@ end
 
 begin # * Run collect_calculations for each session
     map(lookup(Q, :stimulus), eachslice(Q, dims = :stimulus)) do stimulus, q
-        out = load_calculations(q; stimulus, vars = [:csd]) # We always collect the csd
+        out = load_calculations(q; stimulus, vars = [:csd], rewrite = true)
         out = []
         GC.gc()
     end
@@ -50,4 +51,9 @@ begin
         uni = []
         GC.gc()
     end
+end
+
+begin # * Load and save performance metrics
+    path = calcdir("calculations")
+    performance = load_performance(; path)
 end

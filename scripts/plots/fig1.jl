@@ -18,8 +18,8 @@ begin # * Parameters
     config = @strdict stimulus sessionid trial
 end
 
-plot_data, data_file = produce_or_load(copy(config), calcdir("plots"); filename = savepath,
-                                       prefix = "fig1") do config
+plot_data, data_file = produce_or_load(copy(config), calcdir("plots");
+                                       filename = savepath("fig1")) do config
     @unpack stimulus, sessionid, trial = config
     Q = calcquality(calcdir("power_spectra"))
 

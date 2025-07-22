@@ -33,8 +33,7 @@ if !isfile(calcdir("plots", "fig4.jld2")) # * Use extra workers if we can
 end
 
 plot_data, data_file = produce_or_load(Dict(), calcdir("plots");
-                                       filename = savepath,
-                                       prefix = "fig4") do config
+                                       filename = savepath("fig4")) do config
     session_table = load(calcdir("posthoc_session_table.jld2"), "session_table")
     oursessions = session_table.ecephys_session_id
 

@@ -47,7 +47,7 @@ function _preamble()
         import AllenNeuropixels: Chan, Unit, Depth, Log𝑓
         import SpatiotemporalMotifs.calcdir
         using TerminalLoggers, Logging
-        global_logger(TerminalLogger())
+        global_logger(TerminalLogger(right_justify = 200))
         using ProgressLogging
     end
 end
@@ -98,27 +98,131 @@ function check_calc_keys(D)
     return all(haskey.([D], required_keys))
 end
 
-function calcquality(dirname; suffix = "jld2", connector = connector)
+function tmap(f, d::DimensionalData.Dimension; kwargs...)
+    ToolsArray(map(f, parent(d); kwargs...), (d,))
+end
+
+"""
+Check the quality of the collected calculations files e.g. `out&stimulus=...`
+"""
+function calcquality(; path = calcdir(), fallbackpath = calcdir("calculations"),
+                     prefix = "out", suffix = "jld2",
+                     connector = connector)
+    _Q = calcquality(fallbackpath; suffix, connector, tryload = false)
+    if !all(_Q)
+        error("Some calculation files are missing or have errors. Please rerun `scripts/calculations/calculations.jl`.") |>
+        throw
+    end
+
+    files = readdir(path)
+    files = filter(Base.Fix1(==, "." * suffix) ∘ last ∘ Base.splitext, files)
+    files = filter(Base.Fix2(==, prefix * connector) ∘
+                   Base.Fix2(getindex, 1:length(prefix * connector)), files)
+
+    vars = [
+        "pass_θ",
+        "pass_γ",
+        "performance_metrics",
+        "trials",
+        "streamlinedepths",
+        "layernames",
+        "spiketimes"
+    ]
+
+    Q = map(files) do f
+        stimulus = parse_savename(f; connector)[2]["stimulus"]
+        if stimulus == "Natural_Images"
+            stimulus = r"Natural_Images"
+        end
+        f = joinpath(path, f)
+        Q = jldopen(f, "r"; iotype = IOStream) do fl
+            grp = fl.root_group
+            areas = keys(grp)
+            areas = areas[areas .!== ["_types"]]
+            tmap(Structure(areas)) do area
+                sessions = keys(grp[area])
+                tmap(SessionID(Meta.parse.(sessions))) do session
+                    if contains(stimulus |> string, "nochange")
+                        subvars = sort([:csd])
+                    else
+                        subvars = sort([:V, :csd, :θ, :ϕ, :r, :k, :ω])
+                    end
+                    # * Check all subvars exist
+                    subkeys = keys(grp[area][string(session)])
+                    q = setdiff(vars, subkeys)
+                    if !contains(stimulus |> string, "omission") && !isempty(q)
+                        @debug "Missing variables in `$f`: $q"
+                        return false
+                    end
+                    q = setdiff(string.(subvars), subkeys)
+                    if !isempty(q)
+                        @debug "Missing variables in `$f`: $q"
+                        return false
+                    end
+                    return true
+                end
+            end |> stack
+        end |> stack
+        return Q, stimulus
+    end
+    stimuli = last.(Q)
+    Q = first.(Q)
+    badstimuli = [any(.!q) for q in Q]
+    if !isempty(badstimuli)
+        # map(findall(badstimuli)) do stimulus
+        #     collect_calculations(_Q; path = fallbackpath,
+        #                          stimulus,
+        #                          rewrite = false,
+        #                          outpath = path)
+        # end
+        # Q = calcquality(; path, fallbackpath,
+        #                 prefix, suffix,
+        #                 connector)
+        @warn """Some collected calculations are missing or have errors for stimuli: `$(join(stimuli[badstimuli], "; "))`"""
+    end
+    return ToolsArray(Q, (Dim{:stimulus}(stimuli),)) |> stack
+end
+
+"""
+Check the quality of a a calculations directory e.g. data/calculations/`
+"""
+function calcquality(dirname; suffix = "jld2", connector = connector, tryload = true)
     @info "Checking quality of calculations in `$dirname`"
     files = readdir(dirname)
-    lk = ReentrantLock()
+    threadlog = Threads.Atomic{Int}(0)
+    threadmax = length(files)
+    lk = Threads.ReentrantLock()
     ps = []
-    Threads.@threads for f in files
-        f = joinpath(dirname, f)
-        _, parameters, _suffix = parse_savename(f; connector)
-        if _suffix == suffix
-            try
-                fl = jldopen(f)
-                fl["performance_metrics"] # Can load
-                if haskey(fl, "error") || !check_calc_keys(fl)
+    @withprogress name="Checking quality" begin
+        Threads.@threads for f in files
+            f = joinpath(dirname, f)
+            _, parameters, _suffix = parse_savename(f; connector)
+            if _suffix == suffix
+                try
+                    if tryload
+                        cannotload = jldopen(f, "r"; iotype = IOStream) do fl
+                            fl["performance_metrics"] # Can load
+                            haskey(fl, "error") || !check_calc_keys(fl)
+                        end
+                    else
+                        cannotload = false
+                    end
+                    if cannotload
+                        continue
+                    end
+                catch e
+                    @warn e
                     continue
                 end
-            catch e
-                @warn e
-                continue
-            end
-            lock(lk) do
-                push!(ps, parameters) # Only add to list of good files if file exists and has no error
+                lock(lk) do
+                    push!(ps, parameters) # Only add to list of good files if file exists and has no error
+                    if tryload
+                        if Threads.threadid() ∈ 1:2
+                            Threads.atomic_add!(threadlog, Threads.nthreads() ÷ 2)
+                            @logprogress threadlog[] / threadmax
+                        end
+                    end
+                end
             end
         end
     end
@@ -160,32 +264,32 @@ function calcquality(dirname; suffix = "jld2", connector = connector)
     return Q
 end
 
-function submit_calculations(exprs; queue = ``)
+function submit_calculations(exprs; queue = ``, mem = 50)
     exprs = deepcopy(exprs)
     if length(exprs) > 2
         N3 = (length(exprs) ÷ 3)
         shuffle!(exprs) # ? Shuffle so restarted calcs are more even
         if isempty(queue)
-            USydClusters.Physics.runscripts(exprs[1:N3]; ncpus = 8, mem = 50,
+            USydClusters.Physics.runscripts(exprs[1:N3]; ncpus = 8, mem,
                                             walltime = 8,
                                             project = projectdir(), exeflags = `+1.10.10`,
                                             queue = `h100`)
-            USydClusters.Physics.runscripts(exprs[(N3 + 1):(N3 * 2)]; ncpus = 8, mem = 50,
+            USydClusters.Physics.runscripts(exprs[(N3 + 1):(N3 * 2)]; ncpus = 8, mem,
                                             walltime = 8,
                                             project = projectdir(), exeflags = `+1.10.10`,
                                             queue = `l40s`)
-            USydClusters.Physics.runscripts(exprs[(2 * N3 + 1):end]; ncpus = 8, mem = 50,
+            USydClusters.Physics.runscripts(exprs[(2 * N3 + 1):end]; ncpus = 8, mem,
                                             walltime = 8,
                                             project = projectdir(), exeflags = `+1.10.10`,
                                             queue = `taiji`)
         else
-            USydClusters.Physics.runscripts(exprs; ncpus = 8, mem = 50,
+            USydClusters.Physics.runscripts(exprs; ncpus = 8, mem,
                                             walltime = 8,
                                             project = projectdir(), exeflags = `+1.10.10`,
                                             queue = queue)
         end
     else
-        USydClusters.Physics.runscript.(exprs; ncpus = 8, mem = 50,
+        USydClusters.Physics.runscript.(exprs; ncpus = 8, mem,
                                         walltime = 8,
                                         project = projectdir(), exeflags = `+1.10.10`,
                                         queue = `h100`)
@@ -292,6 +396,7 @@ function savepath(prefix::String, D::Union{Dict, NamedTuple}, ext = "", args...)
     filename = savename(prefix, D, ext; connector, val_to_string, allowedtypes)
     return joinpath(args..., filename)
 end
+savepath(prefix::String) = (args...) -> savepath(prefix, args...)
 
 function unique_inverse(A::AbstractArray)
     out = Array{eltype(A)}(undef, 0)

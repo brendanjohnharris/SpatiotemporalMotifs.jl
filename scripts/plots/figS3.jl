@@ -32,8 +32,7 @@ if haskey(ENV, "JULIA_DISTRIBUTED") && ENV["JULIA_DISTRIBUTED"] == "true" &&
 end
 
 plot_data, data_file = produce_or_load(config, calcdir("plots");
-                                       filename = savepath,
-                                       prefix = "figS3") do config
+                                       filename = savepath("figS3")) do config
     @unpack shuffles, regcoef, repeats, folds, nsur = config
     begin # * Load the trial LFP for natural images
         session_table = load(calcdir("posthoc_session_table.jld2"), "session_table")
