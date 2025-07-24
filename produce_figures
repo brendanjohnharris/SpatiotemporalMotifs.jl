@@ -8,7 +8,7 @@
 # 4. `scripts/calculations/calculations.jl`
 # 5. `scripts/calculations/collect_calculations.jl`
 # 6. `scripts/calculations/posthoc_session_filter.jl`
-# 7. `scripts/calculations/grand_unified_layers.jl`
+# 7. `scripts/calculations/unify_calculations.jl`
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 chmod -R u+x "$DIR/scripts/plots/"

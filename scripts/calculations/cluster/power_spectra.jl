@@ -43,5 +43,6 @@ if haskey(ENV, "JULIA_DISTRIBUTED") && !isempty(params)
 else
     for param in _params
         SM.send_powerspectra(param...; rewrite, retry_errors)
+        GC.gc()
     end
 end

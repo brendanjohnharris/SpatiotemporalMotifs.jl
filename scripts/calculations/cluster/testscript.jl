@@ -7,7 +7,7 @@ using DrWatson
 using Distributed
 import USydClusters.Physics: addprocs, selfdestruct
 
-project = "/taiji1/bhar9988/code/DDC/SpatiotemporalMotifs/"
+project = "/import/taiji1/bhar9988/code/DDC/SpatiotemporalMotifs/"
 procs = addprocs(5; ncpus = 2, mem = 4,
                  walltime = 96, project)
 @everywhere using Pkg;

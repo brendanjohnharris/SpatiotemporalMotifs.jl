@@ -42,17 +42,6 @@ begin # * Run collect_calculations for each session
     end
 end
 
-# * Now do unified data
-begin
-    map(lookup(Q, :stimulus), eachslice(Q, dims = :stimulus)) do stimulus, q
-        if !contains(stimulus |> string, "nochange")
-            uni = load_uni(; stimulus)
-        end
-        uni = []
-        GC.gc()
-    end
-end
-
 begin # * Load and save performance metrics
     path = calcdir("calculations")
     performance = load_performance(; path)

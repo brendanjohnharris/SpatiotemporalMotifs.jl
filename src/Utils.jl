@@ -168,7 +168,7 @@ function calcquality(; path = calcdir(), fallbackpath = calcdir("calculations"),
     stimuli = last.(Q)
     Q = first.(Q)
     badstimuli = [any(.!q) for q in Q]
-    if !isempty(badstimuli)
+    if any(badstimuli)
         # map(findall(badstimuli)) do stimulus
         #     collect_calculations(_Q; path = fallbackpath,
         #                          stimulus,

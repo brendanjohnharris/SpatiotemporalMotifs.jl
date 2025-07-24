@@ -266,7 +266,7 @@ end
 
 function what_files(stimulus)
     if stimulus == r"Natural_Images"
-        files = [stimulus, "Natural_Images_omission", "Natural_Images_nochange"]
+        files = [stimulus, "Natural_Images_nochange"] # * and "Natural_Images_omission"
     elseif stimulus == "Natural_Images_passive"
         files = [stimulus, "Natural_Images_passive_nochange"]
     else
@@ -873,7 +873,7 @@ function unify_calculations(Q; stimulus, vars = sort([:V, :csd, :θ, :ϕ, :r, :k
         stimulus = only(unique(vcat(stimuli...)))
         jldopen(unifilepath, "w") do outfile
             progressmap(enumerate(out)) do (si, o)
-                @info "Collecting data for structure $(structures[si])"
+                @info "Unifying data for structure $(structures[si])"
                 sessionids = getindex.(o, :sessionid)
                 streamlinedepths = getindex.(o, :streamlinedepths)
                 unidepths = commondepths(streamlinedepths)

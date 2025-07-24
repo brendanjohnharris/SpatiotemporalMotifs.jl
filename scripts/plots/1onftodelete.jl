@@ -21,7 +21,7 @@ plot_data, data_file = produce_or_load(Dict(), calcdir("plots");
 end
 
 begin # * Load the CSD for the example session
-    file = "/taiji1/bhar9988/code/DDC/SpatiotemporalMotifs/data/plots/fig2.jld2"
+    file = "/import/taiji1/bhar9988/code/DDC/SpatiotemporalMotifs/data/plots/fig2.jld2"
     f = jldopen(file, "r")
 end
 begin
