@@ -87,7 +87,7 @@ This script must be run on a high-performance computing cluster, and will need t
 
 #### [Calculations](scripts/calculations/cluster/calculations.jl)
 
-This script performs the bulk of the wave-based calculations, and must be run on a high-performance computing cluster. If you have configured a custom [ClusterManager](https://github.com/JuliaParallel/ClusterManagers.jl), you can set the `ENV["SM_CLUSTER"]=true` to have this file distribute calculations across multiple processes. Otherwise, the script will take about 2 days to run on a single high-memory (>64GB) machine.
+This script performs the bulk of the wave-based calculations, and must be run on a high-performance computing cluster; this will take about 2 days to run on a single high-memory (>64GB) machine.
 
 #### [Collecting calculations](scripts/calculations/collect_calculations.jl)
 
@@ -135,12 +135,16 @@ If you have downloaded the plot data from Figsahre, and placed the data files in
 This file simply runs all of the plot scripts in the order listed in [step 2](#2.-final-analyses) and saves the results to `plots/`. Ensure that you have properly instantiated this project via the Julia REPL before running this script.
 
 
-### 4. Calculations over different frequency bands
-You can rerun calculations with different theta and gamma bands by setting the following environment variables before loading this project (see the [`lower_theta_calculations.jl`](scripts/calculations/cluster/lower_theta_calculations.jl)).
-The most reliable way to set these is in your shell startup script.
-These variables, and their default values, are:
+## Project configuration
+You can configure this project (e.g. to rerun calculations with different theta and gamma bands) by setting the following environment variables, either in your shell startup script or with the `Preferences` package:
 ```julia
-ENV["SM_THETA"] = (3, 10) # theta band
-ENV["SM_GAMMA"] = (30, 100) # gamma band
+using Preferences, SpatiotemporalMotifs
+set_preferences!(SpatiotemporalMotifs, "theta" => "(3, 10)", force=true) # Theta band, in Hz
+set_preferences!(SpatiotemporalMotifs, "gamma" => "(30, 100)", force=true) # Gamma band, in Hz
+```
+```bash
+# ~/.bashrc
+export SM_THETA="(3, 10)"
+export SM_GAMMA="(30, 100)"
 ```
 

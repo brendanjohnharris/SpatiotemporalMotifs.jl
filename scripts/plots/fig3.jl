@@ -35,12 +35,14 @@ begin # * Parameters
 end
 
 if !(isfile(hyperfile) && isfile(datafile)) # * Use extra workers if we can
-    if haskey(ENV, "SM_CLUSTER") && length(procs()) == 1
-        ourprocs = USydClusters.Physics.addprocs(10; mem = 20, ncpus = 8,
-                                                 project = projectdir(),
-                                                 queue = "l40s")
-    else
-        addprocs(5)
+    if nprocs() == 1
+        if haskey(ENV, "SM_CLUSTER")
+            ourprocs = USydClusters.Physics.addprocs(10; mem = 20, ncpus = 8,
+                                                     project = projectdir(),
+                                                     queue = "l40s")
+        else
+            addprocs(5)
+        end
     end
     @everywhere using SpatiotemporalMotifs
     @everywhere SpatiotemporalMotifs.@preamble
@@ -576,12 +578,15 @@ end
 begin # * Order parameters
     @info "Plotting order parameters"
     function orderparameter(Og)
-        map(Og) do O
+        out = map(Og) do O
             o = dropdims.(nansafe(mean; dims = Trial).(O), dims = Trial)
             sessionids = [metadata(_o)[:sessionid] for _o in O]
             o = [_o[(end - minimum(length.(o)) + 1):end] for _o in o]
             stack(SessionID(sessionids), o)
         end
+        ts = lookup.(Ō, 𝑡)
+        minterval = maximum(minimum.(ts)) .. minimum(maximum.(ts))
+        out = [o[𝑡 = minterval] for o in out]
     end
     begin # * Flashes
         @unpack Og = plot_data["order_parameters"]["flashes"]

@@ -8,6 +8,7 @@ using MultipleTesting
 using Optim
 using IntervalSets
 using USydClusters
+using Preferences
 
 function _preamble()
     quote
@@ -58,10 +59,10 @@ end
 function _DIR()
     dir = ""
     if (first(THETA()) != 3) || (last(THETA()) != 10)
-        dir *= "&THETA=$(THETA())"
+        dir *= "&theta=$(THETA())"
     end
     if (first(GAMMA()) != 30) || (last(GAMMA()) != 100)
-        dir *= "&GAMMA=$(GAMMA())"
+        dir *= "&gamma=$(GAMMA())"
     end
     return dir
 end
@@ -70,8 +71,16 @@ calcdir(args...; kwargs...) = projectdir("data" * _DIR(), args...; kwargs...)
 plotdir(args...; kwargs...) = projectdir("plots" * _DIR(), args...; kwargs...)
 export calcdir, plotdir
 
-THETA() = haskey(ENV, "SM_THETA") ? eval(Meta.parse(ENV["SM_THETA"])) : (3, 10)
-GAMMA() = haskey(ENV, "SM_GAMMA") ? eval(Meta.parse(ENV["SM_GAMMA"])) : (30, 100)
+function getpref(::Type{T}, prefname, envname, default = nothing) where {T}
+    ans = @load_preference(prefname, nothing)
+    ans === nothing || return eval(Meta.parse(ans))::T
+    ans = get(ENV, envname, "")
+    isempty(ans) || return eval(Meta.parse(ans))::T
+    return default::T
+end
+THETA() = getpref(NTuple{2, Number}, "theta", "SM_THETA", (3, 10))
+GAMMA() = getpref(NTuple{2, Number}, "gamma", "SM_GAMMA", (3, 10))
+CLUSTER() = getpref(Bool, "cluster", "SM_CLUSTER", false)
 const INTERVAL = -0.25u"s" .. 0.75u"s"
 const structures = ["VISp", "VISl", "VISrl", "VISal", "VISpm", "VISam"]
 const PTHR = 1e-2
