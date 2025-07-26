@@ -22,7 +22,7 @@ config = (; shuffles = 1000,
           nsur = 10)
 layerints = load(calcdir("plots", "grand_unified_layers.jld2"), "layerints")
 
-if haskey(ENV, "JULIA_DISTRIBUTED") && ENV["JULIA_DISTRIBUTED"] == "true" &&
+if haskey(ENV, "SM_CLUSTER") && ENV["SM_CLUSTER"] == "true" &&
    nprocs() == 1 && !isfile(calcdir("plots", "figS3_" * savepath(config, "jld2"))) # * Initialize workers
     addprocs(15)
     @everywhere using DrWatson

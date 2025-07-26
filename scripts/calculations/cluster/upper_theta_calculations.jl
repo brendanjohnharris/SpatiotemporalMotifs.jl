@@ -21,7 +21,7 @@ rewrite = false
 check_quality = true
 mkpath(outpath)
 
-if haskey(ENV, "JULIA_DISTRIBUTED") # ? Should take a night or so
+if haskey(ENV, "SM_CLUSTER") # ? Should take a night or so
     exprs = map(oursessions) do sessionid
         expr = quote
             ENV["SM_THETA"] = $(ENV["SM_THETA"])

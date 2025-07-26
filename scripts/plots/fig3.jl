@@ -12,6 +12,7 @@ using Unitful
 import DimensionalData: metadata
 using MultivariateStats
 using SpatiotemporalMotifs
+using USydClusters
 @preamble
 set_theme!(foresight(:physics))
 Random.seed!(32)
@@ -28,21 +29,21 @@ begin # * Parameters
     regcoef = 0.5 # Set approximately after inspecting the hyperparameter search
     folds = 5
     repeats = 20
-    path = "calculations&THETA=(3, 5)" # * Change if needed
+    path = "calculations"
 
     config = @strdict regcoef folds repeats path
 end
 
 if !(isfile(hyperfile) && isfile(datafile)) # * Use extra workers if we can
-    if haskey(ENV, "JULIA_DISTRIBUTED") && length(procs()) == 1 &&
-       using USydClusters
+    if haskey(ENV, "SM_CLUSTER") && length(procs()) == 1
         ourprocs = USydClusters.Physics.addprocs(10; mem = 20, ncpus = 8,
                                                  project = projectdir(),
                                                  queue = "l40s")
-        @everywhere include(joinpath(homedir(), ".julia", "config", "startup.jl"))
-        @everywhere using SpatiotemporalMotifs
-        @everywhere SpatiotemporalMotifs.@preamble
+    else
+        addprocs(5)
     end
+    @everywhere using SpatiotemporalMotifs
+    @everywhere SpatiotemporalMotifs.@preamble
 end
 
 plot_data, data_file = produce_or_load(config, calcdir("plots");
@@ -84,8 +85,8 @@ plot_data, data_file = produce_or_load(config, calcdir("plots");
         end
 
         begin # * Passive trials?
-            stimulus = "Natural_Images_passive_nochange"
-            Q = calcquality(path)[Structure = At(structures)]
+            stimulus = "Natural_Images_passive"
+            Q = calcquality(path; require = ["θ"])[Structure = At(structures)]
             quality = mean(Q[stimulus = At(stimulus)])
             out = load_calculations(Q; stimulus, vars, path)
 
@@ -217,9 +218,6 @@ plot_data, data_file = produce_or_load(config, calcdir("plots");
                 end
             else # Run calculations; needs to be on a cluster
                 if !isfile(hyperfile)
-                    if !haskey(ENV, "JULIA_DISTRIBUTED")
-                        error("Calculations must be run on a cluster, set ENV[\"JULIA_DISTRIBUTED\"] to confirm this.")
-                    end
                     begin # * Get a rough estimate for a good hyperparameter. Currently on pre-offset data. This gives us ~0.5 as a good estimate
                         hfile = calcdir("plots", "hyperparameters", "theta_waves_task.jld2")
                         hyperr = pmap(SpatiotemporalMotifs.tuneclassifier, H)
@@ -250,7 +248,7 @@ plot_data, data_file = produce_or_load(config, calcdir("plots");
                     end
 
                     bac_sur = pmap(H) do h
-                        h = h[𝑡 = -0.25u"s" .. 0.25u"s"]
+                        hs = h[𝑡 = -0.25u"s" .. 0.25u"s"]
                         idxs = randperm(size(h, Trial))
                         h = set(h, Trial => lookup(h, Trial)[idxs])
                         bac = classify_kfold(h; regcoef, k = folds, repeats)

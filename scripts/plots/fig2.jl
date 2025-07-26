@@ -200,7 +200,7 @@ for stimulus in stimuli
             if isfile(file)
                 χ, b, L = load(file, "χ", "b", "L")
             else
-                if haskey(ENV, "JULIA_DISTRIBUTED") && length(procs()) == 1 # We have no running workers, but we could
+                if haskey(ENV, "SM_CLUSTER") && length(procs()) == 1 # We have no running workers, but we could
                     using USydClusters
                     USydClusters.Physics.addprocs(64; mem = 32, ncpus = 6,
                                                   project = projectdir()) # ? Can reuse these for the following bac calculations

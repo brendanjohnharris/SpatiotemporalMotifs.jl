@@ -87,7 +87,7 @@ This script must be run on a high-performance computing cluster, and will need t
 
 #### [Calculations](scripts/calculations/cluster/calculations.jl)
 
-This script performs the bulk of the wave-based calculations, and must be run on a high-performance computing cluster. If you have configured a custom [ClusterManager](https://github.com/JuliaParallel/ClusterManagers.jl), you can set the `ENV["JULIA_DISTRIBUTED"]=true` to have this file distribute calculations across multiple processes. Otherwise, the script will take about 2 days to run on a single high-memory (>64GB) machine.
+This script performs the bulk of the wave-based calculations, and must be run on a high-performance computing cluster. If you have configured a custom [ClusterManager](https://github.com/JuliaParallel/ClusterManagers.jl), you can set the `ENV["SM_CLUSTER"]=true` to have this file distribute calculations across multiple processes. Otherwise, the script will take about 2 days to run on a single high-memory (>64GB) machine.
 
 #### [Collecting calculations](scripts/calculations/collect_calculations.jl)
 

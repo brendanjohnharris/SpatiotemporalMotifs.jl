@@ -83,6 +83,7 @@ DimensionalData.@dim Structure ToolsDim "Structure"
 const Freq = TimeseriesTools.𝑓
 export SessionID, Trial, Structure, Freq
 
+check_keys(D, required_keys) = all(haskey.([D], required_keys))
 function check_calc_keys(D)
     required_keys = [
         "trials",
@@ -95,7 +96,7 @@ function check_calc_keys(D)
         "pass_γ",
         "performance_metrics"
     ]
-    return all(haskey.([D], required_keys))
+    return check_keys(D, required_keys)
 end
 
 function tmap(f, d::DimensionalData.Dimension; kwargs...)
@@ -108,7 +109,7 @@ Check the quality of the collected calculations files e.g. `out&stimulus=...`
 function calcquality(; path = calcdir(), fallbackpath = calcdir("calculations"),
                      prefix = "out", suffix = "jld2",
                      connector = connector)
-    _Q = calcquality(fallbackpath; suffix, connector, tryload = false)
+    _Q = calcquality(fallbackpath; suffix, connector, require = false)
     if !all(_Q)
         error("Some calculation files are missing or have errors. Please rerun `scripts/calculations/calculations.jl`.") |>
         throw
@@ -186,7 +187,13 @@ end
 """
 Check the quality of a a calculations directory e.g. data/calculations/`
 """
-function calcquality(dirname; suffix = "jld2", connector = connector, tryload = true)
+function calcquality(dirname; suffix = "jld2", connector = connector, require = true)
+    if !(require isa Bool)
+        _require = require
+        require = true
+    else
+        _require = []
+    end
     @info "Checking quality of calculations in `$dirname`"
     files = readdir(dirname)
     threadlog = Threads.Atomic{Int}(0)
@@ -199,10 +206,11 @@ function calcquality(dirname; suffix = "jld2", connector = connector, tryload = 
             _, parameters, _suffix = parse_savename(f; connector)
             if _suffix == suffix
                 try
-                    if tryload
+                    if require
                         cannotload = jldopen(f, "r"; iotype = IOStream) do fl
-                            fl["performance_metrics"] # Can load
-                            haskey(fl, "error") || !check_calc_keys(fl)
+                            # fl["performance_metrics"] # Can load
+                            haskey(fl, "error") || !check_calc_keys(fl) ||
+                                !check_keys(fl, string.(_require))
                         end
                     else
                         cannotload = false
@@ -216,7 +224,7 @@ function calcquality(dirname; suffix = "jld2", connector = connector, tryload = 
                 end
                 lock(lk) do
                     push!(ps, parameters) # Only add to list of good files if file exists and has no error
-                    if tryload
+                    if require
                         if Threads.threadid() ∈ 1:2
                             Threads.atomic_add!(threadlog, Threads.nthreads() ÷ 2)
                             @logprogress threadlog[] / threadmax

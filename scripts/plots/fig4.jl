@@ -23,7 +23,7 @@ begin
 end
 
 if !isfile(calcdir("plots", "fig4.jld2")) # * Use extra workers if we can
-    if haskey(ENV, "JULIA_DISTRIBUTED") && length(procs()) == 1
+    if haskey(ENV, "SM_CLUSTER") && length(procs()) == 1
         using USydClusters
         USydClusters.Physics.addprocs(8; mem = 16, ncpus = 4,
                                       project = projectdir())
