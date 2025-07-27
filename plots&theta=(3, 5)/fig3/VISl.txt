@@ -1,3 +1,0 @@
-## VISl average wavenumbers
-Average wavenumber (median ± IQR) = 0.35607657f0 mm⁻¹ ± 4.688943147659302 mm⁻¹
-Average wavenumber magnitude (median ± IQR) = 2.3688982f0 mm⁻¹ ± 4.418245315551758 mm⁻¹
