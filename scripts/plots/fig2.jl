@@ -31,9 +31,11 @@ plot_data, data_file = produce_or_load(Dict(), calcdir("plots");
     session_table = load(calcdir("posthoc_session_table.jld2"), "session_table")
     oursessions = session_table.ecephys_session_id
     path = calcdir("power_spectra")
+    QQ = calcquality(path)
     plot_data = map(stimuli) do stimulus
-        Q = calcquality(path)[stimulus = At(stimulus), Structure = At(structures)]
-        Q = Q[SessionID(At(oursessions))]
+        Q = QQ[stimulus = At(stimulus),
+               Structure = At(structures),
+               SessionID(At(oursessions))]
         @assert mean(Q) > 0.9
 
         begin # * Load data

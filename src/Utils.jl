@@ -93,7 +93,7 @@ const Freq = TimeseriesTools.𝑓
 export SessionID, Trial, Structure, Freq
 
 check_keys(D, required_keys) = all(haskey.([D], required_keys))
-function check_calc_keys(D)
+function check_calc_keys(calctype::Val{:calculations}, D)
     required_keys = [
         "trials",
         "channels",
@@ -104,6 +104,17 @@ function check_calc_keys(D)
         "pass_θ",
         "pass_γ",
         "performance_metrics"
+    ]
+    return check_keys(D, required_keys)
+end
+function check_calc_keys(calctype::Val{:power_spectra}, D)
+    required_keys = [
+        "sC",
+        "S",
+        "C",
+        "unitdepths",
+        "R",
+        "sR"
     ]
     return check_keys(D, required_keys)
 end
@@ -196,13 +207,15 @@ end
 """
 Check the quality of a a calculations directory e.g. data/calculations/`
 """
-function calcquality(dirname; suffix = "jld2", connector = connector, require = true)
+function calcquality(dirname, calctype::Symbol = (Symbol ∘ last ∘ splitpath)(dirname);
+                     suffix = "jld2", connector = connector, require = true)
     if !(require isa Bool)
         _require = require
         require = true
     else
         _require = []
     end
+
     @info "Checking quality of calculations in `$dirname`"
     files = readdir(dirname)
     threadlog = Threads.Atomic{Int}(0)
@@ -218,7 +231,7 @@ function calcquality(dirname; suffix = "jld2", connector = connector, require = 
                     if require
                         cannotload = jldopen(f, "r"; iotype = IOStream) do fl
                             # fl["performance_metrics"] # Can load
-                            haskey(fl, "error") || !check_calc_keys(fl) ||
+                            haskey(fl, "error") || !check_calc_keys(Val(calctype), fl) ||
                                 !check_keys(fl, string.(_require))
                         end
                     else
