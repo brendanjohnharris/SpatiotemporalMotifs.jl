@@ -10,11 +10,11 @@ SM.@preamble
 set_theme!(foresight(:physics))
 ENV["JULIA_DEBUG"] = "AllenNeuropixelsBase"
 
+path = calcdir("power_spectra")
+mkpath(path)
 stimuli = ["spontaneous", "flash_250ms", r"Natural_Images"]
 session_table = load(calcdir("session_table.jld2"), "session_table")
 oursessions = session_table.ecephys_session_id
-
-isdir(calcdir("power_spectra")) || mkpath(calcdir("power_spectra"))
 
 rewrite = false
 retry_errors = true
@@ -28,6 +28,8 @@ _params = Iterators.product(oursessions, stimuli, unique(pstructures)) |> collec
 idxs = map(xy -> SM.powerspectra_quality(xy...; rewrite,
                                          retry_errors), _params)
 params = _params[.!idxs]
+
+Q = SM.calcquality(path)
 
 if haskey(ENV, "SM_CLUSTER") && !isempty(params)
     exprs = map(params) do (o, stimulus, structure)
@@ -51,5 +53,26 @@ else
     @progress for param in _params
         SM.send_powerspectra(param...; rewrite, retry_errors)
         GC.gc()
+    end
+end
+
+begin
+    dir = "/import/taiji1/bhar9988/code/DDC/SpatiotemporalMotifs/data/power_spectra"
+    files = readdir(dir)
+
+    map(files) do file
+        _, params, _ = parse_savename(file; connector = SpatiotemporalMotifs.connector)
+        plotfile = joinpath(calcdir("plots", "power_spectra"), "$(params["sessionid"])",
+                            "$(params["stimulus"])_$(params["structure"]).pdf")
+        plotfile = relpath(plotfile, projectdir())
+
+        pac_plotfile = joinpath(calcdir("plots", "power_spectra"),
+                                "$(params["sessionid"])",
+                                "$(params["stimulus"])_$(params["structure"])_pac.pdf")
+        pac_plotfile = relpath(pac_plotfile, projectdir())
+
+        jldopen(joinpath(dir, file), "a+") do f
+            f["plotfiles"] = [plotfile, pac_plotfile]
+        end
     end
 end

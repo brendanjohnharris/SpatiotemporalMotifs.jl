@@ -92,8 +92,8 @@ DimensionalData.@dim Structure ToolsDim "Structure"
 const Freq = TimeseriesTools.𝑓
 export SessionID, Trial, Structure, Freq
 
-check_keys(D, required_keys) = all(haskey.([D], required_keys))
-function check_calc_keys(calctype::Val{:calculations}, D)
+has_keys(D, required_keys) = all(haskey.([D], required_keys))
+function has_calc_keys(calctype::Val{:calculations}, D)
     required_keys = [
         "trials",
         "channels",
@@ -105,18 +105,20 @@ function check_calc_keys(calctype::Val{:calculations}, D)
         "pass_γ",
         "performance_metrics"
     ]
-    return check_keys(D, required_keys)
+    return has_keys(D, required_keys)
 end
-function check_calc_keys(calctype::Val{:power_spectra}, D)
+function has_calc_keys(calctype::Val{:power_spectra}, D)
     required_keys = [
         "sC",
         "S",
         "C",
         "unitdepths",
         "R",
-        "sR"
+        "sR",
+        "plotfiles"
     ]
-    return check_keys(D, required_keys)
+    return (haskey(D, "error") && contains(D["error"], "Region error")) ||
+           (has_keys(D, required_keys) && all(isfile.(projectdir.(D["plotfiles"]))))
 end
 
 function tmap(f, d::DimensionalData.Dimension; kwargs...)
@@ -229,15 +231,15 @@ function calcquality(dirname, calctype::Symbol = (Symbol ∘ last ∘ splitpath)
             if _suffix == suffix
                 try
                     if require
-                        cannotload = jldopen(f, "r"; iotype = IOStream) do fl
+                        canload = jldopen(f, "r"; iotype = IOStream) do fl
                             # fl["performance_metrics"] # Can load
-                            haskey(fl, "error") || !check_calc_keys(Val(calctype), fl) ||
-                                !check_keys(fl, string.(_require))
+                            return has_calc_keys(Val(calctype), fl) &&
+                                   has_keys(fl, string.(_require))
                         end
                     else
-                        cannotload = false
+                        canload = true
                     end
-                    if cannotload
+                    if !canload
                         continue
                     end
                 catch e
@@ -367,39 +369,40 @@ function layernum2name(num)
     end
 end
 
-function isbad(outfile; retry_errors = true, check_other_file = false)
-    if !isfile(outfile)
-        return true
-    end
-    if isnothing(check_other_file)
-        check_other_file = true
-    else
-        check_other_file = isfile(check_other_file)
-    end
-    if retry_errors
-        try
-            jldopen(outfile, "r") do f
-                ind = haskey(f, "error")
-                if ind
-                    if contains(f["error"], "Region error")
-                        return false
-                    else
-                        return check_other_file
-                    end
-                else
-                    return false
-                end
-            end
-        catch e
-            @warn e
-            @warn "Could not open $outfile"
-            return true
-        end
-    else
-        @info "File `$outfile` exists but contains an error. It will not be overwritten as $retry_errors is `false`."
-        return false
-    end
-end
+# function isbad(outfile; retry_errors = true, check_other_file = false)
+#     if !isfile(outfile)
+#         return true
+#     end
+#     if isnothing(check_other_file)
+#         check_other_file = true
+#     else
+#         check_other_file = isfile(check_other_file)
+#     end
+#     if retry_errors
+#         try
+#             jldopen(outfile, "r") do f
+#                 ind = haskey(f, "error")
+#                 if ind
+#                     if contains(f["error"], "Region error")
+#                         Main.@infiltrate
+#                         return false
+#                     else
+#                         return check_other_file
+#                     end
+#                 else
+#                     return false
+#                 end
+#             end
+#         catch e
+#             @warn e
+#             @warn "Could not open $outfile"
+#             return true
+#         end
+#     else
+#         @info "File `$outfile` exists but contains an error. It will not be overwritten as $retry_errors is `false`."
+#         return false
+#     end
+# end
 
 function on_error(e)
     @warn e

@@ -3,23 +3,22 @@ using JLD2
 using TimeseriesTools
 using UnPack
 
-function powerspectra_quality(sessionid, stimulus, structure;
-                              outpath = calcdir("power_spectra"),
-                              plotpath = calcdir("plots", "power_spectra_plots"),
-                              rewrite = false, retry_errors = true)
-    plotfile = joinpath(plotpath, "$(sessionid)",
-                        "$(stimulus)_$(structure)_pac.pdf")
-    outfile = savepath(Dict("sessionid" => sessionid,
-                            "stimulus" => stimulus,
-                            "structure" => structure), "jld2", outpath)
-    badis = rewrite || isbad(outfile; retry_errors, check_other_file = plotfile)
-    return !badis
-end
+# function powerspectra_quality(sessionid, stimulus, structure;
+#                               outpath = calcdir("power_spectra"),
+#                               plotpath = calcdir("plots", "power_spectra_plots"),
+#                               rewrite = false, retry_errors = true)
+#     plotfile = joinpath(plotpath, "$(sessionid)",
+#                         "$(stimulus)_$(structure)_pac.pdf")
+#     outfile = savepath(Dict("sessionid" => sessionid,
+#                             "stimulus" => stimulus,
+#                             "structure" => structure), "jld2", outpath)
+#     badis = rewrite || isbad(outfile; retry_errors, check_other_file = plotfile)
+#     return !badis
+# end
 
 function send_powerspectra(sessionid, stimulus, structure;
                            outpath = calcdir("power_spectra"),
-                           plotpath = calcdir("plots", "power_spectra_plots"),
-                           rewrite = false, retry_errors = true)
+                           plotpath = calcdir("plots", "power_spectra"))
     params = (;
               sessionid,
               epoch = :longest,
@@ -39,13 +38,14 @@ function send_powerspectra(sessionid, stimulus, structure;
                             "structure" => structure), "jld2", outpath)
     @info outfile
 
-    plotfile = joinpath(plotpath, "$(_params[:sessionid])",
-                        "$(_params[:stimulus])_$(_params[:structure]).pdf")
+    fstimulus = _params[:stimulus] isa Regex ? _params[:stimulus].pattern :
+                _params[:stimulus]
 
-    if !rewrite && !isbad(outfile; retry_errors, check_other_file = plotfile)
-        @info "Already calculated: $(stimulus), $(structure), $(params[:sessionid])"
-        return
-    end
+    plotfile = joinpath(plotpath, "$(_params[:sessionid])",
+                        "$(fstimulus)_$(_params[:structure]).pdf")
+    pac_plotfile = joinpath(plotpath, "$(_params[:sessionid])",
+                            "$(fstimulus)_$(_params[:structure])_pac.pdf")
+
     if isempty(ssession) # Only initialize session if we have to
         session = AN.Session(params[:sessionid])
         push!(ssession, session)
@@ -136,10 +136,8 @@ function send_powerspectra(sessionid, stimulus, structure;
                          colormap = seethrough(reverse(sunrise)), rasterize = 5)
             c = Colorbar(f[1, 2], p; label = "Mean modulation strength")
             mkpath(joinpath(plotpath, "$(_params[:sessionid])"))
-            plotfile = joinpath(plotpath, "$(_params[:sessionid])",
-                                "$(_params[:stimulus])_$(_params[:structure])_pac.pdf")
-            wsave(plotfile, f)
-            @info "Saved plot to `$plotfile`"
+            wsave(pac_plotfile, f)
+            @info "Saved plot to `$pac_plotfile`"
         end
 
         # * Format data for saving
@@ -219,7 +217,8 @@ function send_powerspectra(sessionid, stimulus, structure;
                     "sC" => sC .|> Float32,
                     "R" => R .|> Float32,
                     "sR" => sR .|> Float32,
-                    "unitdepths" => unitdepths)
+                    "unitdepths" => unitdepths,
+                    "plotfiles" => relpath.([plotfile, pac_plotfile], [projectdir()]))
         tagsave(outfile, outD)
 
         GC.safepoint()
@@ -450,7 +449,7 @@ function send_calculations(D::Dict, session = AN.Session(D["sessionid"]);
                 end
 
                 # * Check required keys
-                if !check_calc_keys(fl)
+                if !has_calc_keys(fl)
                     @error "Missing keys in $(outfile)"
                     return false
                 end
