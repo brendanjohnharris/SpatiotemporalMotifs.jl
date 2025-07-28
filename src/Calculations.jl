@@ -3,19 +3,6 @@ using JLD2
 using TimeseriesTools
 using UnPack
 
-# function powerspectra_quality(sessionid, stimulus, structure;
-#                               outpath = calcdir("power_spectra"),
-#                               plotpath = calcdir("plots", "power_spectra_plots"),
-#                               rewrite = false, retry_errors = true)
-#     plotfile = joinpath(plotpath, "$(sessionid)",
-#                         "$(stimulus)_$(structure)_pac.pdf")
-#     outfile = savepath(Dict("sessionid" => sessionid,
-#                             "stimulus" => stimulus,
-#                             "structure" => structure), "jld2", outpath)
-#     badis = rewrite || isbad(outfile; retry_errors, check_other_file = plotfile)
-#     return !badis
-# end
-
 function send_powerspectra(sessionid, stimulus, structure;
                            outpath = calcdir("power_spectra"),
                            plotpath = calcdir("plots", "power_spectra"))
@@ -52,7 +39,7 @@ function send_powerspectra(sessionid, stimulus, structure;
     else
         session = ssession[1]
     end
-    @info "Calculating $(stimulus) LFP in $(structure) for session $(params[:sessionid])"
+    # @info "Calculating $(stimulus) LFP in $(structure) for session $(params[:sessionid])"
     try
         probestructures = AN.getprobestructures(session)
         probestructures = unique(vcat(values(probestructures)...))
@@ -114,15 +101,16 @@ function send_powerspectra(sessionid, stimulus, structure;
         end
 
         # * Calculate a comodulogram for these time series
+        # @info "Calculating comodulogram for $(stimulus) LFP in $(structure) for session $(params[:sessionid])"
         c = x -> comodulogram(ustripall(x); fs = ustripall(samplingrate(LFP)),
                               fₚ = 3:0.25:12,
                               fₐ = 25:1:125, dp = 2, da = 20)
         N = min(360000, size(LFP, 1))
-        C = progressmap(c, eachslice(LFP[1:N, :], dims = 2); parallel = true)
+        C = map(c, eachslice(LFP[1:N, :], dims = 2))
         C = stack(dims(LFP[1:N, :], Chan), ToolsArray.(C), dims = 3)
         sLFP = mapslices(x -> surrogate(ustripall(parent(x)), IAAFT()), LFP[1:N, :],
                          dims = 1)
-        sC = progressmap(c, eachslice(sLFP, dims = 2); parallel = true)
+        sC = map(c, eachslice(sLFP, dims = 2))
         sC = stack(dims(LFP[1:N, :], Chan), ToolsArray.(sC), dims = 3)
 
         begin
@@ -229,9 +217,10 @@ function send_powerspectra(sessionid, stimulus, structure;
         @warn e
         tagsave(outfile, Dict("error" => sprint(showerror, e)))
     end
-    @info "Finished calculations"
+    # @info "Finished calculations"
     GC.safepoint()
     GC.gc()
+    return outfile
 end
 
 function joint_rectify(LFP, spiketimes, stimulustimes)
@@ -781,30 +770,6 @@ function collect_calculations(Q; path = calcdir("calculations"), stimulus,
         end
         @info "Finished collecting data, saved to `$outfilepath`"
     end
-    # if rewrite == false
-    #     @info "Already calculated: $(stimulus). Checking quality"
-    #     jldopen(outfilepath, "a+") do outfile
-    #         sessionids = [keys(outfile[s]) for s in structures]
-    #         if length(unique(sessionids)) > 1
-    #             throw(error("Not all structures returned the same sessions. Attempting to repair"))
-    #         end
-    #         # sessionids = unique(vcat(sessionids...))
-    #         # for sessionid in sessionids
-    #         #     for structure in structures
-    #         #         if !haskey(outfile[structure], sessionid)
-    #         #             @warn "Missing $(structure) $(sessionid)"
-    #         #             sessionid = tryparse(Int, sessionid)
-    #         #             if Q[SessionID = At(sessionid), Structure = At(structure),
-    #         #                  stimulus = At(stimulus)] == 0
-    #         #                 return nothing
-    #         #             end
-    #         #             _collect_calculations(outfile; sessionid, structure, stimulus, path,
-    #         #                                   subvars)
-    #         #         end
-    #         #     end
-    #         # end
-    #     end
-    # end
     return outfilepath
 end
 
@@ -953,17 +918,6 @@ function unify_calculations(Q; stimulus, vars = sort([:V, :csd, :θ, :ϕ, :r, :k
     return unifilepath
 end
 
-# function produce_out(Q::AbstractToolsArray, config; path = calcdir("calculations"))
-#     out = load_calculations(Q; path, stimulus = config["stimulus"], vars = config["vars"])
-#     @strdict out
-# end
-# produce_out(Q::AbstractToolsArray; kwargs...) = config -> produce_out(Q, config; kwargs...)
-# produce_out(; kwargs...) = config -> produce_out(config; kwargs...)
-# function produce_out(config; path = calcdir("calculations"),
-#                      structures = SpatiotemporalMotifs.structures)
-#     Q = calcquality(path)[Structure = At(structures)]
-#     return produce_out(Q, config; path)
-# end
 function load_uni(; stimulus, vars = sort([:V, :csd, :θ, :ϕ, :r, :k, :ω]),
                   path = calcdir("calculations"),
                   structures = SpatiotemporalMotifs.structures,

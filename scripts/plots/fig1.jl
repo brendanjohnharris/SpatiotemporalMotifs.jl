@@ -5,6 +5,8 @@ exec julia +1.10.10 -t auto "${BASH_SOURCE[0]}" "$@"
 using DrWatson
 @quickactivate "SpatiotemporalMotifs"
 using SpatiotemporalMotifs
+import AllenNeuropixelsBase as ANB
+using PythonCall
 using Peaks
 @preamble
 set_theme!(foresight(:physics))
@@ -33,8 +35,8 @@ plot_data, data_file = produce_or_load(copy(config), calcdir("plots");
             spikes = file["spiketimes"]
 
             V = file["V"][:, :, trial] .|> Float32
-            x = file["x"][:, :, trial] .|> Float32
-            y = file["y"][:, :, trial] .|> Float32
+            x = file["θ"][:, :, trial] .|> Float32
+            y = file["γ"][:, :, trial] .|> Float32
             ϕ = file["ϕ"][:, :, trial] .|> Float32
             k = file["k"][:, :, trial] .|> Float32
             ω = file["ω"][:, :, trial] .|> Float32
@@ -51,6 +53,26 @@ plot_data, data_file = produce_or_load(copy(config), calcdir("plots");
                                        stimulus = (lookup(Q, :stimulus) .==
                                                    stimulus)])
         out["unitdepths"] = unitdepths
+
+        begin # * Stimulus examples
+            sessionid = SpatiotemporalMotifs.DEFAULT_SESSION_ID
+            session = ANB.Session(sessionid)
+            df = session.pyObject.stimulus_templates |> ANB.py2df
+
+            imgs = map(enumerate(eachrow(df))) do (i, d)
+                _img = d.unwarped
+                img = fill(Makie.RGBA(0, 0, 0, 0), size(_img))
+                is = _img[.!isnan.(_img)] ./ 255
+                img[.!isnan.(_img)] .= Makie.RGBA.(is, is, is, 1.0)
+            end
+
+            _img = df[1, :unwarped]
+            img = fill(Makie.RGBA(0, 0, 0, 0), size(_img))
+            img[.!isnan.(_img)] .= Makie.RGBA.(0.5, 0.5, 0.5, 1.0)
+            prepend!(imgs, img)
+
+            out["stimulus_examples"] = imgs
+        end
         return out
     end
     return Dict(structures .=> plot_data)
@@ -130,7 +152,7 @@ begin # ? Figure 1A
                   (t2 + dt, 0.3) # * Upper 1
                   (0.1, 0.54)]
             σs = [2, 4, 6, 7, 6]
-            amps = [0.75, 0.75, 1.0, 1.0, 0]
+            amps = [0.75, 0.75, 1.0, 1.0, 0] .* 1.5
 
             peaks .= sum([[a .* g(x .- i[1], y .- i[2]; σ) for (x, y) in peakgrid]
                           for (i, σ, a) in zip(is, σs, amps)])
@@ -156,7 +178,7 @@ begin # ? Figure 1A
             cmat = [Makie.RGBA(c.r, c.g, c.b, _l) for (c, _l) in zip(cmat, l)]
             surface!(ax, decompose(S)..., color = collect(cmat), alpha = 0.9,
                      specular = 0.1,
-                     rasterize = 6)
+                     rasterize = 5)
 
             cl = Makie.Contours.contours(decompose(peaks)..., [0.25])
             cl = Makie.Contours.levels(cl)[1]
@@ -210,24 +232,9 @@ begin # ? Figure 1A
     f
 
     if false # * Save a few representative stimulus images
-        import AllenNeuropixelsBase as ANB
-        using PythonCall
-        sessionid = SpatiotemporalMotifs.DEFAULT_SESSION_ID
-        session = ANB.Session(sessionid)
-        df = session.pyObject.stimulus_templates |> ANB.py2df
-
-        map(enumerate(eachrow(df))) do (i, d)
-            _img = d.unwarped
-            img = fill(Makie.RGBA(0, 0, 0, 0), size(_img))
-            is = _img[.!isnan.(_img)] ./ 255
-            img[.!isnan.(_img)] .= Makie.RGBA.(is, is, is, 1.0)
-            save(plotdir("fig1", "natural_images", "natural_images_$i.png"), img)
+        map(enumerate(plot_data["stimulus_examples"])) do (i, img)
+            save(plotdir("fig1", "stimulus_examples", "natural_images_$i.png"), img)
         end
-
-        _img = df[1, :unwarped]
-        img = fill(Makie.RGBA(0, 0, 0, 0), size(_img))
-        img[.!isnan.(_img)] .= Makie.RGBA.(0.5, 0.5, 0.5, 1.0)
-        save(plotdir("fig1", "natural_images", "natural_images_0.png"), img)
     end
     f
 end

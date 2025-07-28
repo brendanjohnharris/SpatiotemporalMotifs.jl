@@ -1,7 +1,6 @@
 using Random
 using MultivariateStats
 using HypothesisTests
-using RobustModels
 using Distributed
 import Bootstrap
 using MultipleTesting
@@ -12,6 +11,8 @@ using Preferences
 
 function _preamble()
     quote
+        using Suppressor
+        import AllenNeuropixels as AN
         using Statistics
         using StatsBase
         using MultivariateStats
@@ -19,8 +20,6 @@ function _preamble()
         using LinearAlgebra
         using Unitful
         using FileIO
-        import AllenNeuropixels as AN
-        using ComplexityMeasures
         using Clustering
         using CairoMakie
         using DataFrames
@@ -369,41 +368,6 @@ function layernum2name(num)
     end
 end
 
-# function isbad(outfile; retry_errors = true, check_other_file = false)
-#     if !isfile(outfile)
-#         return true
-#     end
-#     if isnothing(check_other_file)
-#         check_other_file = true
-#     else
-#         check_other_file = isfile(check_other_file)
-#     end
-#     if retry_errors
-#         try
-#             jldopen(outfile, "r") do f
-#                 ind = haskey(f, "error")
-#                 if ind
-#                     if contains(f["error"], "Region error")
-#                         Main.@infiltrate
-#                         return false
-#                     else
-#                         return check_other_file
-#                     end
-#                 else
-#                     return false
-#                 end
-#             end
-#         catch e
-#             @warn e
-#             @warn "Could not open $outfile"
-#             return true
-#         end
-#     else
-#         @info "File `$outfile` exists but contains an error. It will not be overwritten as $retry_errors is `false`."
-#         return false
-#     end
-# end
-
 function on_error(e)
     @warn e
     return false
@@ -421,15 +385,15 @@ allowedtypes = (Real, String, Regex, Symbol, TimeType, Vector, Tuple)
 
 symextrema(x) = (m = maximum(abs.(extrema(x))); (-m, m))
 
-function savepath(D::Union{Dict, NamedTuple}, ext = "", args...)
+function savepath(D::Union{Dict, NamedTuple}, ext::String = "", args...)
     filename = savename(D, ext; connector, val_to_string, allowedtypes)
     return joinpath(args..., filename)
 end
-function savepath(prefix::String, D::Union{Dict, NamedTuple}, ext = "", args...)
+function savepath(prefix::String, D::Union{Dict, NamedTuple}, ext::String = "", args...)
     filename = savename(prefix, D, ext; connector, val_to_string, allowedtypes)
     return joinpath(args..., filename)
 end
-savepath(prefix::String) = (args...) -> savepath(prefix, args...)
+savepath(prefix::String, aargs...) = (args...) -> savepath(prefix, args..., aargs...)
 
 function unique_inverse(A::AbstractArray)
     out = Array{eltype(A)}(undef, 0)
@@ -572,72 +536,6 @@ function tuneclassifier(H; r0 = 0.5, repeats = 10, k = 5, kwargs...)
                  Optim.Options(; iterations = 10))
     return exp10(only(o.minimizer)), -o.minimum
 end
-
-# mutable struct Regressor{T}
-#     a::Vector{T}
-#     b::T
-# end
-# function (M::Regressor{T})(x::AbstractMatrix{<:T})::Vector{T} where {T}
-#     return M.a' * x .+ M.b |> vec |> collect
-# end
-
-# function regressor(h::AbstractMatrix, targets; regcoef = 0.1)
-#     N = fit(Normalization.MixedZScore, h; dims = 2)
-#     h = normalize(h, N)
-#     # a..., b = ridge(h', convert.(eltype(h), targets), regcoef)
-#     idxs = 0.2 .< targets .< 1 # Remove outliers
-#     # idxs = trues(length(targets))
-
-#     # # m = fit(LassoPath, Float64.(h[:, idxs]'), Float64.(targets[idxs]))
-#     # m = fit(RobustLinearModel, Float64.(h[:, idxs]'), Float64.(targets[idxs]),
-#     #         MEstimator{HuberLoss}(); σ0 = 2)
-
-#     HuberRegressor = MLJ.@load HuberRegressor verbosity=0 pkg=MLJScikitLearnInterface
-#     h = DataFrame(h[:, idxs]', Symbol.(1:size(h, 1)))
-#     mach = MLJ.machine(HuberRegressor(; max_iter = 10000, alpha = regcoef), h,
-#                        targets[idxs])
-#     MLJ.fit!(mach; verbosity = 0)
-
-#     # M = Regressor(a, b)
-#     M = x -> MLJ.predict(mach, DataFrame(x', Symbol.(1:size(x, 1))))
-#     return N, M
-# end
-
-# function regressor(H::AbstractArray{T, 3}, targets; dim = Trial, regcoef = 0.1) where {T}
-#     negdims = setdiff(1:ndims(H), [dimnum(H, dim)])
-#     negsize = size(H)[negdims]
-#     h = reshape(H, (prod(negsize), size(H, dim))) # Flattened data, _ × trial
-#     regressor(h, targets; regcoef)
-# end
-
-# function regress_kfold(H, reaction_times, rng::AbstractRNG = Random.default_rng(); k = 5,
-#                        dim = Trial,
-#                        kwargs...)
-#     labels = lookup(H, dim)
-#     @assert eltype(labels) == Bool
-#     negdims = setdiff(1:ndims(H), [dimnum(H, dim)])
-#     negsize = size(H)[negdims]
-#     h = reshape(H, (prod(negsize), size(H, dim))) # Flattened data, _ × trial
-
-#     h = h[:, .!isnan.(reaction_times)]
-#     reaction_times = reaction_times[.!isnan.(reaction_times)]
-
-#     trains, tests = crossvalidate(length(reaction_times), k, rng)
-
-#     ρ = map(trains, tests) do train, test
-#         try
-#             N, M = regressor(h[:, train], reaction_times[train]; kwargs...)
-#             y = reaction_times[test] |> collect
-#             ŷ = M(normalize(h[:, test], N))[:]
-#             ρ = corspearman(y, ŷ)
-#             return ρ
-#         catch e
-#             @warn e
-#             return NaN
-#         end
-#     end
-#     return mean(ρ) # Use fisher z transform
-# end
 
 function ppc(x::AbstractVector{T})::T where {T} # Eq. 14 of Vinck 2010
     isempty(x) && return NaN

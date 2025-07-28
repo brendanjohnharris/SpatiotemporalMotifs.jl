@@ -2,8 +2,8 @@ module SpatiotemporalMotifs
 import SpatiotemporalMotifs as SM
 using DrWatson.Dates
 using DimensionalData
-using PythonCall
-using Conda
+using Suppressor
+@suppress using PythonCall
 # using StatsBase
 using JLD2
 using CairoMakie
@@ -21,11 +21,10 @@ using TimeseriesSurrogates
 # using TimeseriesTools.Unitful
 using ModulationIndices
 using DataFrames
-using ComplexityMeasures
 using JSON
 # using DrWatson
-import AllenNeuropixels as AN
-import AllenNeuropixelsBase as ANB
+@suppress import AllenNeuropixels as AN
+@suppress import AllenNeuropixelsBase as ANB
 using Term.Progress
 using DimensionalData
 using StatsBase

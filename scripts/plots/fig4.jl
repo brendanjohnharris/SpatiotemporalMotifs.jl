@@ -22,14 +22,16 @@ begin
     vars = [:ϕ, :ω]
 end
 
-if !isfile(calcdir("plots", "fig4.jld2")) # * Use extra workers if we can
-    if haskey(ENV, "SM_CLUSTER") && length(procs()) == 1
+if !isfile(savepath("fig4", Dict(), "jld2", calcdir("plots"))) # * Use extra workers if we can
+    if SpatiotemporalMotifs.CLUSTER()
         using USydClusters
         USydClusters.Physics.addprocs(8; mem = 16, ncpus = 4,
                                       project = projectdir())
-        @everywhere using SpatiotemporalMotifs
-        @everywhere SpatiotemporalMotifs.@preamble
+    else
+        addprocs(4)
     end
+    @everywhere using SpatiotemporalMotifs
+    @everywhere SpatiotemporalMotifs.@preamble
 end
 
 plot_data, data_file = produce_or_load(Dict(), calcdir("plots");
@@ -352,7 +354,7 @@ begin # * Plots
         f
     end
     colsize!(f.layout, 1, Relative(0.35))
-    addlabels!(f)
+    addlabels!(f, labelformat)
     wsave(plotdir("fig4", "interareal_phasedelays.pdf"), f)
     f
 end
