@@ -38,50 +38,52 @@ map(_params) do p
     end
 end
 
-if haskey(ENV, "SM_CLUSTER") && !isempty(params)
-    exprs = map(params) do (o, stimulus, structure)
-        expr = quote
-            using Pkg
-            Pkg.instantiate()
-            import SpatiotemporalMotifs as SM
-            SM.send_powerspectra($o, $stimulus, $structure; rewrite = $rewrite,
-                                 retry_errors = $retry_errors)
-        end
-    end
-    SM.submit_calculations(exprs, mem = 100)
-elseif ENV["HOSTNAME"] == "cartman.physics.usyd.edu.au"
-    addprocs(8)
-    @everywhere import SpatiotemporalMotifs as SM
-    @everywhere using Suppressor
-
-    channel = RemoteChannel(() -> Channel{Bool}(length(_params)), 1)
-    threadlog = Threads.Atomic{Int}(0)
-    threadmax = length(_params)
-    lk = Threads.ReentrantLock()
-    @withprogress name="Power spectra" begin
-        @async while take!(channel)
-            lock(lk) do
-                Threads.atomic_add!(threadlog, 1)
-                @logprogress threadlog[] / threadmax
+if !isempty(params)
+    if SM.CLUSTER()
+        exprs = map(params) do (o, stimulus, structure)
+            expr = quote
+                using Pkg
+                Pkg.instantiate()
+                import SpatiotemporalMotifs as SM
+                SM.send_powerspectra($o, $stimulus, $structure; rewrite = $rewrite,
+                                     retry_errors = $retry_errors)
             end
         end
+        SM.submit_calculations(exprs, mem = 100)
+    elseif ENV["HOSTNAME"] ∈ ["cartman.physics.usyd.edu.au", "stan.physics.usyd.edu.au"]
+        addprocs(8)
+        @everywhere import SpatiotemporalMotifs as SM
+        @everywhere using Suppressor
 
-        @sync begin
-            pmap(params) do param
-                @info "Calculating power spectra for $(param)"
-
-                @suppress SM.send_powerspectra(param...)
-                GC.gc()
-
-                put!(channel, true)
-                yield()
+        channel = RemoteChannel(() -> Channel{Bool}(length(_params)), 1)
+        threadlog = Threads.Atomic{Int}(0)
+        threadmax = length(_params)
+        lk = Threads.ReentrantLock()
+        @withprogress name="Power spectra" begin
+            @async while take!(channel)
+                lock(lk) do
+                    Threads.atomic_add!(threadlog, 1)
+                    @logprogress threadlog[] / threadmax
+                end
             end
-            put!(channel, false)
+
+            @sync begin
+                pmap(params) do param
+                    @info "Calculating power spectra for $(param)"
+
+                    @suppress SM.send_powerspectra(param...)
+                    GC.gc()
+
+                    put!(channel, true)
+                    yield()
+                end
+                put!(channel, false)
+            end
         end
-    end
-else
-    @progress for param in params
-        SM.send_powerspectra(param...)
-        GC.gc()
+    else
+        @progress for param in params
+            SM.send_powerspectra(param...)
+            GC.gc()
+        end
     end
 end

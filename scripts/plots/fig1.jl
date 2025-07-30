@@ -231,9 +231,9 @@ begin # ? Figure 1A
           px_per_unit = 10)
     f
 
-    if false # * Save a few representative stimulus images
+    begin # * Save a few representative stimulus images
         map(enumerate(plot_data["stimulus_examples"])) do (i, img)
-            save(plotdir("fig1", "stimulus_examples", "natural_images_$i.png"), img)
+            wsave(plotdir("fig1", "stimulus_examples", "natural_images_$i.png"), img)
         end
     end
     f

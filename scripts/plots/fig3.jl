@@ -34,14 +34,15 @@ begin # * Parameters
     config = @strdict regcoef folds repeats path
 end
 
-if !(isfile(hyperfile) && isfile(datafile)) # * Use extra workers if we can
+if (isfile(hyperfile) && isfile(datafile)) || isfile(savepath("fig3", config, "jld2"))
+else # * Use extra workers if we can
     if nprocs() == 1
-        if haskey(ENV, "SM_CLUSTER")
+        if SpatiotemporalMotifs.CLUSTER()
             ourprocs = USydClusters.Physics.addprocs(10; mem = 20, ncpus = 8,
                                                      project = projectdir(),
                                                      queue = "l40s")
         else
-            addprocs(5)
+            addprocs(7)
         end
     end
     @everywhere using SpatiotemporalMotifs
@@ -79,7 +80,7 @@ plot_data, data_file = produce_or_load(config, calcdir("plots");
                         ω = p[:ω]
                         k[ustripall(ω) .< 0] .= NaN * unit(eltype(k))
                         ret = dropdims(nansafe(mean; dims = Depth)(sign.(k)), dims = Depth) # Ignore negative frequencies
-                        set(ret, Dim{:changetime} => Trial)
+                        set(ret, Dim{:changetime} => Trial) .|> Float32
                     end
                 end
             end
@@ -107,11 +108,11 @@ plot_data, data_file = produce_or_load(config, calcdir("plots");
                         ω = p[:ω]
                         k[ustripall(ω) .< 0] .= NaN * unit(eltype(k))
                         ret = dropdims(nansafe(mean; dims = Depth)(sign.(k)), dims = Depth) # Ignore negative frequencies
-                        set(ret, Dim{:changetime} => Trial)
+                        set(ret, Dim{:changetime} => Trial) .|> Float32
                     end
                 end
             end
-            omission = @strdict Og
+            passive = @strdict Og
         end
         begin # * Natural images
             stimulus = r"Natural_Images"
@@ -147,7 +148,7 @@ plot_data, data_file = produce_or_load(config, calcdir("plots");
                         trialtimes = trials.change_time_with_display_delay
                         @assert all(isapprox.(ustripall(lookup(k, :changetime)), trialtimes,
                                               atol = 0.05)) # These won't match exactly, because the data change times have been adjusted for rectification. This is OK.
-                        set(ret, Dim{:changetime} => Trial(trials.hit))
+                        set(ret, Dim{:changetime} => Trial(trials.hit)) .|> Float32
                     end
                 end
 
@@ -276,33 +277,33 @@ plot_data, data_file = produce_or_load(config, calcdir("plots");
                     W = pmap(H) do h
                         h = h[𝑡 = -0.25u"s" .. 0.75u"s"] # !!!
                         N, M = classifier(h; regcoef) # !!!
-                        W = projection(M)
-                        W = reshape(W, size(h)[1:2])
-                        return ToolsArray(W, dims(h)[1:2])
+                        w = projection(M)
+                        w = reshape(w, size(h)[1:2])
+                        return ToolsArray(w, dims(h)[1:2])
                     end
                     W = stack(SessionID(oursessions), W, dims = 3)
                     W = W ./ maximum(abs.(W)) # ! Normalized
 
                     Wlfp = map(Hlfp) do H
-                        W = pmap(H) do h
+                        WL = pmap(H) do h
                             h = h[𝑡 = -0.25u"s" .. 0.75u"s"] # !!!
                             N, M = classifier(h; regcoef) # !!!
-                            W = projection(M)
-                            W = reshape(W, size(h)[1:2])
-                            return ToolsArray(W, dims(h)[1:2])
+                            Wl = projection(M)
+                            Wl = reshape(Wl, size(h)[1:2])
+                            return ToolsArray(Wl, dims(h)[1:2])
                         end
-                        W = stack(SessionID(oursessions), W, dims = 3)
-                        W = W ./ maximum(abs.(W)) # ! Normalized
+                        WL = stack(SessionID(oursessions), WL, dims = 3)
+                        WL = WL ./ maximum(abs.(WL)) # ! Normalized
                     end
                 end
-                push!(D, "W" => W)
-                push!(D, "Wlfp" => Wlfp)
+                push!(D, "W" => W .|> Float32)
+                push!(D, "Wlfp" => Wlfp .|> Float32)
                 tagsave(datafile, D)
             end
 
             Natural_Images = @strdict Og layergroups D
         end
-        order_parameters = @strdict flashes Natural_Images
+        order_parameters = @strdict flashes Natural_Images passive
         out = [] # Clear for memory
         GC.gc()
     end
@@ -584,7 +585,7 @@ begin # * Order parameters
             o = [_o[(end - minimum(length.(o)) + 1):end] for _o in o]
             stack(SessionID(sessionids), o)
         end
-        ts = lookup.(Ō, 𝑡)
+        ts = lookup.(out, 𝑡)
         minterval = maximum(minimum.(ts)) .. minimum(maximum.(ts))
         out = [o[𝑡 = minterval] for o in out]
     end
@@ -803,5 +804,43 @@ begin # * Order parameters
         addlabels!(fullfig, labelformat)
         rowsize!(fullfig.layout, 1, Relative(0.25))
         wsave(plotdir("fig3", "theta_order_parameter.pdf"), fullfig)
+    end
+end
+
+begin # * Supplementary figure: contrast between active and passive stimulus
+    begin # * Active rder parameter
+        @unpack Og = plot_data["order_parameters"]["Natural_Images"]
+        Ō_active = orderparameter(Og)
+
+        @unpack Og = plot_data["order_parameters"]["passive"]
+        Ō_passive = orderparameter(Og)
+
+        begin # * Plot the mean order parameter across time
+            ax = Axis(gs[2]; xlabel = "Time (s)",
+                      ylabel = rich("Mean order parameter ",
+                                    rich("R", subscript("θ"), font = "Times Italic")),
+                      title = "Order parameter during flashes",
+                      xautolimitmargin = (0, 0), xminorticksvisible = true,
+                      xminorticks = IntervalsBetween(5), yminorticksvisible = true,
+                      yminorticks = IntervalsBetween(5))
+            hlines!(ax, [0]; color = (:black, 0.5), linestyle = :dash, linewidth = 2)
+            vlines!(ax, [0, 0.25]; color = (:black, 0.5), linestyle = :dash, linewidth = 2)
+            for (i, O) in reverse(collect(enumerate(Ō)))
+                structure = metadata(O)[:structure]
+                O = O[𝑡(SpatiotemporalMotifs.INTERVAL)]
+                μ = dropdims(mean(O, dims = SessionID), dims = SessionID)
+                σ = dropdims(std(O, dims = SessionID), dims = SessionID)
+                σ = σ ./ 2
+                bargs = [times(μ), μ .- σ, μ .+ σ] .|> ustripall .|> collect
+                band!(ax, bargs..., color = (structurecolors[i], 0.3), label = structure)
+                lines!(ax, times(μ) |> ustripall, μ |> ustripall |> collect,
+                       color = (structurecolors[i], 0.7),
+                       label = structure)
+            end
+            l = axislegend(ax, position = :lt, nbanks = 2, framevisible = true,
+                           labelsize = 12,
+                           merge = true)
+            reverselegend!(l)
+        end
     end
 end

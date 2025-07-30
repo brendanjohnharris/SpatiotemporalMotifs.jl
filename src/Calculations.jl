@@ -1002,11 +1002,12 @@ function load_unitdepths(Q::AbstractDimArray; path = calcdir("power_spectra"))
             map(lookup(Q, Structure)) do structure
                 filename = savepath((@strdict sessionid structure stimulus), "jld2",
                                     path)
-                f = jldopen(filename, "r")
-                if haskey(f, "error")
-                    return nothing
-                else
-                    return f["unitdepths"]
+                jldopen(filename, "r") do f
+                    if haskey(f, "error")
+                        return nothing
+                    else
+                        return f["unitdepths"]
+                    end
                 end
             end
         end

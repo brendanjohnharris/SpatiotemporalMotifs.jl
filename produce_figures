@@ -34,8 +34,8 @@ echo "Producing Fig. 5"
 echo "Producing Fig. 6"
 "$DIR/scripts/plots/fig6.jl"
 
-echo "Producing Fig. S3"
-"$DIR/scripts/plots/figS3.jl"
+echo "Producing Fig. S1"
+"$DIR/scripts/plots/figS1.jl"
 
 end=$(date +%s)
 elapsed=$((end - start))
