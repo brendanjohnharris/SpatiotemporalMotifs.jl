@@ -801,7 +801,7 @@ function sac!(spikes::AbstractDataFrame, r::AbstractVector{<:AbstractTimeSeries}
               job = nothing) # At the level of structures
     T = eltype(lookup(first(r), 𝑡) |> ustripall)
     initialize_sac_dataframe!(spikes, T)
-    Threads.@threads for _r in r
+    for _r in r
         idxs = spikes.probe_id .== metadata(_r)[:probeid]
         _spikes = @views spikes[idxs, :] # * Select structure
         sac!(_spikes, ustripall(_r))
