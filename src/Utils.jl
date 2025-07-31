@@ -210,6 +210,9 @@ Check the quality of a a calculations directory e.g. data/calculations/`
 """
 function calcquality(dirname, calctype::Symbol = (Symbol ∘ last ∘ splitpath)(dirname);
                      suffix = "jld2", connector = connector, require = true)
+    if isempty(dirname)
+        return []
+    end
     if !(require isa Bool)
         _require = require
         require = true
@@ -310,7 +313,7 @@ function submit_calculations(exprs; queue = ``, mem = 50)
             USydClusters.Physics.runscripts(exprs[(N3 + 1):(N3 * 2)]; ncpus = 8, mem,
                                             walltime = 8,
                                             project = projectdir(), exeflags = `+1.10.10`,
-                                            queue = `l40s`)
+                                            queue = `taiji`)
             USydClusters.Physics.runscripts(exprs[(2 * N3 + 1):end]; ncpus = 8, mem,
                                             walltime = 8,
                                             project = projectdir(), exeflags = `+1.10.10`,
@@ -542,12 +545,15 @@ end
 function ppc(x::AbstractVector{T})::T where {T} # Eq. 14 of Vinck 2010
     isempty(x) && return NaN
     N = length(x)
-    Δ = zeros(N - 1)
-    Threads.@threads for i in 1:(N - 1)
-        δ = @views x[i] .- x[(i + 1):end]
-        Δ[i] = sum(cos.(δ))
+    Δ = 0
+    for i in 1:(N - 1)
+        a = x[i]
+        b = @views x[(i + 1):end]
+        for _b in b
+            Δ += cos(a - _b)
+        end
     end
-    return (2 / (N * (N - 1))) * sum(Δ)
+    return (2 / (N * (N - 1))) * Δ
 end
 function ppc(ϕ::UnivariateTimeSeries{T}, spikes::AbstractVector)::NTuple{3, T} where {T}
     spikes = spikes[spikes .∈ [Interval(ϕ)]] # * Important: we only want spikes that are within the time range of the ϕ
@@ -722,7 +728,7 @@ function spc!(spikes::AbstractDataFrame, ϕ::AbstractVector{<:AbstractTimeSeries
     T = eltype(lookup(first(ϕ), 𝑡) |> ustripall)
     initialize_spc_dataframe!(spikes, T)
 
-    Threads.@threads for _ϕ in ϕ
+    for _ϕ in ϕ
         idxs = spikes.probe_id .== metadata(_ϕ)[:probeid]
         _spikes = @views spikes[idxs, :] # * Select structure
         spc!(_spikes, ustripall(_ϕ))
