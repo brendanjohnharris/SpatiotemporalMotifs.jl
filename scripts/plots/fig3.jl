@@ -722,7 +722,7 @@ begin # * Order parameters
                      vcat([fill(3 + i, length(bac_lfp_post[1])) for i in [-0.3, 0, 0.3]]...),
                      reverse(vcat(bac_lfp_post[2:end]...)); boxargs..., width = 0.3,
                      color = crimson, label = "Compartmental LFP")
-            text!(ax, 3 .+ [-0.3, 0, 0.3], [0.9, 0.9, 0.9]; text = reverse(["S", "M", "D"]),
+            text!(ax, 3 .+ [-0.3, 0, 0.3], [0.4, 0.4, 0.4]; text = reverse(["S", "M", "D"]),
                   align = (:center, :center))
 
             boxplot!(ax, fill(4, length(bac_pre)), bac_pre; boxargs...,
@@ -735,7 +735,7 @@ begin # * Order parameters
                      reverse(vcat(bac_lfp_pre[2:end]...)); boxargs..., width = 0.3,
                      color = crimson,
                      label = "Compartmental LFP")
-            text!(ax, 6 .+ [-0.3, 0, 0.3], [0.8, 0.8, 0.8]; text = reverse(["S", "M", "D"]),
+            text!(ax, 6 .+ [-0.3, 0, 0.3], [0.4, 0.4, 0.4]; text = reverse(["S", "M", "D"]),
                   align = (:center, :center))
 
             boxplot!(ax, fill(7, length(bac_sur)), bac_sur; color = :gray, boxargs...)

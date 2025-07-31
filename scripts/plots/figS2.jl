@@ -17,6 +17,8 @@ set_theme!(foresight(:physics))
 plot_data, data_file = produce_or_load(Dict(), calcdir("plots");
                                        filename = savepath("figS2")) do _
     outdict = Dict{String, Dict{String, Any}}()
+
+    interval = 0.1u"s" .. 0.5u"s"
     begin
         stimulus = r"Natural_Images"
         begin # * Load the trial LFP for natural images
@@ -29,12 +31,13 @@ plot_data, data_file = produce_or_load(Dict(), calcdir("plots");
             out = load_calculations(Q; stimulus = stimulus, vars = [:ω])
         end
 
-        begin # * 1/f across all sessions. Should take about 15 minutes over 50 workers
+        begin
             bins = intervals(0.0:0.1:0.9)
             ω = map(out) do out_structure
                 sessionids = getindex.(out_structure, :sessionid)
                 x = map(out_structure) do out_session
                     ω = out_session[:ω]
+                    ω = ω[𝑡 = interval]
                     ω = mean(ω, dims = (𝑡, :changetime))
                     ω = dropdims(ω, dims = (𝑡, :changetime))
                     ω = groupby(ω, Depth => Bins(bins))
@@ -68,6 +71,7 @@ plot_data, data_file = produce_or_load(Dict(), calcdir("plots");
                 sessionids = getindex.(out_structure, :sessionid)
                 x = map(out_structure) do out_session
                     ω = out_session[:ω]
+                    ω = ω[𝑡 = interval]
                     ω = mean(ω, dims = (𝑡, :changetime))
                     ω = dropdims(ω, dims = (𝑡, :changetime))
                     ω = groupby(ω, Depth => Bins(bins))
@@ -96,7 +100,7 @@ begin
         ax = Axis(gs[i], xlabel = "Average frequency (Hz)", ylabel = "Cortical depth (%)",
                   title = "$(titles[i])",
                   ytickformat = depthticks, yreversed = true,
-                  limits = ((5.1, 7), (0, 1)))
+                  limits = ((4.7, 7), (0, 1)))
         ω = plot_data[stimulus]["ω"]
 
         plotlayerints!(ax, layerints; axis = :y, flipside = false, newticks = false,

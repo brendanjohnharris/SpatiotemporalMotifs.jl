@@ -46,7 +46,7 @@ begin # * Save average CSD for each session
     conf = Dict("stimulus" => "Natural_Images_passive_nochange")
 
     data, data_file = produce_or_load(copy(conf), calcdir("plots");
-                                      filename = savepath("csd")) do conf
+                                      filename = savepath("figS4")) do conf
         stimulus = conf["stimulus"]
 
         session_table = load(calcdir("posthoc_session_table.jld2"), "session_table")
@@ -58,6 +58,7 @@ begin # * Save average CSD for each session
 
         out = load_calculations(Q; stimulus, vars = [:csd])
 
+        @info "Calculating CSD for $(stimulus)"
         csd = map(out) do out_structure
             csd = map(out_structure) do out_session
                 csd_session = mapslices(mean, out_session[:csd], dims = :changetime)
@@ -94,6 +95,9 @@ begin # * Save average CSD for each session
             end
             names = ToolsArray(names, (SessionID(oursessions),))
         end
+        out = []
+        GC.gc()
+        @info "Saving CSD data for $(stimulus)"
         return Dict("csd" => csd,
                     "streamlinedepths" => streamlinedepths,
                     "layernames" => layernames)
@@ -261,7 +265,7 @@ begin # * Paired change plots
 
         r = corspearman(x, y)
         ax = Axis(g, xticks = ([1, 2], ["CSD L4", "Anatomical L4"]),
-                  ylabel = "Depth(μm)",
+                  ylabel = "Depth (μm)",
                   title = structures[structure], yreversed = true)
 
         _x = 1.0 .+ 0.15 .* abs.(randn(length(x)))
