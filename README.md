@@ -73,7 +73,7 @@ Please hover over the header links to see the file name for each script.
 #### [Selecting sessions](scripts/calculations/session_selection.jl)
 
 First, we use the session metadata to filter sessions that fulfill a list of quality criteria (e.g. probes in all target regions, with low noise).
-This script creates the `data/session_table.jld2` file, which contains a `Dataframe` of the selected sessions and their metrics (also saved in JSON format at `plots/session_table.json`).
+This script creates the `data/session_table.jld2` file, which contains a `Dataframe` of the selected sessions and their metrics (also saved in JSON format).
 
 #### [Downloading data](scripts/calculations/download_data.jl)
 

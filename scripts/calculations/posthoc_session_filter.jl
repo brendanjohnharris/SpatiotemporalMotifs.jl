@@ -87,7 +87,6 @@ begin
     tagsave(calcdir("posthoc_session_table.jld2"), Dict("session_table" => newsessions))
     write(calcdir("posthoc_session_table.json"), JSON.json(newsessions))
     mkpath(calcdir("plots"))
-    write(calcdir("plots", "posthoc_session_table.json"), JSON.json(newsessions))
 end
 # Read the dataframe as read("$(@__DIR__)/../plots/session_table.json", String) |> JSON.parse |> DataFrame
 

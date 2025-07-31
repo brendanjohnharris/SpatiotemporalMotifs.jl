@@ -152,7 +152,7 @@ function send_powerspectra(sessionid, stimulus, structure;
 
             # * Surrogates
             idxs = randperm(size(ϕ, Depth))
-            ϕs = set(ϕ, ϕ[:, idxs]) # Spatially shuffle channels
+            ϕs = set(ϕ, parent(ϕ[:, idxs])) # Spatially shuffle channels
             ωs = centralderiv(ϕs, dims = 𝑡, grad = phasegrad)
             ks = -centralderiv(ϕs, dims = Depth, grad = phasegrad)
             ks[ωs .< 0u"Hz"] .= NaN * unit(eltype(ks))
