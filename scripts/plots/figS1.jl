@@ -22,9 +22,8 @@ config = (; shuffles = 1000,
           nsur = 10)
 layerints = load(calcdir("plots", "grand_unified_layers.jld2"), "layerints")
 
-if haskey(ENV, "SM_CLUSTER") && ENV["SM_CLUSTER"] == "true" &&
-   nprocs() == 1 && !isfile(calcdir("plots", "figS1_" * savepath(config, "jld2"))) # * Initialize workers
-    addprocs(15)
+if nprocs() == 1 && !isfile(calcdir("plots", savepath("figS1", config, "jld2"))) # * Initialize workers
+    addprocs(10)
     @everywhere using DrWatson
     @everywhere DrWatson.@quickactivate "SpatiotemporalMotifs"
     @everywhere using SpatiotemporalMotifs

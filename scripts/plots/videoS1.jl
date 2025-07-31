@@ -70,7 +70,7 @@ end
                 -sin(azimuth) 0 cos(azimuth)]
     end
     function render_brainframe(frame;
-                               format = plotdir("glass_brain", "glass_brain.jpg"))
+                               format = plotdir("videoS1", "glass_brain.jpg"))
         begin # * Parameters
             radiance = 2
             scale = 1e-5

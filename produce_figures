@@ -17,10 +17,10 @@ start=$(date +%s)
 
 
 echo "Producing Fig. 1"
-"$DIR/scripts/plots/fig1.jl"
+# "$DIR/scripts/plots/fig1.jl"
 
 echo "Producing Fig. 2"
-"$DIR/scripts/plots/fig2.jl"
+# "$DIR/scripts/plots/fig2.jl"
 
 echo "Producing Fig. 3"
 "$DIR/scripts/plots/fig3.jl"
@@ -29,13 +29,24 @@ echo "Producing Fig. 4"
 "$DIR/scripts/plots/fig4.jl"
 
 echo "Producing Fig. 5"
-"$DIR/scripts/plots/fig5.jl"
+# "$DIR/scripts/plots/fig5.jl"
 
 echo "Producing Fig. 6"
-"$DIR/scripts/plots/fig6.jl"
+# "$DIR/scripts/plots/fig6.jl"
 
 echo "Producing Fig. S1"
 "$DIR/scripts/plots/figS1.jl"
+
+echo "Producing Fig. S2"
+"$DIR/scripts/plots/figS2.jl"
+
+echo "Producing Fig. S3"
+# "$DIR/scripts/plots/figS3.jl"
+
+echo "Producing Fig. S4"
+"$DIR/scripts/plots/figS4.jl"
+
+
 
 end=$(date +%s)
 elapsed=$((end - start))

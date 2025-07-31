@@ -23,26 +23,23 @@ begin # * Parameters
     maincolorrange = [-2.9, 2.9]
     csdcolorrange = [-1, 1]
     ylims = (0.05, 0.95)
-    datafile = calcdir("plots", "theta_order_parameter.jld2")
     hyperfile = calcdir("plots", "hyperparameters", "theta_waves_task.jld2")
 
     regcoef = 0.5 # Set approximately after inspecting the hyperparameter search
     folds = 5
     repeats = 20
-    path = "calculations"
 
-    config = @strdict regcoef folds repeats path
+    config = @strdict regcoef folds repeats
 end
 
-if (isfile(hyperfile) && isfile(datafile)) || isfile(savepath("fig3", config, "jld2"))
-else # * Use extra workers if we can
+if !isfile(calcdir("plots", savepath("fig3", config, "jld2")))
     if nprocs() == 1
         if SpatiotemporalMotifs.CLUSTER()
             ourprocs = USydClusters.Physics.addprocs(10; mem = 20, ncpus = 8,
                                                      project = projectdir(),
                                                      queue = "l40s")
         else
-            addprocs(7)
+            addprocs(4)
         end
     end
     @everywhere using SpatiotemporalMotifs
@@ -51,12 +48,12 @@ end
 
 plot_data, data_file = produce_or_load(config, calcdir("plots");
                                        filename = savepath("fig3")) do config
-    @unpack regcoef, folds, repeats, path = config
+    @unpack regcoef, folds, repeats = config
     session_table = load(calcdir("posthoc_session_table.jld2"), "session_table")
     oursessions = session_table.ecephys_session_id
     # vars = [:csd, :k, :ω]
     vars = [:θ, :csd, :k, :ω]
-    path = calcdir(path)
+    path = calcdir("calculations")
     mkpath(plotdir("fig3"))
     statsfile = plotdir("fig3", "$mainstructure.txt")
     close(open(statsfile, "w"))
@@ -64,7 +61,7 @@ plot_data, data_file = produce_or_load(config, calcdir("plots");
     begin # * First, do the order parameters
         begin # * Flashes
             stimulus = "flash_250ms"
-            Q = calcquality(path)[Structure = At(structures)]
+            Q = calcquality(path; require = ["k", "ω"])[Structure = At(structures)]
             quality = mean(Q[stimulus = At(stimulus)])
             out = load_calculations(Q; stimulus, vars, path)
 
@@ -87,36 +84,9 @@ plot_data, data_file = produce_or_load(config, calcdir("plots");
             flashes = @strdict Og
         end
 
-        begin # * Passive trials?
-            stimulus = "Natural_Images_passive"
-            Q = calcquality(path; require = ["θ"])[Structure = At(structures)]
-            quality = mean(Q[stimulus = At(stimulus)])
-            out = load_calculations(Q; stimulus, vars, path)
-
-            session_table = load(calcdir("posthoc_session_table.jld2"), "session_table")
-            oursessions = session_table.ecephys_session_id
-
-            begin # * Calculate a global order parameter and mean LFP at each time point
-                out = map(out) do o
-                    filter(o) do _o
-                        _o[:sessionid] ∈ oursessions
-                    end
-                end
-                Og = map(out) do o
-                    O = map(o) do p
-                        k = p[:k]
-                        ω = p[:ω]
-                        k[ustripall(ω) .< 0] .= NaN * unit(eltype(k))
-                        ret = dropdims(nansafe(mean; dims = Depth)(sign.(k)), dims = Depth) # Ignore negative frequencies
-                        set(ret, Dim{:changetime} => Trial) .|> Float32
-                    end
-                end
-            end
-            passive = @strdict Og
-        end
         begin # * Natural images
             stimulus = r"Natural_Images"
-            Q = calcquality(path)[Structure = At(structures)]
+            Q = calcquality(path; require = ["k", "ω"])[Structure = At(structures)]
             quality = mean(Q[stimulus = At(stimulus)])
             out = load_calculations(Q; stimulus, vars, path)
 
@@ -213,13 +183,7 @@ plot_data, data_file = produce_or_load(config, calcdir("plots");
                 GC.gc()
             end
 
-            if isfile(hyperfile) && isfile(datafile)
-                D = jldopen(datafile, "r") do D
-                    map(keys(D)) do d
-                        d => D[d]
-                    end |> Dict
-                end
-            else # Run calculations; needs to be on a cluster
+            begin # ? Run calculations; should be on a cluster
                 if !isfile(hyperfile)
                     begin # * Get a rough estimate for a good hyperparameter. Currently on pre-offset data. This gives us ~0.5 as a good estimate
                         hfile = calcdir("plots", "hyperparameters", "theta_waves_task.jld2")
@@ -294,16 +258,17 @@ plot_data, data_file = produce_or_load(config, calcdir("plots");
                         end
                         WL = stack(SessionID(oursessions), WL, dims = 3)
                         WL = WL ./ maximum(abs.(WL)) # ! Normalized
+                        WL = WL .|> Float32
                     end
                 end
                 push!(D, "W" => W .|> Float32)
-                push!(D, "Wlfp" => Wlfp .|> Float32)
-                tagsave(datafile, D)
+                push!(D, "Wlfp" => Wlfp)
+                # tagsave(datafile, D)
             end
 
             Natural_Images = @strdict Og layergroups D
         end
-        order_parameters = @strdict flashes Natural_Images passive
+        order_parameters = @strdict flashes Natural_Images
         out = [] # Clear for memory
         GC.gc()
     end
@@ -804,43 +769,5 @@ begin # * Order parameters
         addlabels!(fullfig, labelformat)
         rowsize!(fullfig.layout, 1, Relative(0.25))
         wsave(plotdir("fig3", "theta_order_parameter.pdf"), fullfig)
-    end
-end
-
-begin # * Supplementary figure: contrast between active and passive stimulus
-    begin # * Active rder parameter
-        @unpack Og = plot_data["order_parameters"]["Natural_Images"]
-        Ō_active = orderparameter(Og)
-
-        @unpack Og = plot_data["order_parameters"]["passive"]
-        Ō_passive = orderparameter(Og)
-
-        begin # * Plot the mean order parameter across time
-            ax = Axis(gs[2]; xlabel = "Time (s)",
-                      ylabel = rich("Mean order parameter ",
-                                    rich("R", subscript("θ"), font = "Times Italic")),
-                      title = "Order parameter during flashes",
-                      xautolimitmargin = (0, 0), xminorticksvisible = true,
-                      xminorticks = IntervalsBetween(5), yminorticksvisible = true,
-                      yminorticks = IntervalsBetween(5))
-            hlines!(ax, [0]; color = (:black, 0.5), linestyle = :dash, linewidth = 2)
-            vlines!(ax, [0, 0.25]; color = (:black, 0.5), linestyle = :dash, linewidth = 2)
-            for (i, O) in reverse(collect(enumerate(Ō)))
-                structure = metadata(O)[:structure]
-                O = O[𝑡(SpatiotemporalMotifs.INTERVAL)]
-                μ = dropdims(mean(O, dims = SessionID), dims = SessionID)
-                σ = dropdims(std(O, dims = SessionID), dims = SessionID)
-                σ = σ ./ 2
-                bargs = [times(μ), μ .- σ, μ .+ σ] .|> ustripall .|> collect
-                band!(ax, bargs..., color = (structurecolors[i], 0.3), label = structure)
-                lines!(ax, times(μ) |> ustripall, μ |> ustripall |> collect,
-                       color = (structurecolors[i], 0.7),
-                       label = structure)
-            end
-            l = axislegend(ax, position = :lt, nbanks = 2, framevisible = true,
-                           labelsize = 12,
-                           merge = true)
-            reverselegend!(l)
-        end
     end
 end

@@ -289,8 +289,8 @@ function calcquality(dirname, calctype::Symbol = (Symbol ∘ last ∘ splitpath)
     end
     if any(isa.(DimensionalData.dims(Q), (Structure,))) &&
        all(lookup(Q, Structure) .∈ [structures])
-       s = structures .∈ [lookup(Q, Structure)]
-       s = structures[s]       
+        s = structures .∈ [lookup(Q, Structure)]
+        s = structures[s]
         Q = Q[Structure = At(s)] # * Sort to global structures order
     end
     @info "Mean quality: $(mean(Q))"

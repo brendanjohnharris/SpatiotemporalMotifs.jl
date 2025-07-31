@@ -45,11 +45,10 @@ if !isempty(params)
                 using Pkg
                 Pkg.instantiate()
                 import SpatiotemporalMotifs as SM
-                SM.send_powerspectra($o, $stimulus, $structure; rewrite = $rewrite,
-                                     retry_errors = $retry_errors)
+                SM.send_powerspectra($o, $stimulus, $structure)
             end
         end
-        SM.submit_calculations(exprs, mem = 100)
+        SM.submit_calculations(exprs, mem = 96)
     elseif ENV["HOSTNAME"] ∈ ["cartman.physics.usyd.edu.au", "stan.physics.usyd.edu.au"]
         addprocs(8)
         @everywhere import SpatiotemporalMotifs as SM

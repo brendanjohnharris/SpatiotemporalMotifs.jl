@@ -108,7 +108,7 @@ The resulting plot data and figure files have can be found on Figshare.
 #### Fig. 1: Schematics
 
 1. [`fig1.jl`](scripts/plots/fig1.jl): generates the wave illustration in Fig. 1a, and versions of the methods schematic in Fig. 1 for each visual cortical region.
-2. [`glass_brain.jl`](scripts/plots/glass_brain.jl): produces jpeg images for each frame of the 'glass brain' Supplementary Movie, which you can stitch together with e.g. the [`magick`](https://github.com/ImageMagick/ImageMagick) command-line tool. You will need to manually install and configure [RPRMakie](https://docs.makie.org/stable/explanations/backends/rprmakie) on a machine with a sizeable GPU to run this script.
+2. [`videoS1.jl`](scripts/plots/videoS1.jl): produces jpeg images for each frame of the 'glass brain' Supplementary Movie, which you can stitch together with e.g. the [`magick`](https://github.com/ImageMagick/ImageMagick) command-line tool. You will need to manually install and configure [RPRMakie](https://docs.makie.org/stable/explanations/backends/rprmakie) on a machine with a sizeable GPU to run this script.
 
 #### Fig. 2: Power spectra
 
