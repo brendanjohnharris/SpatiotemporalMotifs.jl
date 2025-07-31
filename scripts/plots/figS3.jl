@@ -87,14 +87,14 @@ begin # * Load spontaneous order parameter
         _Q = _Q[SessionID(At(subsessions))]
         filebase = stimulus == "spontaneous" ? "" : "_$stimulus"
 
-        sR = map(lookup(_Q, Structure)) do structure # * Load data
+        R = map(lookup(_Q, Structure)) do structure # * Load data
             out = map(lookup(_Q, SessionID)) do sessionid
                 if _Q[SessionID = At(sessionid), Structure = At(structure)] == 0
                     return nothing
                 end
                 filename = savepath((@strdict sessionid structure stimulus), "jld2",
                                     calcdir("power_spectra"))
-                sR = load(filename, "sR")[1:5:end] # Downsample to keep things manageable
+                R = load(filename, "R")[1:5:end] # Downsample to keep things manageable
                 # S = load(filename, "sC")
                 # return (C .- S) ./ median(S)
             end
@@ -105,13 +105,13 @@ begin # * Load spontaneous order parameter
             # out = collect(out)
             return out
         end
-        return sR
+        return R
     end
 end
 
 begin # * Extract the probability mass of 'coherent' events; |OP| > 0.75
-    coherent_events = map(data) do sR
-        out = map(sR) do y
+    coherent_events = map(data) do R
+        out = map(R) do y
             out = map(y) do x
                 l = sum(x -> x .< -0.5, x) / length(x)
                 u = sum(x -> x .> 0.5, x) / length(x)

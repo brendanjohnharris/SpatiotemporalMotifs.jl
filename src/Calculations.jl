@@ -101,6 +101,7 @@ function send_powerspectra(sessionid, stimulus, structure;
         end
 
         # * Calculate a comodulogram for these time series
+        @info "Calculating comodulogram"
         # @info "Calculating comodulogram for $(stimulus) LFP in $(structure) for session $(params[:sessionid])"
         c = x -> comodulogram(ustripall(x); fs = ustripall(samplingrate(LFP)),
                               fₚ = 3:0.25:12,
@@ -129,6 +130,7 @@ function send_powerspectra(sessionid, stimulus, structure;
         end
 
         # * Format data for saving
+        @info "Calculating depths"
         streamlinedepths = AN.getchanneldepths(session, LFP; method = :streamlines)
         layerinfo = AN.Plots._layerplot(session, channels)
 
@@ -145,16 +147,25 @@ function send_powerspectra(sessionid, stimulus, structure;
             k[ω .< 0u"Hz"] .= NaN * unit(eltype(k))
             R = dropdims(nansafe(mean, dims = Depth)(sign.(k)); dims = Depth)
 
+            k = [] # Free a bit of mem
+            GC.gc()
+
             # * Surrogates
             idxs = randperm(size(ϕ, Depth))
             ϕs = set(ϕ, ϕ[:, idxs]) # Spatially shuffle channels
             ωs = centralderiv(ϕs, dims = 𝑡, grad = phasegrad)
             ks = -centralderiv(ϕs, dims = Depth, grad = phasegrad)
             ks[ωs .< 0u"Hz"] .= NaN * unit(eltype(ks))
-            sR = dropdims(nansafe(mean, dims = Depth)(sign.(k)); dims = Depth)
+            sR = dropdims(nansafe(mean, dims = Depth)(sign.(ks)); dims = Depth)
+
+            ϕs = []
+            ωs = []
+            ks = []
+            GC.gc()
         end
 
         begin # * Spontaneous spike-LFP coupling. We set the LFP time indices back to their original, non-rectified values
+            @info "Calculating spike-LFP coupling"
             unitdepths = produce_unitdepths(session)
             unitdepths[!, :stimulus] .= stimulus
 
@@ -167,6 +178,9 @@ function send_powerspectra(sessionid, stimulus, structure;
             r = abs.(hilbert(γ))
             r[ω .< 0u"Hz"] .= NaN * unit(eltype(r))
             ϕ[ω .< 0u"Hz"] .= NaN * unit(eltype(ϕ))
+
+            ω = [] # Free mem
+            GC.gc()
 
             LFP = set(LFP, 𝑡 => origts)
             ϕ = set(ϕ, 𝑡 => origts)

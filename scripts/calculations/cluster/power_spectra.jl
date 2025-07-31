@@ -50,7 +50,7 @@ if !isempty(params)
         end
         SM.submit_calculations(exprs, mem = 96)
     elseif ENV["HOSTNAME"] ∈ ["cartman.physics.usyd.edu.au", "stan.physics.usyd.edu.au"]
-        addprocs(8)
+        addprocs(4)
         @everywhere import SpatiotemporalMotifs as SM
         @everywhere using Suppressor
 
