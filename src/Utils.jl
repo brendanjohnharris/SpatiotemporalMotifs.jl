@@ -210,7 +210,7 @@ Check the quality of a a calculations directory e.g. data/calculations/`
 """
 function calcquality(dirname, calctype::Symbol = (Symbol ∘ last ∘ splitpath)(dirname);
                      suffix = "jld2", connector = connector, require = true)
-    if isempty(dirname)
+    if isempty(readdir(dirname))
         return []
     end
     if !(require isa Bool)
@@ -300,33 +300,33 @@ function calcquality(dirname, calctype::Symbol = (Symbol ∘ last ∘ splitpath)
     return Q
 end
 
-function submit_calculations(exprs; queue = ``, mem = 50)
+function submit_calculations(exprs; queue = ``, mem = 50, ncpus = 8, walltime = 8)
     exprs = deepcopy(exprs)
     if length(exprs) > 2
         N3 = (length(exprs) ÷ 3)
         shuffle!(exprs) # ? Shuffle so restarted calcs are more even
         if isempty(queue)
-            USydClusters.Physics.runscripts(exprs[1:N3]; ncpus = 8, mem,
-                                            walltime = 8,
+            USydClusters.Physics.runscripts(exprs[1:N3]; ncpus, mem,
+                                            walltime,
                                             project = projectdir(), exeflags = `+1.10.10`,
                                             queue = `h100`)
-            USydClusters.Physics.runscripts(exprs[(N3 + 1):(N3 * 2)]; ncpus = 8, mem,
-                                            walltime = 8,
+            USydClusters.Physics.runscripts(exprs[(N3 + 1):(N3 * 2)]; ncpus, mem,
+                                            walltime,
                                             project = projectdir(), exeflags = `+1.10.10`,
-                                            queue = `taiji`)
-            USydClusters.Physics.runscripts(exprs[(2 * N3 + 1):end]; ncpus = 8, mem,
-                                            walltime = 8,
+                                            queue = `l40s`)
+            USydClusters.Physics.runscripts(exprs[(2 * N3 + 1):end]; ncpus, mem,
+                                            walltime,
                                             project = projectdir(), exeflags = `+1.10.10`,
                                             queue = `taiji`)
         else
-            USydClusters.Physics.runscripts(exprs; ncpus = 8, mem,
-                                            walltime = 8,
+            USydClusters.Physics.runscripts(exprs; ncpus, mem,
+                                            walltime,
                                             project = projectdir(), exeflags = `+1.10.10`,
                                             queue = queue)
         end
     else
-        USydClusters.Physics.runscript.(exprs; ncpus = 8, mem,
-                                        walltime = 8,
+        USydClusters.Physics.runscript.(exprs; ncpus, mem,
+                                        walltime,
                                         project = projectdir(), exeflags = `+1.10.10`,
                                         queue = `h100`)
     end

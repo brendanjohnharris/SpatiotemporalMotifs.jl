@@ -8,7 +8,6 @@ import SpatiotemporalMotifs as SM
 using USydClusters
 SM.@preamble
 set_theme!(foresight(:physics))
-# ENV["JULIA_DEBUG"] = "AllenNeuropixelsBase"
 
 path = calcdir("power_spectra")
 mkpath(path)
@@ -48,9 +47,9 @@ if !isempty(params)
                 SM.send_powerspectra($o, $stimulus, $structure)
             end
         end
-        SM.submit_calculations(exprs, mem = 96)
+        SM.submit_calculations(exprs, mem = 50, ncpus = 8, walltime = 8)
     elseif ENV["HOSTNAME"] ∈ ["cartman.physics.usyd.edu.au", "stan.physics.usyd.edu.au"]
-        addprocs(4)
+        addprocs(7)
         @everywhere import SpatiotemporalMotifs as SM
         @everywhere using Suppressor
 

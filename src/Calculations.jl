@@ -102,7 +102,6 @@ function send_powerspectra(sessionid, stimulus, structure;
 
         # * Calculate a comodulogram for these time series
         @info "Calculating comodulogram"
-        # @info "Calculating comodulogram for $(stimulus) LFP in $(structure) for session $(params[:sessionid])"
         c = x -> comodulogram(ustripall(x); fs = ustripall(samplingrate(LFP)),
                               fₚ = 3:0.25:12,
                               fₐ = 25:1:125, dp = 2, da = 20)
@@ -130,21 +129,21 @@ function send_powerspectra(sessionid, stimulus, structure;
         end
 
         # * Format data for saving
-        @info "Calculating depths"
         streamlinedepths = AN.getchanneldepths(session, LFP; method = :streamlines)
         layerinfo = AN.Plots._layerplot(session, channels)
 
+        @info "Calculating spontaneous order parameters"
         begin # * Spontaneous order parameter. Need to rectify for this
             LFP = set(LFP, Chan => Depth(depths))
             origts = deepcopy(times(LFP))
             LFP = rectify(LFP; dims = Depth)
             θ = bandpass(LFP, SpatiotemporalMotifs.THETA() .* u"Hz")
             ϕ = analyticphase(θ)
-            ω = centralderiv(ϕ, dims = 𝑡, grad = phasegrad)
+            ω = centralderiv(ϕ, dims = 𝑡, grad = phasegrad) .< 0u"Hz" # Mask negative freqs
 
             k = -centralderiv(ϕ, dims = Depth, grad = phasegrad)
 
-            k[ω .< 0u"Hz"] .= NaN * unit(eltype(k))
+            k[ω] .= NaN * unit(eltype(k))
             R = dropdims(nansafe(mean, dims = Depth)(sign.(k)); dims = Depth)
 
             k = [] # Free a bit of mem
@@ -153,9 +152,9 @@ function send_powerspectra(sessionid, stimulus, structure;
             # * Surrogates
             idxs = randperm(size(ϕ, Depth))
             ϕs = set(ϕ, parent(ϕ[:, idxs])) # Spatially shuffle channels
-            ωs = centralderiv(ϕs, dims = 𝑡, grad = phasegrad)
+            ωs = centralderiv(ϕs, dims = 𝑡, grad = phasegrad) .< 0u"Hz"
             ks = -centralderiv(ϕs, dims = Depth, grad = phasegrad)
-            ks[ωs .< 0u"Hz"] .= NaN * unit(eltype(ks))
+            ks[ωs] .= NaN * unit(eltype(ks))
             sR = dropdims(nansafe(mean, dims = Depth)(sign.(ks)); dims = Depth)
 
             ϕs = []
@@ -165,10 +164,10 @@ function send_powerspectra(sessionid, stimulus, structure;
         end
 
         begin # * Spontaneous spike-LFP coupling. We set the LFP time indices back to their original, non-rectified values
-            @info "Calculating spike-LFP coupling"
             unitdepths = produce_unitdepths(session)
             unitdepths[!, :stimulus] .= stimulus
 
+            @info "Calculating spike-LFP coupling"
             spiketimes = AN.getspiketimes(session, structure)
             units = AN.getunitmetrics(session)
             units = units[units.ecephys_unit_id .∈ [keys(spiketimes)], :]
@@ -176,8 +175,8 @@ function send_powerspectra(sessionid, stimulus, structure;
 
             γ = bandpass(LFP, SpatiotemporalMotifs.GAMMA() .* u"Hz")
             r = abs.(hilbert(γ))
-            r[ω .< 0u"Hz"] .= NaN * unit(eltype(r))
-            ϕ[ω .< 0u"Hz"] .= NaN * unit(eltype(ϕ))
+            r[ω] .= NaN * unit(eltype(r))
+            ϕ[ω] .= NaN * unit(eltype(ϕ))
 
             ω = [] # Free mem
             GC.gc()
