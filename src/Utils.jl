@@ -303,7 +303,7 @@ end
 function submit_calculations(exprs; queue = ``, mem = 50, ncpus = 8, walltime = 8)
     exprs = deepcopy(exprs)
     if length(exprs) > 2
-        N3 = (length(exprs) ÷ 3)
+        N4 = (length(exprs) ÷ 3)
         shuffle!(exprs) # ? Shuffle so restarted calcs are more even
         if isempty(queue)
             USydClusters.Physics.runscripts(exprs[1:N3]; ncpus, mem,
