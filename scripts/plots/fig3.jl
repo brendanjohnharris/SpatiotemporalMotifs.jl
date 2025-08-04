@@ -214,7 +214,7 @@ plot_data, data_file = produce_or_load(config, calcdir("plots");
                         bac = classify_kfold(h; regcoef, k = folds, repeats)
                     end
 
-                    bac_sur = pmap(H) do h
+                    bac_sur = pmap(H) do h # This has the same sample size as other dists.
                         hs = h[𝑡 = -0.25u"s" .. 0.25u"s"]
                         idxs = randperm(size(h, Trial))
                         h = set(h, Trial => lookup(h, Trial)[idxs])
@@ -682,27 +682,36 @@ begin # * Order parameters
                     write(file, "\n## Order parameter pre-offset\n")
                     write(file, "\nMedian BAc = $(median(bac_pre))")
                     write(file, "\nIQR = $(iqr(bac_pre))")
-                    𝑝 = HypothesisTests.pvalue(HypothesisTests.MannWhitneyUTest(bac_pre,
-                                                                                bac_sur);
-                                               tail = :right)
+                    # 𝑝 = HypothesisTests.pvalue(HypothesisTests.MannWhitneyUTest(bac_pre,
+                    #                                                             bac_sur);
+                    #                            tail = :right)
+                    test = HypothesisTests.SignedRankTest(Float64.(bac_pre),
+                                                          Float64.(bac_sur))
+                    𝑝 = HypothesisTests.pvalue(test; tail = :both)
                     write(file, "\nU-test, right-sided 𝑝 to sur= $𝑝")
                     write(file, "\n")
 
                     write(file, "\n## Order parameter post-offset\n")
                     write(file, "\nMedian BAc = $(median(bac_post))")
                     write(file, "\nIQR = $(iqr(bac_post))")
-                    𝑝 = HypothesisTests.pvalue(HypothesisTests.MannWhitneyUTest(bac_pre,
-                                                                                bac_post);
-                                               tail = :both)
+                    # 𝑝 = HypothesisTests.pvalue(HypothesisTests.MannWhitneyUTest(bac_pre,
+                    #                                                             bac_post);
+                    #                            tail = :both)
+                    test = HypothesisTests.SignedRankTest(Float64.(bac_pre),
+                                                          Float64.(bac_post))
+                    𝑝 = HypothesisTests.pvalue(test; tail = :both)
                     write(file, "\nU-test, two-sided 𝑝 to pre. = $𝑝")
                     write(file, "\n")
 
                     write(file, "\n## Mean LFP pre-offset \n")
                     write(file, "\nMedian BAc = $(median(bac_lfp_pre[1]))")
                     write(file, "\nIQR = $(iqr(bac_lfp_pre[1]))")
-                    𝑝 = HypothesisTests.pvalue(HypothesisTests.MannWhitneyUTest(bac_pre,
-                                                                                bac_lfp_pre[1]);
-                                               tail = :right)
+                    # 𝑝 = HypothesisTests.pvalue(HypothesisTests.MannWhitneyUTest(bac_pre,
+                    #                                                             bac_lfp_pre[1]);
+                    #                            tail = :right)
+                    test = HypothesisTests.SignedRankTest(Float64.(bac_pre),
+                                                          Float64.(bac_lfp_pre))
+                    𝑝 = HypothesisTests.pvalue(test; tail = :both)
                     write(file, "\nU-test, two-sided 𝑝 to pre. = $𝑝")
                     write(file, "\n")
 

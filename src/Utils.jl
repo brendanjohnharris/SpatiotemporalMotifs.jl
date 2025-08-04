@@ -988,7 +988,7 @@ function hierarchicalkendall(x::AbstractVector{<:Real}, y::AbstractDimArray,
     ms = asyncmap(eachslice(y, dims = Depth)) do yy
         mnms = map(eachslice(yy, dims = SessionID)) do yyy # Individual 6-vector
             μ = corkendall(x, yyy)
-            s = map(1:N) do _
+            s = map(1:N) do _ # Generate distribution of null correlations
                 idxs = randperm(length(yyy))
                 corkendall(x, yyy[idxs]) # A shuffle
             end
@@ -997,7 +997,7 @@ function hierarchicalkendall(x::AbstractVector{<:Real}, y::AbstractDimArray,
         μ = first.(mnms)
         s = last.(mnms)
         σ = (percentile(μ, 25), percentile(μ, 75))
-        s = collect(Iterators.flatten(s))
+        s = collect(Iterators.flatten(s)) #!BAD artificial s
         𝑝 = MannWhitneyUTest(s, μ) |> pvalue
         μ = median(μ)
         return μ, σ, 𝑝

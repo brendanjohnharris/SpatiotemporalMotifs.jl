@@ -58,13 +58,13 @@ plot_data, data_file = produce_or_load(Dict(), calcdir("plots");
     begin # * Calculate spike--phase and spike--amplitude coupling across layers. Takes about 30 minutes over 64 cores, 125 GB
         # The idea here is that we have this larger spike_lfp file, and subset it to the
         # relevant data for this plot
-        if isfile(calcdir("spike_lfp.jld2"))
-            pspikes = load(calcdir("spike_lfp.jld2"), "pspikes") # Delete this file to recalculate
-        else
-            pspikes = deepcopy(spikes)
-            idxs = pspikes.stimulus .== [r"Natural_Images"]
-            pspikes = pspikes[idxs, :]
-        end
+        # if isfile(calcdir("spike_lfp.jld2"))
+        #     pspikes = load(calcdir("spike_lfp.jld2"), "pspikes") # Delete this file to recalculate
+        # else
+        pspikes = deepcopy(spikes)
+        idxs = pspikes.stimulus .== [r"Natural_Images"]
+        pspikes = pspikes[idxs, :]
+        # end
 
         requiredcols = [:pairwise_phase_consistency,
             :trial_pairwise_phase_consistency,
@@ -106,7 +106,7 @@ plot_data, data_file = produce_or_load(Dict(), calcdir("plots");
                 sac!(pspikes, ustripall.(r)) # * Mean normalized amplitude spike--amplitude coupling
             end
 
-            save(calcdir("spike_lfp.jld2"), "pspikes", pspikes)
+            # save(calcdir("spike_lfp.jld2"), "pspikes", pspikes)
         end
     end
     begin # * add trial info

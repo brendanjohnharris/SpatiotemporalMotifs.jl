@@ -27,11 +27,9 @@ if !isfile(savepath("fig4", Dict(), "jld2", calcdir("plots"))) # * Use extra wor
         using USydClusters
         USydClusters.Physics.addprocs(8; mem = 16, ncpus = 4,
                                       project = projectdir())
-    else
-        addprocs(4)
+        @everywhere using SpatiotemporalMotifs
+        @everywhere SpatiotemporalMotifs.@preamble
     end
-    @everywhere using SpatiotemporalMotifs
-    @everywhere SpatiotemporalMotifs.@preamble
 end
 
 plot_data, data_file = produce_or_load(Dict(), calcdir("plots");
@@ -77,7 +75,7 @@ plot_data, data_file = produce_or_load(Dict(), calcdir("plots");
         ωs = getindex.(pxy, 2)
     end
 
-    uniphis = pmap(ϕs, ωs) do ϕ, ω # Takes about 5 mins over 32 cores, 180 Gb
+    uniphis = map(ϕs, ωs) do ϕ, ω # Takes about 5 mins over 32 cores, 180 Gb
         changetimes = lookup.(ϕ, :changetime)
         latency = [maximum(abs.(a .- b))
                    for (a, b) in zip(changetimes[2:end], changetimes[1:(end - 1)])]
@@ -94,7 +92,7 @@ plot_data, data_file = produce_or_load(Dict(), calcdir("plots");
         ϕ = set.(ϕ, [Dim{:changetime} => Dim{:changetime}(changetimes)])
         stack(Structure(structures), ϕ)
     end
-    Δϕ = pmap(uniphis) do uniphi
+    Δϕ = map(uniphis) do uniphi
         Δ = [(a, b)
              for a in eachslice(uniphi, dims = 4), b in eachslice(uniphi, dims = 4)]
         Δ = Δ[filter(!=(0), triu(LinearIndices(Δ), 1))]
@@ -136,12 +134,12 @@ plot_data, data_file = produce_or_load(Dict(), calcdir("plots");
         @assert maximum(maximum.(Δfs)) ≤ 1
     end
 
-    ∂h = progressmap(Δϕ, Δhs; parallel = true) do Δ, Δh
+    ∂h = map(Δϕ, Δhs) do Δ, Δh
         mapslices(Δ; dims = (:pair, Depth)) do Δ
             .-sign.(Δ) ./ (Δh) # Minus because phase increases over time
         end
     end
-    ∂f = progressmap(Δϕ, Δfs; parallel = true) do Δ, Δf
+    ∂f = map(Δϕ, Δfs) do Δ, Δf
         mapslices(Δ; dims = (:pair, Depth)) do Δ
             .-sign.(Δ) ./ (Δf) # Minus because phase increases over time
         end
@@ -173,12 +171,12 @@ plot_data, data_file = produce_or_load(Dict(), calcdir("plots");
             Δ = stack(Dim{:pair}(eachindex(Δ)), Δ, dims = 4)
             Δ = permutedims(Δ, (4, 1, 2, 3))
         end
-        ∂h_sur = progressmap(Δϕ_sur, Δhs; parallel = true) do Δ, Δh
+        ∂h_sur = map(Δϕ_sur, Δhs) do Δ, Δh
             mapslices(Δ; dims = (:pair, Depth)) do Δ
                 .-sign.(Δ) ./ (Δh) # Minus because phase increases over time
             end
         end
-        ∂f_sur = progressmap(Δϕ_sur, Δfs; parallel = true) do Δ, Δf
+        ∂f_sur = map(Δϕ_sur, Δfs) do Δ, Δf
             mapslices(Δ; dims = (:pair, Depth)) do Δ
                 .-sign.(Δ) ./ (Δf) # Minus because phase increases over time
             end
@@ -196,8 +194,9 @@ plot_data, data_file = produce_or_load(Dict(), calcdir("plots");
     end
 
     begin # * Calculate p-values of for the averages by comparing to the surrogate distribution
-        # ? We use a non-parametric test to compare the distribution of surrogates (pooled over
-        # all change trials) with the real pooled data
+        # ? We want to compare the distribution of real order parameters to the shuffled
+        # distribution; we have one shuffled value for each real value, so we can use the
+        # paired Wilcoxon test on the non-NaN values.
         begin # * anatomical
             𝑝_h = deepcopy(∂h̄)
             # super = cat(∂h...; dims = 3)
@@ -206,10 +205,12 @@ plot_data, data_file = produce_or_load(Dict(), calcdir("plots");
             super_sur = mean.(∂h_sur; dims = 3)
             super = cat(super..., dims = 3)
             super_sur = cat(super_sur..., dims = 3)
-            𝑝_h .= pmap(eachslice(super, dims = (1, 2)),
-                        eachslice(super_sur, dims = (1, 2))) do x, y
+            𝑝_h .= map(eachslice(super, dims = (1, 2)),
+                       eachslice(super_sur, dims = (1, 2))) do x, y
                 idxs = (.!isnan.(x)) .& (.!isnan.(y))
-                𝑝 = pvalue(HypothesisTests.MannWhitneyUTest(x[idxs], y[idxs]))
+                # 𝑝 = pvalue(HypothesisTests.MannWhitneyUTest(x[idxs], y[idxs]))
+                𝑝 = pvalue(HypothesisTests.SignedRankTest(Float64.(x[idxs]),
+                                                          Float64.(y[idxs])))
             end
         end
 
@@ -221,10 +222,12 @@ plot_data, data_file = produce_or_load(Dict(), calcdir("plots");
             super_sur = mean.(∂f_sur; dims = 3)
             super = cat(super..., dims = 3)
             super_sur = cat(super_sur..., dims = 3)
-            𝑝_f .= pmap(eachslice(super, dims = (1, 2)),
-                        eachslice(super_sur, dims = (1, 2))) do x, y
+            𝑝_f .= map(eachslice(super, dims = (1, 2)),
+                       eachslice(super_sur, dims = (1, 2))) do x, y
                 idxs = (.!isnan.(x)) .& (.!isnan.(y))
-                𝑝 = pvalue(HypothesisTests.MannWhitneyUTest(x[idxs], y[idxs]))
+                # 𝑝 = pvalue(HypothesisTests.MannWhitneyUTest(x[idxs], y[idxs]))
+                𝑝 = pvalue(HypothesisTests.SignedRankTest(Float64.(x[idxs]),
+                                                          Float64.(y[idxs])))
             end
         end
     end
@@ -299,8 +302,12 @@ begin # * Plots
         ax = Axis(gs[2][1, 1], yreversed = true, xlabel = "Time (s)",
                   ylabel = "Cortical depth (%)", title = " ", ytickformat = depthticks,
                   xticks = -0.25:0.25:0.75)
-        levelmap = cgrad(:binary, [0, 1 / 3, 2 / 3, 1]; categorical = true)
-        plevels = [-2, -4, -6]
+        plevels = [-3.0, -5.0]
+        pdiff = mean(diff(plevels))
+        prange = extrema(plevels) .+ [pdiff, -pdiff] ./ 2
+        prange = Tuple(prange)
+        levelmap = cgrad(:binary, range(0, 1, length = length(plevels) + 1);
+                         categorical = true)
         # ∂̄ = dropdims(mean(∂h, dims = Trial), dims = Trial)
         H = deepcopy(𝑝_h)
         H[:] .= adjust(H[:], BenjaminiHochberg())
@@ -309,14 +316,16 @@ begin # * Plots
                              colormap = binarysunset,
                              colorrange = symextrema(∂h̄))
         contour!(ax, H[𝑡(SpatiotemporalMotifs.INTERVAL)] |> ustripall,
-                 colormap = levelmap, levels = plevels, linewidth = 1.5, linestyle = :dash)
+                 colormap = levelmap, levels = plevels, linewidth = 1.5,
+                 linestyle = :dash, colorrange = prange)
         Colorbar(gs[2][1, 2], p;
                  label = rich("Mean order parameter ",
                               rich("A", subscript("θ"), font = "Times Italic")))
-        Colorbar(gs[2][1, 1]; colormap = levelmap, ticks = plevels,
+        Colorbar(gs[2][1, 1]; colormap = levelmap,
+                 ticks = plevels,
                  colorrange = extrema(plevels) .+
                               [mean(diff(plevels)), -mean(diff(plevels))] ./ 2,
-                 tickformat = X -> [L"<10^{%$(round(Int, x))}" for x in X],
+                 tickformat = X -> [L"10^{%$(round(Int, x))}" for x in X],
                  vertical = false,
                  flipaxis = true, label = "Corrected 𝑝-value", tellheight = false,
                  valign = :top)
@@ -337,14 +346,15 @@ begin # * Plots
                              colormap = binarysunset,
                              colorrange = symextrema(∂f̄))
         contour!(ax, H[𝑡(SpatiotemporalMotifs.INTERVAL)] |> ustripall,
-                 colormap = levelmap, levels = plevels, linewidth = 1.5, linestyle = :dash)
+                 colormap = levelmap, levels = [0, plevels...], linewidth = 1.5,
+                 linestyle = :dash, colorrange = prange)
         Colorbar(gs[4][1, 2], p;
                  label = rich("Mean order parameter ",
                               rich("F", subscript("θ"), font = "Times Italic")))
         Colorbar(gs[4][1, 1]; colormap = levelmap, ticks = plevels,
                  colorrange = extrema(plevels) .+
                               [mean(diff(plevels)), -mean(diff(plevels))] ./ 2,
-                 tickformat = X -> [L"<10^{%$(round(Int, x))}" for x in X],
+                 tickformat = X -> [L"10^{%$(round(Int, x))}" for x in X],
                  vertical = false,
                  flipaxis = true, label = "Corrected 𝑝-value", tellheight = false,
                  valign = :top)
