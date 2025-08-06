@@ -15,6 +15,9 @@ using SpatiotemporalMotifs
 set_theme!(foresight(:physics))
 
 begin # * Load active vs passive order parameters
+    path = calcdir("calculations")
+    vars = [:k, :ω]
+
     session_table = load(calcdir("posthoc_session_table.jld2"), "session_table")
     oursessions = session_table.ecephys_session_id
     begin # * Active natural images
@@ -29,6 +32,9 @@ begin # * Load active vs passive order parameters
                     _o[:sessionid] ∈ oursessions
                 end
             end
+            sessionids = map(first(out)) do o
+                metadata(o[:k])[:sessionid]
+            end
             Og = map(out) do o
                 O = map(o) do p
                     k = p[:k]
@@ -37,7 +43,9 @@ begin # * Load active vs passive order parameters
                     ret = dropdims(nansafe(mean; dims = Depth)(sign.(k)), dims = Depth) # Ignore negative frequencies
                     set(ret, Dim{:changetime} => Trial) .|> Float32
                 end
+                O = ToolsArray(O, (SessionID(sessionids),))
             end
+            Og = ToolsArray(Og, (Structure(structures),))
         end
         active = Og
         out = []
@@ -56,6 +64,9 @@ begin # * Load active vs passive order parameters
                     _o[:sessionid] ∈ oursessions
                 end
             end
+            sessionids = map(first(out)) do o
+                metadata(o[:k])[:sessionid]
+            end
             Og = map(out) do o
                 O = map(o) do p
                     k = p[:k]
@@ -64,12 +75,51 @@ begin # * Load active vs passive order parameters
                     ret = dropdims(nansafe(mean; dims = Depth)(sign.(k)), dims = Depth) # Ignore negative frequencies
                     set(ret, Dim{:changetime} => Trial) .|> Float32
                 end
+                O = ToolsArray(O, (SessionID(sessionids),))
             end
+            Og = ToolsArray(Og, (Structure(structures),))
         end
         passive = Og
         out = []
         GC.gc()
     end
+end
+
+begin # * Calculate contrast between active and passive mean order parameters
+    ma = ramap(AbstractArray{<:Number}, active) do x
+             x = mean(x, dims = Trial)
+             dropdims(x, dims = Trial)[1:1562]
+         end .|> stack |> stack
+    mp = ramap(AbstractArray{<:Number}, passive) do x
+             x = mean(x, dims = Trial)
+             dropdims(x, dims = Trial)[1:1562]
+         end .|> stack |> stack
+    m = ma .- mp
+end
+
+begin # * Plot contrast of active and passive
+    f = Figure()
+    ax = Axis(f[1, 1]; xlabel = "Time (s)", ylabel = "Order parameter contrast",
+              title = "Active vs passive mean order parameter")
+
+    map(lookup(m, Structure)) do structure
+        mstructure = m[Structure = At(structure)] |> ustripall
+
+        μ = nansafe(mean, dims = 2)(mstructure)
+        μ = dropdims(μ, dims = SessionID)
+
+        σ = nansafe(std, dims = 2)(mstructure)
+        σ = dropdims(σ, dims = SessionID)
+        σl = μ .- σ / 2
+        σh = μ .+ σ / 2
+
+        ts = collect(lookup(μ, 𝑡))
+        # band!(ax, ts, parent(σl), parent(σh), label = structure,
+        #       color = structurecolormap[structure], alpha = 0.2)
+        lines!(ax, ts, parent(μ), label = structure,
+               color = structurecolormap[structure])
+    end
+    display(f)
 end
 
 begin # * Load spontaneous order parameter
@@ -95,8 +145,10 @@ begin # * Load spontaneous order parameter
                 filename = savepath((@strdict sessionid structure stimulus), "jld2",
                                     calcdir("power_spectra"))
                 R = load(filename, "R")[1:5:end] # Downsample to keep things manageable
+                sR = load(filename, "sR")[1:5:end] # Downsample to keep things manageable
                 # S = load(filename, "sC")
                 # return (C .- S) ./ median(S)
+                return R, sR
             end
             idxs = .!isnothing.(out)
             out = out[idxs]
@@ -111,6 +163,17 @@ end
 
 begin # * Extract the probability mass of 'coherent' events; |OP| > 0.75
     coherent_events = map(data) do R
+        R = SpatiotemporalMotifs.ramap(Base.Fix2(getindex, 1), R)
+        out = map(R) do y
+            out = map(y) do x
+                l = sum(x -> x .< -0.5, x) / length(x)
+                u = sum(x -> x .> 0.5, x) / length(x)
+                return [l, u]
+            end |> stack
+        end |> stack
+    end |> stack
+    coherent_events_sur = map(data) do R
+        R = SpatiotemporalMotifs.ramap(Base.Fix2(getindex, 2), R)
         out = map(R) do y
             out = map(y) do x
                 l = sum(x -> x .< -0.5, x) / length(x)
@@ -122,20 +185,47 @@ begin # * Extract the probability mass of 'coherent' events; |OP| > 0.75
     ds = (Dim{:side}([:l, :u]), SessionID(oursessions), Structure(structures),
           Dim{:stimulus}(stimuli))
     coherent_events = ToolsArray(coherent_events, ds)
+    coherent_events_sur = ToolsArray(coherent_events_sur, ds)
 end
 
 begin # * Plot boxplots of probability of coherent events
-    f = Figure()
-    ax = Axis(f[1, 1], ylabel = "Probability of coherent events",
-              xticks = (1.5:1:3.5, string.(stimuli)))
-    levents = coherent_events[side = At(:l)]
-    for (i, stimulus) in enumerate(lookup(levents, :stimulus))
-        y = levents[stimulus = At(stimulus)]
-        structures = lookup(y, Structure)
-        x = repeat(eachindex(structures)', size(y, SessionID), 1)
+    f = SixPanel()
 
-        boxplot!(ax, i .+ x[:] ./ (length(structures) + 1), y[:], width = 0.1,
-                 color = getindex.([structurecolors], x)[:], show_outliers = false)
+    gs = subdivide(f, 3, 2)
+
+    for (i, side) in enumerate([:u, :l])
+        for (j, surr) in enumerate([false, true])
+            title = "Coherent events ("
+
+            if surr
+                title = title * "null, "
+            end
+
+            if side === :u
+                title = title * "upward)"
+            else
+                title = title * "downward)"
+            end
+
+            ax = Axis(f[i + 1, j]; ylabel = "Probability of coherent events",
+                      xticks = (1.5:1:3.5, string.(stimuli)), title)
+
+            if surr
+                levents = coherent_events_sur[side = At(side)]
+            else
+                levents = coherent_events[side = At(side)]
+            end
+
+            for (i, stimulus) in enumerate(lookup(levents, :stimulus))
+                y = levents[stimulus = At(stimulus)]
+                structures = lookup(y, Structure)
+                x = repeat(eachindex(structures)', size(y, SessionID), 1)
+
+                boxplot!(ax, i .+ x[:] ./ (length(structures) + 1), y[:], width = 0.1,
+                         color = getindex.([structurecolors], x)[:], show_outliers = false,
+                         whiskerlinewidth = 2)
+            end
+        end
     end
     # for (i, structure) in enumerate(lookup(levents, Structure))
     #     y = levents[Structure = At(structure)]

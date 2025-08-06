@@ -45,7 +45,7 @@ function _preamble()
         using Term
         using Term.Progress
         import AllenNeuropixels: Chan, Unit, Depth, Log𝑓
-        import SpatiotemporalMotifs.calcdir
+        import SpatiotemporalMotifs: calcdir, prony, amplitudes, frequencies, reconstruct
         using TerminalLoggers, Logging
         global_logger(TerminalLogger(right_justify = 200))
         using ProgressLogging
@@ -874,6 +874,8 @@ function bootstrapaverage(average, x::AbstractVector{T}; confint = 0.95,
 
     # * Estimate a sampling distribution of the average
     x = filter(!isnan, x)
+    x = filter(!isinf, x)
+
     b = Bootstrap.bootstrap(nansafe(average), x, Bootstrap.BalancedSampling(N))
     μ, σ... = only(Bootstrap.confint(b, Bootstrap.BCaConfInt(confint)))
     return μ, σ
@@ -1006,3 +1008,142 @@ function hierarchicalkendall(x::AbstractVector{<:Real}, y::AbstractDimArray,
     𝑝 = set(𝑝, MultipleTesting.adjust(collect(𝑝), BenjaminiHochberg()))
     return first.(ms), getindex.(ms, 2), 𝑝
 end
+
+# * Recursive array map
+ramap(f, x) = f(x)
+ramap(f, x::AbstractArray) = map(Base.Fix1(ramap, f), x)
+function ramap(f, leaf::Type{T}, x) where {T}
+    if x isa T
+        return f(x)
+    elseif x isa AbstractArray
+        return map(el -> ramap(f, leaf, el), x)
+    else
+        return f(x)
+    end
+end
+
+struct Prony{V <: Real}
+    coefficients::Vector{Complex{V}}
+    poles::Vector{Complex{V}}
+    fs::V
+end
+
+coefficients(P::Prony) = P.coefficients
+amplitudes(P::Prony) = map(abs, coefficients(P))
+poles(P::Prony) = P.poles
+damping_factors(P::Prony) = P.fs * map(log ∘ abs, poles(P))
+frequencies(P::Prony) = P.fs * map(angle, poles(P)) / (2 * π)
+phases(P::Prony) = map(angle, coefficients(P))
+
+"""
+    prony(x::Vector{<:Number}, fs::Real, p::Int; λ=1e-8)
+
+Estimates the parameters of a signal `x` modeled as a sum of `p` damped complex exponentials
+using a numerically robust version of Prony's method.
+
+x(t) ≈ Σ Aₖ * exp(αₖ * t) * cos(2πfₖ * t + φₖ)
+
+# Arguments
+- `x::Vector{<:Number}`: The input signal samples.
+- `fs::Real`: The sampling frequency in Hz.
+- `p::Int`: The desired model order (number of exponential components).
+
+# Keyword Arguments
+- `λ::Real`: Ridge regularization parameter. Default is `1e-8`.
+
+# Returns
+- `Prony`: A struct containing the estimated amplitudes, damping factors, phases, and frequencies.
+
+# Method
+1.  **Linear Prediction:** Solves the linear prediction equations `T * a ≈ -x_vec` using the
+    numerically stable pseudoinverse (SVD-based) to find the coefficients `a` of the
+    characteristic polynomial.
+2.  **Pole Estimation:** Finds the poles (roots) by computing the eigenvalues of the companion
+    matrix associated with the polynomial coefficients `a`. This is more stable than direct
+    polynomial root-finding.
+3.  **Amplitude Estimation:** Solves the Vandermonde system `Z * h ≈ x` for the complex
+    amplitudes `h`, again using the stable pseudoinverse.
+4.  **Parameter Extraction:** Derives the physical parameters (amplitude, damping, phase,
+    frequency) from the complex poles `z` and amplitudes `h`.
+"""
+function prony(x::AbstractVector{A}, fs::B, p::Int;
+               λ::Real = 1e-8) where {A <: Number, B <: Real}
+    V = promote_type(real(A), B)
+    N = length(x)
+
+    if N < p
+        throw(ArgumentError("The length of the input signal ($N) must be at least equal to the model order `p` ($p)."))
+    end
+
+    # We set up the equation T * a = -x_vec, where T is a Toeplitz-like data matrix.
+    # This is the covariance method of linear prediction.
+    T = zeros(eltype(x), N, p)
+    for j in 1:p
+        T[1:(N - p), j] = view(x, (p + 1 - j):(N - j))
+    end
+    for i in 1:p
+        T[(N - p + i), i] = λ  # Regularization on the last p rows
+    end
+    T = factorize(T)
+    a = zeros(V, length(x))
+    a[1:(N - p)] = -x[(p + 1):N]
+    ldiv!(T, a) # Overwrites the first p elements of a
+
+    # Construct the companion matrix for the polynomial with coefficients `c`.
+    C = zeros(eltype(a), p, p)
+    C[1, :] = -view(a, 1:p)
+    for i in 1:(p - 1)
+        C[i + 1, i] = 1
+    end
+    h = eigvals(C)
+
+    # Construct the Vandermonde matrix Z for the complex amplitudes
+    Z = zeros(Complex{V}, N + p, p)
+    Z_top = view(Z, 1:N, :)
+    for k in 1:p
+        Z_top[1, k] = one(Complex{V})
+    end
+    for n in 2:N
+        for k in 1:p
+            Z_top[n, k] = Z_top[n - 1, k] * h[k]
+        end
+    end
+
+    # Add regularization
+    Z_bottom = view(Z, (N + 1):(N + p), :)
+    for k in 1:p
+        Z_bottom[k, k] = λ
+    end
+
+    X = zeros(Complex{V}, N + p)
+    X[1:N] = x
+
+    # Solve
+    Z = qr(Z)
+    c = Vector{Complex{V}}(undef, p)
+    ldiv!(c, Z, X)
+    return Prony(c, h, fs)
+end
+
+function prony(x::UnivariateTimeSeries, p::Int; kwargs...)
+    fs = samplingrate(x)
+    prony(parent(x), fs, p; kwargs...)
+end
+
+function reconstruct(P::Prony{V}, N::Integer; idxs = eachindex(poles(P))) where {V}
+    x = zeros(Complex{V}, N)
+    for k in idxs
+        A_k = coefficients(P)[k]
+        z_k = poles(P)[k]
+        current_pole_power = one(Complex{V})
+        for n in 1:N
+            x[n] += A_k * current_pole_power
+            current_pole_power *= z_k
+        end
+    end
+    return x
+end
+function reconstruct(P::Prony{V}, x::AbstractVector{<:Real}; kwargs...) where {V}
+    reconstruct(P, length(x); kwargs...) |> real
+end
+reconstruct(P::Prony{V}, x; kwargs...) where {V} = reconstruct(P, length(x); kwargs...)

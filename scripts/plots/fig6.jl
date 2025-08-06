@@ -11,6 +11,21 @@ using SpatiotemporalMotifs
 set_theme!(foresight(:physics))
 Random.seed!(42)
 
+if !isfile(calcdir("plots", savepath("fig6", Dict(), "jld2")))
+    if nprocs() == 1
+        if SpatiotemporalMotifs.CLUSTER()
+            using USydClusters
+            ourprocs = USydClusters.Physics.addprocs(6; mem = 33, ncpus = 8,
+                                                     project = projectdir(),
+                                                     queue = "l40s")
+        else
+            addprocs(6) # Equal to the number of structures
+        end
+    end
+    @everywhere using SpatiotemporalMotifs
+    @everywhere SpatiotemporalMotifs.@preamble
+end
+
 plot_data, data_file = produce_or_load(Dict(), calcdir("plots");
                                        filename = savepath("fig6")) do _
     stimulus = r"Natural_Images"
@@ -55,16 +70,16 @@ plot_data, data_file = produce_or_load(Dict(), calcdir("plots");
         end
     end
 
-    begin # * Calculate spike--phase and spike--amplitude coupling across layers. Takes about 30 minutes over 64 cores, 125 GB
+    begin # * Calculate spike--phase and spike--amplitude coupling across layers. Takes about 60 minutes over 6 workers
         # The idea here is that we have this larger spike_lfp file, and subset it to the
         # relevant data for this plot
-        # if isfile(calcdir("spike_lfp.jld2"))
-        #     pspikes = load(calcdir("spike_lfp.jld2"), "pspikes") # Delete this file to recalculate
-        # else
-        pspikes = deepcopy(spikes)
-        idxs = pspikes.stimulus .== [r"Natural_Images"]
-        pspikes = pspikes[idxs, :]
-        # end
+        if isfile(calcdir("spike_lfp.jld2"))
+            pspikes = load(calcdir("spike_lfp.jld2"), "pspikes") # Delete this file to recalculate
+        else
+            pspikes = deepcopy(spikes)
+            idxs = pspikes.stimulus .== [r"Natural_Images"]
+            pspikes = pspikes[idxs, :]
+        end
 
         requiredcols = [:pairwise_phase_consistency,
             :trial_pairwise_phase_consistency,
@@ -94,19 +109,26 @@ plot_data, data_file = produce_or_load(Dict(), calcdir("plots");
             :hitmiss]
 
         if !all(hasproperty.([pspikes], requiredcols))
-            for s in eachindex(structures)
-                @info "Calculating spike coupling for $(structures[s])"
-                ϕ = map(out[s]) do o
+            structurepspikes = groupby(pspikes, :structure_acronym) |> deepcopy
+            subouts = map(keys(structurepspikes)) do k
+                view(out, findfirst(structures .== [k.structure_acronym]))
+            end
+            dframes = pmap(structurepspikes, keys(structurepspikes),
+                           subouts) do dframe, k, O
+                structure = k.structure_acronym
+                @info "Calculating spike coupling for $(structure)"
+                ϕ = map(only(O)) do o
                     o[:ϕ][𝑡 = SpatiotemporalMotifs.INTERVAL] # Phase during trial interval
                 end
-                r = map(out[s]) do o
+                r = map(only(O)) do o
                     o[:r][𝑡 = SpatiotemporalMotifs.INTERVAL] # Amplitude during trial interval
                 end
-                spc!(pspikes, ustripall.(ϕ)) # * PPC spike--phase coupling
-                sac!(pspikes, ustripall.(r)) # * Mean normalized amplitude spike--amplitude coupling
+                spc!(dframe, ustripall.(ϕ)) # * PPC spike--phase coupling
+                sac!(dframe, ustripall.(r)) # * Mean normalized amplitude spike--amplitude coupling
+                return dframe
             end
-
-            # save(calcdir("spike_lfp.jld2"), "pspikes", pspikes)
+            pspikes = vcat(dframes...)
+            tagsave(calcdir("spike_lfp.jld2"), Dict("pspikes" => pspikes))
         end
     end
     begin # * add trial info
@@ -160,76 +182,126 @@ plot_data, data_file = produce_or_load(Dict(), calcdir("plots");
                 return _trials.rectified_change_times
             end
         end
-        begin # * How does firing rate vary with depth? Make a psth for each theta-sensitive neuron
+        begin # * How does firing rate vary with depth?
             binwidth = 15u"ms"
             timebins = range(SpatiotemporalMotifs.INTERVAL, step = binwidth) |>
                        ustripall |>
                        intervals
             dt0 = ustrip.(extrema(SpatiotemporalMotifs.INTERVAL))
 
-            @info "Calculating trial PSTH rates for each spike"
-            trial_psth_rates = map(eachrow(pspikes)) do row # Takes about 10 minutes. Breaks if distributed...
-                isempty(row[:spiketimes]) && return
-                spiketimes = row[:spiketimes]
-                spiketimes = spiketrain(spiketimes)
+            @info "Calculating trial PSTH rates for each spike" # Takes about 30 minutes
+            @withprogress name="PSTH" begin
+                threadmax = size(pspikes, 1)
+                threadlog = 0
+                trial_psth_rates = map(eachrow(pspikes)) do row # ! Takes about 10 minutes. Breaks if distributed...
+                    isempty(row[:spiketimes]) && return
+                    spiketimes = row[:spiketimes]
+                    spiketimes = spiketrain(spiketimes)
 
-                trial_spikes = map(row.rectified_change_times) do t
-                    # spike aligned to stimulus onset time
-                    dt = IntervalSets.Interval((dt0 .+ ustrip.(t))...)
-                    ts = spiketimes[𝑡 = dt] # Extract
-                    ts = set(ts, 𝑡 => times(ts) .- ustrip.(t)) # Align to t
-                end
-                trial_psth_rates = map(trial_spikes) do ts
-                    if isempty(ts)
-                        return nothing
-                    else
-                        psth = groupby(ts, 𝑡 => Bins(timebins)) .|> sum
-                        psth_rates = psth ./ ustrip(uconvert(u"s", binwidth))
-                        psth_rates = set(psth_rates, 𝑡 => mean.(times(psth_rates)))
+                    trial_spikes = map(row.rectified_change_times) do t
+                        # spike aligned to stimulus onset time
+                        dt = IntervalSets.Interval((dt0 .+ ustrip.(t))...)
+                        ts = spiketimes[𝑡 = dt] # Extract
+                        ts = set(ts, 𝑡 => times(ts) .- ustrip.(t)) # Align to t
                     end
-                end
+                    trial_psth_rates = map(trial_spikes) do ts
+                        if isempty(ts)
+                            return nothing
+                        else
+                            psth = groupby(ts, 𝑡 => Bins(timebins)) .|> sum
+                            psth_rates = psth ./ ustrip(uconvert(u"s", binwidth))
+                            psth_rates = set(psth_rates, 𝑡 => mean.(times(psth_rates)))
+                        end
+                    end
 
-                # if isempty(trial_spikes)
-                # psth_rates = nothing
-                # else
-                # psth_rates = mean(trial_spikes) ./ ustrip(binwidth)
-                # psth_rates = set(psth_rates, 𝑡 => mean.(times(psth_rates)))
-                # end
-                return trial_psth_rates
+                    # if isempty(trial_spikes)
+                    # psth_rates = nothing
+                    # else
+                    # psth_rates = mean(trial_spikes) ./ ustrip(binwidth)
+                    # psth_rates = set(psth_rates, 𝑡 => mean.(times(psth_rates)))
+                    # end
+                    threadlog += 1
+                    @logprogress threadlog / threadmax
+                    return trial_psth_rates
+                end
+                pspikes.trial_psth_rates = trial_psth_rates
             end
-            pspikes.trial_psth_rates = trial_psth_rates
         end
 
+        @info "Calculating normalized PSTH"
         begin # * Do a proper hit/miss comparison by removing pre-stimulus baseline
-            pspikes.zscored_trial_psth_rates = map(eachrow(pspikes)) do row
-                isempty(row[:trial_psth_rates]) && return
-                psths = row[:trial_psth_rates]
-                bpsths = filter(!isnothing, psths)
-
-                # * Remove pre-stimulus baseline
-                # bpsth = map(bpsths) do psth
-                #     if !(psth isa RegularTimeSeries)
-                #         psth = rectify(psth, dims = 𝑡)
-                #     end
-                #     psth[𝑡 = (-0.25 .. 0.0)]
-                # end |> mean
-                tpsth = rectify.(bpsths, dims = 𝑡) |> mean # Just mean psth for whole trial
-
-                μ = mean(tpsth)
-                σ = std(tpsth)
-                psths = map(psths) do psth
-                    if isnothing(psth)
-                        return nothing
-                    elseif !(psth isa RegularTimeSeries)
-                        psth = rectify(psth, dims = 𝑡)
+            @withprogress name="Normalized PSTH" begin
+                threadmax = size(pspikes, 1)
+                threadlog = 0
+                pspikes.zscored_trial_psth_rates = map(eachrow(pspikes)) do row
+                    if isnothing(row[:trial_psth_rates]) || isempty(row[:trial_psth_rates])
+                        return
+                    end
+                    psths = row[:trial_psth_rates]
+                    bpsths = filter(!isnothing, psths)
+                    if isempty(bpsths)
+                        return
                     end
 
-                    psth = (psth .- μ) ./ σ
+                    # * Remove pre-stimulus baseline
+                    # bpsth = map(bpsths) do psth
+                    #     if !(psth isa RegularTimeSeries)
+                    #         psth = rectify(psth, dims = 𝑡)
+                    #     end
+                    #     psth[𝑡 = (-0.25 .. 0.0)]
+                    # end |> mean
+                    tpsth = rectify.(bpsths, dims = 𝑡) |> mean # Just mean psth for whole trial
+                    μ = mean(tpsth)
+                    σ = std(tpsth)
+                    psths = map(psths) do psth
+                        if isnothing(psth)
+                            return nothing
+                        elseif !(psth isa RegularTimeSeries)
+                            psth = rectify(psth, dims = 𝑡)
+                        end
 
-                    return psth
+                        psth = (psth .- μ) ./ σ
+
+                        return psth
+                    end
+                    threadlog += 1
+                    @logprogress threadlog / threadmax
+                    return psths
                 end
             end
         end
+
+        @info "Calculating hit/miss PSTH"
+        pspikes.hit_psth = map(eachrow(pspikes)) do row
+            psths = row.zscored_trial_psth_rates
+            psths = psths[row.hitmiss]
+            psths = filter(!isnothing, psths)
+            if isempty(psths)
+                return nothing
+            else
+                return convert.(Float32, mean(psths))
+            end
+        end
+        pspikes.miss_psth = map(eachrow(pspikes)) do row
+            psths = row.zscored_trial_psth_rates
+            psths = psths[.!row.hitmiss]
+            psths = filter(!isnothing, psths)
+            if isempty(psths)
+                return nothing
+            else
+                return convert.(Float32, mean(psths))
+            end
+        end
+    end
+
+    begin # * Format hit and miss mean psths
+        hit_psths = ToolsArray(pspikes.hit_psth, (Unit(pspikes.ecephys_unit_id),))
+        hit_psths = filter(!isnothing, hit_psths)
+        hit_psths = stack(hit_psths)
+
+        miss_psths = ToolsArray(pspikes.miss_psth, (Unit(pspikes.ecephys_unit_id),))
+        miss_psths = filter(!isnothing, miss_psths)
+        miss_psths = stack(miss_psths)
     end
 
     pspikes = subset(pspikes, :pairwise_phase_consistency => ByRow(!isnan))
@@ -240,17 +312,21 @@ plot_data, data_file = produce_or_load(Dict(), calcdir("plots");
     select!(pspikes, Not([:trial_pairwise_phase_consistency]))
     select!(pspikes, Not([:trial_pairwise_phase_consistency_pvalue]))
     select!(pspikes, Not([:trial_spike_amplitude_coupling]))
+    select!(pspikes, Not([:trial_psth_rates]))
+    select!(pspikes, Not([:zscored_trial_psth_rates]))
+    select!(pspikes, Not([:hit_psth]))
+    select!(pspikes, Not([:miss_psth]))
 
     unitdepths = subset(unitdepths, :stimulus => ByRow(==("spontaneous")))
     unitdepths = subset(unitdepths, :spc => ByRow(!isnan))
     unitdepths = subset(unitdepths, :spc => ByRow(>(0)))
     unitdepths = subset(unitdepths, :sac => ByRow(!isnan))
 
-    return (@strdict pspikes unitdepths)
+    return (@strdict pspikes unitdepths hit_psths miss_psths)
 end
 
 begin # * Set up figure
-    @unpack pspikes, unitdepths = plot_data
+    @unpack pspikes, unitdepths, hit_psth, miss_psth = plot_data
     begin # * Set up figure
         f = SixPanel()
         gs = subdivide(f, 3, 2)
@@ -790,36 +866,40 @@ begin # * Plot on the same polar axis the hit and miss angles for VISl only
 end
 
 begin # * Plot the mean firing rate of theta-sensitive neurons. For hit vs miss across layers
-    structure = "VISp" # !! Change to VISl
+
+    # # * Average psths
+    # subspikes.hit_psth = map(eachrow(subspikes)) do row
+    #     psths = row.zscored_trial_psth_rates
+    #     psths = psths[row.hitmiss]
+    #     psths = filter(!isnothing, psths)
+    #     if isempty(psths)
+    #         return nothing
+    #     else
+    #         return convert.(Float32, mean(psths))
+    #     end
+    # end
+    # subspikes.miss_psth = map(eachrow(subspikes)) do row
+    #     psths = row.zscored_trial_psth_rates
+    #     psths = psths[.!row.hitmiss]
+    #     psths = filter(!isnothing, psths)
+    #     if isempty(psths)
+    #         return nothing
+    #     else
+    #         return convert.(Float32, mean(psths))
+    #     end
+    # end
+end
+
+begin # * Plot hit & miss firing rate in different layers (onset)
+    structure = "VISl" # !! Change to VISl
 
     idxs = pspikes.structure_acronym .== [structure]
     subspikes = pspikes[idxs, :]
 
-    # * Average psths
-    subspikes.hit_psth = map(eachrow(subspikes)) do row
-        psths = row.zscored_trial_psth_rates
-        psths = psths[row.hitmiss]
-        psths = filter(!isnothing, psths)
-        if isempty(psths)
-            return nothing
-        else
-            return convert.(Float32, mean(psths))
-        end
-    end
-    subspikes.miss_psth = map(eachrow(subspikes)) do row
-        psths = row.zscored_trial_psth_rates
-        psths = psths[.!row.hitmiss]
-        psths = filter(!isnothing, psths)
-        if isempty(psths)
-            return nothing
-        else
-            return convert.(Float32, mean(psths))
-        end
-    end
-end
+    # * Select theta-sensitive neuron
 
-begin # * Plot hit & miss firing rate in different layers (onset)
     intt = -0.02 .. 0.2
+
     f = Figure(size = (800, 300))
     ax = Axis(f[1, 1], title = "Hit trials", xlabel = "Time (s)",
               ylabel = "Normalized firing rate (Hz)")
@@ -833,13 +913,18 @@ begin # * Plot hit & miss firing rate in different layers (onset)
         lidxs = indexin(clayers, "L" .* SpatiotemporalMotifs.layers)
         ss = subspikes.layer .∈ [clayers]
         layer_spikes = subspikes[ss, :]
-        hit_psth = filter(!isnothing, layer_spikes.hit_psth)
-        hit_psth = rectify.(hit_psth, dims = 𝑡)
-        hit_psth = ToolsArray(hit_psth, (Unit(1:size(hit_psth, 1)),)) |> stack
-        hit_psth = hit_psth[𝑡 = intt]
 
-        _μ, (_σl, _σh) = bootstrapmedian(hit_psth, dims = 2)
+        unitids = intersect(layer_spikes.ecephys_unit_id, lookup(hit_psths, Unit))
+        psth = hit_psths[Unit = At(unitids)]
+        psth = psth[𝑡 = intt]
+        idxs = allequal.(eachslice(psth, dims = 2))
+        psth = psth[:, .!idxs]
 
+        # psth = filter(!isnothing, layer_spikes.hit_psth)
+        # psth = rectify.(psth, dims = 𝑡)
+        # psth = ToolsArray(psth, (Unit(1:size(psth, 1)),)) |> stack
+
+        _μ, (_σl, _σh) = bootstrapmedian(psth, dims = 2)
         # σ = std(hit_psth, dims = 2)
         # σ = dropdims(σ, dims = 2)
         # σl = μ .- σ / 2
@@ -857,11 +942,18 @@ begin # * Plot hit & miss firing rate in different layers (onset)
         scatter!(ax, _μ, color = mean(layercolors[lidxs]),
                  markersize = 15, label = compartment)
 
-        miss_psth = filter(!isnothing, layer_spikes.miss_psth)
-        miss_psth = filter(x -> !any(isnan, x), miss_psth)
-        miss_psth = ToolsArray(miss_psth, (Unit(1:size(miss_psth, 1)),)) |> stack
-        miss_psth = miss_psth[𝑡 = intt]
-        _μ, (_σl, _σh) = bootstrapmedian(miss_psth, dims = 2)
+        # miss_psth = filter(!isnothing, layer_spikes.miss_psth)
+        # miss_psth = filter(x -> !any(isnan, x), miss_psth)
+        # miss_psth = ToolsArray(miss_psth, (Unit(1:size(miss_psth, 1)),)) |> stack
+        # miss_psth = miss_psth[𝑡 = intt]
+
+        unitids = intersect(layer_spikes.ecephys_unit_id, lookup(miss_psths, Unit))
+        psth = miss_psths[Unit = At(unitids)]
+        psth = psth[𝑡 = intt]
+        idxs = allequal.(eachslice(psth, dims = 2))
+        psth = psth[:, .!idxs]
+
+        _μ, (_σl, _σh) = bootstrapmedian(psth, dims = 2)
 
         μ = upsample(_μ, 5)
         σl = upsample(_σl, 5)
