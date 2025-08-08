@@ -896,7 +896,9 @@ begin # * Plot hit & miss firing rate in different layers (onset)
     idxs = pspikes.structure_acronym .== [structure]
     subspikes = pspikes[idxs, :]
 
-    # * Select theta-sensitive neuron
+    # * Select theta-sensitive neurons
+    cutoff_ppc = 0.2
+    sensitive_idxs = subspikes.pairwise_phase_consistency .> cutoff_ppc
 
     intt = -0.02 .. 0.2
 

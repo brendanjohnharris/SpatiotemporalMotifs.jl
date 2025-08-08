@@ -15,7 +15,7 @@ using SpatiotemporalMotifs
 set_theme!(foresight(:physics))
 
 begin
-    config = Dict("p" => 100,
+    config = Dict("p" => 50,
                   "band" => (1, 30),
                   "interval" => (0.25, 1),
                   "lambda" => 1e-8)
@@ -25,11 +25,11 @@ if !isfile(calcdir("plots", savepath("figS2", config, "jld2")))
     if nprocs() == 1
         if SpatiotemporalMotifs.CLUSTER()
             using USydClusters
-            ourprocs = USydClusters.Physics.addprocs(8; mem = 16, ncpus = 2,
+            ourprocs = USydClusters.Physics.addprocs(16; mem = 12, ncpus = 2,
                                                      project = projectdir(),
-                                                     queue = "h100")
+                                                     queue = "taiji")
         else
-            addprocs(11)
+            addprocs(9)
         end
     end
     @everywhere using SpatiotemporalMotifs
@@ -42,8 +42,8 @@ plot_data, data_file = produce_or_load(config, calcdir("plots");
 
     interval = Interval(config["interval"]...) # Offset onwards
     p = config["p"]
-    pronyband = config["band"]
     λ = config["lambda"]
+    pronyband = config["band"]
 
     function prony_fit(out)
         @withprogress name="Prony" begin
@@ -52,32 +52,34 @@ plot_data, data_file = produce_or_load(config, calcdir("plots");
             pronies = map(out) do out_structure
                 sessionids = getindex.(out_structure, :sessionid)
 
-                P = pmap(out_structure) do out_session
-                    V = out_session[:θ] |> ustripall
-                    # V = bandpass(V, pronyband)
+                P = map(out_structure) do out_session
+                    V = out_session[:V] |> ustripall
+                    V = bandpass(V, pronyband) # Reduce high-frequency noise
                     V = V[𝑡 = interval]
                     V = V[1:2:end, :, :] # Downsample for speed
                     V = ZScore(V, dims = 1)(V)
 
                     P = map(eachslice(V, dims = (Depth, :changetime))) do x
                         # * Fit prony
-                        P = SpatiotemporalMotifs.prony(x, p; λ = λ)
+                        P = SpatiotemporalMotifs.prony(x, p; λ = λ) # Real prony fit
                         fs = SpatiotemporalMotifs.frequencies(P)
                         amps = SpatiotemporalMotifs.amplitudes(P)
+                        rmses = SpatiotemporalMotifs.errors(P, x)
+                        damps = SpatiotemporalMotifs.dampingfactors(P)
 
                         # * Find strongest frequency
-                        idxs = minimum(pronyband) .< fs .< maximum(pronyband)
-                        _, idx = findmax(amps[idxs])
-                        topfreq = fs[idxs][idx]
+                        rmse, topidx = findmin(rmses)
 
-                        # * Reconstruct the signal from this component and its reflection
-                        topidx = findfirst(isequal(topfreq), fs)
-                        idxs = [topidx, findfirst(isequal(-topfreq), fs)]
+                        # begin
+                        #     lines(x)
+                        #     y = SpatiotemporalMotifs.reconstruct(P, x)
+                        #     lines!(y, linestyle = :dash)
+                        #     y = SpatiotemporalMotifs.reconstruct(P, x; idxs = topidx)
+                        #     lines!(y)
+                        #     current_figure() |> display
+                        # end
 
-                        y = reconstruct(P, x; idxs)
-                        rmse = sqrt(mean(abs2, y - x))
-
-                        return amps[topidx], fs[topidx], rmse
+                        return amps[topidx], fs[topidx], rmse, damps[topidx]
                     end
                 end
 
@@ -98,7 +100,7 @@ plot_data, data_file = produce_or_load(config, calcdir("plots");
             Q = calcquality(path)[Structure = At(structures)]
             Q = Q[SessionID(At(oursessions))]
             @assert mean(Q[stimulus = At(stimulus)]) == 1
-            out = load_calculations(Q; stimulus = stimulus, vars = [:θ])
+            out = load_calculations(Q; stimulus = stimulus, vars = [:V])
         end
         @info "Calculating prony fits for $stimulus"
         pronies = prony_fit(out)
@@ -106,10 +108,12 @@ plot_data, data_file = produce_or_load(config, calcdir("plots");
         amplitudes = SpatiotemporalMotifs.ramap(Base.Fix2(getindex, 1), pronies)
         frequencies = SpatiotemporalMotifs.ramap(Base.Fix2(getindex, 2), pronies)
         rmse = SpatiotemporalMotifs.ramap(Base.Fix2(getindex, 3), pronies)
+        damps = SpatiotemporalMotifs.ramap(Base.Fix2(getindex, 4), pronies)
 
         outdict[string(stimulus)] = Dict("prony_fit" => Dict("amplitudes" => amplitudes,
                                                              "frequencies" => frequencies,
-                                                             "rmse" => rmse))
+                                                             "rmse" => rmse,
+                                                             "damps" => damps))
     end
     uni = []
     GC.gc()
@@ -123,7 +127,7 @@ plot_data, data_file = produce_or_load(config, calcdir("plots");
             Q = calcquality(path)[Structure = At(structures)]
             Q = Q[SessionID(At(oursessions))]
             @assert mean(Q[stimulus = At(stimulus)]) == 1
-            out = load_calculations(Q; stimulus = stimulus, vars = [:θ])
+            out = load_calculations(Q; stimulus = stimulus, vars = [:V])
         end
 
         @info "Calculating prony fits for $stimulus"
@@ -132,10 +136,12 @@ plot_data, data_file = produce_or_load(config, calcdir("plots");
         amplitudes = SpatiotemporalMotifs.ramap(Base.Fix2(getindex, 1), pronies)
         frequencies = SpatiotemporalMotifs.ramap(Base.Fix2(getindex, 2), pronies)
         rmse = SpatiotemporalMotifs.ramap(Base.Fix2(getindex, 3), pronies)
+        damps = SpatiotemporalMotifs.ramap(Base.Fix2(getindex, 4), pronies)
 
         outdict[string(stimulus)] = Dict("prony_fit" => Dict("amplitudes" => amplitudes,
                                                              "frequencies" => frequencies,
-                                                             "rmse" => rmse))
+                                                             "rmse" => rmse,
+                                                             "damps" => damps))
     end
     out = []
     GC.gc()
@@ -183,7 +189,7 @@ end
 begin
     f = Figure()
     ax = Axis(f[1, 1])
-    map(structures, bfs) do structure, x
+    map(structures, bamps) do structure, x
         # m = mean(amp, dims = 2)
         # m = dropdims(m, dims = 2)
 

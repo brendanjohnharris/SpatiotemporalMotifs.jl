@@ -1234,7 +1234,8 @@ function reconstruct(P::Prony, x::AbstractVector, fs::Real; kwargs...)
 end
 function reconstruct(P::Prony, x::TimeseriesTools.UnivariateRegular; kwargs...)
     fs = samplingrate(x)
-    reconstruct(P, length(x), fs; kwargs...)
+    y = reconstruct(P, length(x), fs; kwargs...)
+    return set(x, y)
 end
 
 function components(P::Prony, args...; idxs = eachindex(poles(P)))
@@ -1242,7 +1243,7 @@ function components(P::Prony, args...; idxs = eachindex(poles(P)))
         reconstruct(P, args...; idxs = i)
     end |> stack
 end
-cors(P::Prony{<:Real}, x) = cor(rcomponents(P, x), x) |> vec
+cors(P::Prony{<:Real}, x) = cor(components(P, x), x) |> vec
 function errors(P::Prony{<:Real}, x, args...)
     X = components(P, x, args...)
     mapslices(X, dims = 1) do y
