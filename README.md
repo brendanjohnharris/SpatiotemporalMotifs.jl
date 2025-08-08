@@ -30,9 +30,8 @@ All Neuropixels data files will be downloaded to this directory; by default it i
 
 You can choose between:
 1. Reproducing the full set of calculations and analyses, by running the code on a high-performance computing cluster. You will need to adapt the scripts to use the cluster manager of your favorite supercomputer. This option is described in [step 1](#1.-performing-calculations) below.
-2. Downloading the full precomputed dataset from [[figshare]] and running final analyses yourself; go to [step 2](#2.-final-analyses). This option requires a desktop with a modest amount of RAM (>16 GB), and some scripts will still take around 30 minutes to complete.
-Note that all other working and intermediate data files for this project will be saved to `SpatiotemporalMotifs.jl/data`.
-3. Re-plotting figures using a precomputed, reduced dataset; go to [step 3](#3.-replotting-all-results). This option can be done on a local laptop machine, or online via this CodeOcean capsule.
+2. Downloading the full precomputed dataset from [[figshare]] and running final analyses yourself; go to [step 2](#2.-final-analyses). This option requires a desktop with a modest amount of RAM (>32 GB), and will still take around a day to complete.
+3. Re-plotting figures using a precomputed, reduced dataset; go to [step 3](#3.-replotting-all-results). This option can be done on a local laptop machine, or online via the CodeOcean capsule.
 
 
 #### Key dependencies

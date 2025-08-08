@@ -13,23 +13,23 @@ using MultivariateStats
 using SpatiotemporalMotifs
 @preamble
 set_theme!(foresight(:physics))
-import SpatiotemporalMotifs: prony, ramap
 
 begin
     config = Dict("p" => 100,
                   "band" => (1, 30),
-                  "interval" => (0.25, 1))
+                  "interval" => (0.25, 1),
+                  "lambda" => 1e-8)
 end
 
 if !isfile(calcdir("plots", savepath("figS2", config, "jld2")))
     if nprocs() == 1
         if SpatiotemporalMotifs.CLUSTER()
             using USydClusters
-            ourprocs = USydClusters.Physics.addprocs(6; mem = 33, ncpus = 5,
+            ourprocs = USydClusters.Physics.addprocs(8; mem = 16, ncpus = 2,
                                                      project = projectdir(),
-                                                     queue = "taiji")
+                                                     queue = "h100")
         else
-            addprocs(6) # Equal to the number of structures
+            addprocs(11)
         end
     end
     @everywhere using SpatiotemporalMotifs
@@ -40,27 +40,53 @@ plot_data, data_file = produce_or_load(config, calcdir("plots");
                                        filename = savepath("figS2")) do config
     outdict = Dict{String, Dict{String, Any}}()
 
-    interval = Interval((config["interval"] .* [u"s"])...) # Offset onwards
+    interval = Interval(config["interval"]...) # Offset onwards
     p = config["p"]
     pronyband = config["band"]
+    λ = config["lambda"]
 
-    function pronyextract(P, x)
-        freqs = frequencies(P)
-        amps = amplitudes(P)
+    function prony_fit(out)
+        @withprogress name="Prony" begin
+            threadmax = length(out)
+            threadlog = 0
+            pronies = map(out) do out_structure
+                sessionids = getindex.(out_structure, :sessionid)
 
-        # * Find strongest positive frequency
-        idxs = freqs .> 0
-        _, idx = findmax(amps[idxs])
-        topfreq = freqs[idxs][idx]
+                P = pmap(out_structure) do out_session
+                    V = out_session[:θ] |> ustripall
+                    # V = bandpass(V, pronyband)
+                    V = V[𝑡 = interval]
+                    V = V[1:2:end, :, :] # Downsample for speed
+                    V = ZScore(V, dims = 1)(V)
 
-        # * Reconstruct the signal from this component and its reflection
-        topidx = findfirst(isequal(topfreq), freqs)
-        idxs = [topidx, findfirst(isequal(-topfreq), freqs)]
+                    P = map(eachslice(V, dims = (Depth, :changetime))) do x
+                        # * Fit prony
+                        P = SpatiotemporalMotifs.prony(x, p; λ = λ)
+                        fs = SpatiotemporalMotifs.frequencies(P)
+                        amps = SpatiotemporalMotifs.amplitudes(P)
 
-        y = reconstruct(P, x; idxs)
-        rmse = sqrt(mean(abs2, y - x))
+                        # * Find strongest frequency
+                        idxs = minimum(pronyband) .< fs .< maximum(pronyband)
+                        _, idx = findmax(amps[idxs])
+                        topfreq = fs[idxs][idx]
 
-        return amps[topidx], freqs[topidx], rmse
+                        # * Reconstruct the signal from this component and its reflection
+                        topidx = findfirst(isequal(topfreq), fs)
+                        idxs = [topidx, findfirst(isequal(-topfreq), fs)]
+
+                        y = reconstruct(P, x; idxs)
+                        rmse = sqrt(mean(abs2, y - x))
+
+                        return amps[topidx], fs[topidx], rmse
+                    end
+                end
+
+                threadlog += 1
+                @logprogress threadlog / threadmax
+                return ToolsArray(P, (SessionID(sessionids),))
+            end
+        end
+        return pronies
     end
 
     begin
@@ -72,28 +98,18 @@ plot_data, data_file = produce_or_load(config, calcdir("plots");
             Q = calcquality(path)[Structure = At(structures)]
             Q = Q[SessionID(At(oursessions))]
             @assert mean(Q[stimulus = At(stimulus)]) == 1
-            out = load_calculations(Q; stimulus = stimulus, vars = [:V])
+            out = load_calculations(Q; stimulus = stimulus, vars = [:θ])
         end
-        begin # * Calculate prony fits for each channel. Takes about 30 minutes.
-            @info "Calculating prony fits for $stimulus"
-            pronies = pmap(out) do out_structure
-                sessionids = getindex.(out_structure, :sessionid)
+        @info "Calculating prony fits for $stimulus"
+        pronies = prony_fit(out)
 
-                P = map(out_structure) do out_session
-                    V = out_session[:V]
-                    V = set(V, 𝑡 => Float32.(times(V)))
-                    V = V[𝑡 = interval] |> ustripall
-                    V = ZScore(V, dims = 1)(V)
-                    V = bandpass(V, pronyband)
-                    P = map(Base.Fix2(prony, p), eachslice(V, dims = (Depth, :changetime)))
-                end
-                pronies = ToolsArray(P, (SessionID(sessionids),))
-            end
-        end
+        amplitudes = SpatiotemporalMotifs.ramap(Base.Fix2(getindex, 1), pronies)
+        frequencies = SpatiotemporalMotifs.ramap(Base.Fix2(getindex, 2), pronies)
+        rmse = SpatiotemporalMotifs.ramap(Base.Fix2(getindex, 3), pronies)
 
-        ampfreqfits = ramap(pronyextract, pronies)
-
-        outdict[string(stimulus)] = Dict("prony_fit" => pronies)
+        outdict[string(stimulus)] = Dict("prony_fit" => Dict("amplitudes" => amplitudes,
+                                                             "frequencies" => frequencies,
+                                                             "rmse" => rmse))
     end
     uni = []
     GC.gc()
@@ -107,50 +123,85 @@ plot_data, data_file = produce_or_load(config, calcdir("plots");
             Q = calcquality(path)[Structure = At(structures)]
             Q = Q[SessionID(At(oursessions))]
             @assert mean(Q[stimulus = At(stimulus)]) == 1
-            out = load_calculations(Q; stimulus = stimulus, vars = [:V])
+            out = load_calculations(Q; stimulus = stimulus, vars = [:θ])
         end
 
-        begin # * Calculate prony fits for each channel. Takes about 30 minutes.
-            @info "Calculating prony fits for $stimulus"
-            pronies = pmap(out) do out_structure
-                sessionids = getindex.(out_structure, :sessionid)
+        @info "Calculating prony fits for $stimulus"
+        pronies = prony_fit(out)
 
-                P = map(out_structure) do out_session
-                    V = out_session[:V]
-                    V = V[𝑡 = interval] |> ustripall
-                    V = ZScore(V, dims = 1)(V)
-                    V = bandpass(V, pronyband)
-                    P = map(Base.Fix2(prony, p), eachslice(V, dims = (Depth, :changetime)))
-                end
-                pronies = ToolsArray(P, (SessionID(sessionids),))
-            end
-        end
-        outdict[string(stimulus)] = Dict("prony_fit" => pronies)
+        amplitudes = SpatiotemporalMotifs.ramap(Base.Fix2(getindex, 1), pronies)
+        frequencies = SpatiotemporalMotifs.ramap(Base.Fix2(getindex, 2), pronies)
+        rmse = SpatiotemporalMotifs.ramap(Base.Fix2(getindex, 3), pronies)
+
+        outdict[string(stimulus)] = Dict("prony_fit" => Dict("amplitudes" => amplitudes,
+                                                             "frequencies" => frequencies,
+                                                             "rmse" => rmse))
     end
     out = []
     GC.gc()
     return outdict
 end
 
-begin # * Select the peak amplitude and frequency for each channel
-    pronies = plot_data["flash_250ms"]["prony_fit"]
-    af = ramap(pronies) do x
-        frequencies = x.frequencies
-        amplitudes = x.amplitudes
+# begin # * Select the peak amplitude and frequency for each channel
+#     pronies = plot_data["flash_250ms"]["prony_fit"]
+#     af = ramap(pronies) do x
+#         frequencies = x.frequencies
+#         amplitudes = x.amplitudes
 
-        idxs = frequencies .> 0
-        frequencies = frequencies[idxs]
-        amplitudes = amplitudes[idxs]
+#         idxs = frequencies .> 0
+#         frequencies = frequencies[idxs]
+#         amplitudes = amplitudes[idxs]
 
-        idx = findmax(amplitudes) |> last
+#         idx = findmax(amplitudes) |> last
 
-        return amplitudes[idx], frequencies[idx]
-    end
-    amplitudes = ramap(first, af)
-    frequencies = ramap(last, af)
-end
-# begin # * Plot normalized amplitude distribution
+#         return amplitudes[idx], frequencies[idx]
+#     end
+#     amplitudes = ramap(first, af)
+#     frequencies = ramap(last, af)
 # end
+function pformat(x)
+    bins = intervals(0.0:0.1:0.9)
+    x = mean(x, dims = :changetime)
+    x = dropdims(x, dims = (𝑡, :changetime))
+    x = groupby(x, Depth => Bins(bins))
+    x = mean.(x)
+    x = set(x, Depth => mean.(lookup(x, Depth)))
+end
+begin # * Plot normalized amplitude distribution (flashes)
+    stimulus = "flash_250ms"
+
+    amps = plot_data[stimulus]["prony_fit"]["amplitudes"]
+    bamps = SpatiotemporalMotifs.ramap(pformat, ToolsArray{T, 2} where {T}, amps) .|> stack
+
+    fs = plot_data[stimulus]["prony_fit"]["frequencies"]
+    bfs = SpatiotemporalMotifs.ramap(pformat, ToolsArray{T, 2} where {T}, fs) .|> stack
+
+    errors = plot_data[stimulus]["prony_fit"]["rmse"]
+    berrors = SpatiotemporalMotifs.ramap(pformat, ToolsArray{T, 2} where {T}, errors) .|>
+              stack
+end
+begin
+    f = Figure()
+    ax = Axis(f[1, 1])
+    map(structures, bfs) do structure, x
+        # m = mean(amp, dims = 2)
+        # m = dropdims(m, dims = 2)
+
+        μ, (σl, σh) = bootstrapmedian(x, dims = 2)
+
+        band!(ax, Point2f.(collect(σl), lookup(μ, 1)),
+              Point2f.(collect(σh), lookup(μ, 1));
+              color = (structurecolormap[structure], 0.32), label = structure)
+        lines!(ax, parent(μ), lookup(μ, 1); color = structurecolormap[structure])
+    end
+
+    f
+end
+
+amps = map(structures, amps) do structure, amp
+    # * Group across unified depths
+
+end
 
 # begin
 #     f = TwoPanel()

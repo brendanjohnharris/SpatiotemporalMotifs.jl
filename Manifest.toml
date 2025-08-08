@@ -290,12 +290,6 @@ git-tree-sha1 = "05ba0d07cd4fd8b7a39541e31a7b0254704ea581"
 uuid = "fb6a15b2-703c-40df-9091-08a04967cfa9"
 version = "0.1.13"
 
-[[deps.ClusterManagers]]
-deps = ["Distributed", "Logging", "Pkg", "Sockets"]
-git-tree-sha1 = "17b0689c7e6b2f48f71c6834b6a1ed6882be10d2"
-uuid = "34f1f09b-3a8b-5176-ab39-66d58a4d544e"
-version = "2.0.0"
-
 [[deps.Clustering]]
 deps = ["Distances", "LinearAlgebra", "NearestNeighbors", "Printf", "Random", "SparseArrays", "Statistics", "StatsBase"]
 git-tree-sha1 = "3e22db924e2945282e70c33b75d4dde8bfa44c94"
@@ -2512,8 +2506,8 @@ uuid = "981d1d27-644d-49a2-9326-4793e63143c3"
 version = "0.1.0"
 
 [[deps.USydClusters]]
-deps = ["ClusterManagers", "Dates", "Distributed", "Preferences"]
-git-tree-sha1 = "5b1fa5add16a4c5e182e04c509e1e6336f4b134e"
+deps = ["Dates", "Distributed", "Preferences"]
+git-tree-sha1 = "367ed40fc3ce9d09c5de02b6c5d892c2636e3207"
 repo-rev = "main"
 repo-url = "https://github.com/brendanjohnharris/UsydClusters.jl"
 uuid = "0d53aa51-fded-4285-958f-a79747f7b7b4"

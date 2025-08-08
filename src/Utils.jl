@@ -45,7 +45,8 @@ function _preamble()
         using Term
         using Term.Progress
         import AllenNeuropixels: Chan, Unit, Depth, Log𝑓
-        import SpatiotemporalMotifs: calcdir, prony, amplitudes, frequencies, reconstruct
+        import SpatiotemporalMotifs: calcdir, ramap
+        import SpatiotemporalMotifs: prony, amplitudes, frequencies, reconstruct
         using TerminalLoggers, Logging
         global_logger(TerminalLogger(right_justify = 200))
         using ProgressLogging
@@ -1022,17 +1023,65 @@ function ramap(f, leaf::Type{T}, x) where {T}
     end
 end
 
-struct Prony{V <: Real}
-    coefficients::Vector{Complex{V}}
-    poles::Vector{Complex{V}}
-    fs::V
+struct Prony{A <: Number, B <: Complex}
+    coefficients::Vector{B}
+    poles::Vector{B}
+end
+
+function Prony{A}(coefficients::Vector{B},
+                  poles::Vector{B}) where {A <: Complex, B <: Complex}
+    Prony{A, B}(coefficients, poles)
+end
+
+function find_conjugates(poles; tol = 1e-10)
+    pairs = Tuple{Int, Int}[]
+    used = Set{Int}()
+
+    for i in eachindex(poles)
+        if i ∈ used
+            continue
+        end
+
+        # Find conjugate of poles[i]
+        conj_idx = findfirst(j -> j != i && abs(poles[j] - conj(poles[i])) < tol,
+                             eachindex(poles))
+
+        if conj_idx !== nothing
+            # Ensure positive frequency component comes first
+            if imag(poles[i]) >= imag(poles[conj_idx])
+                push!(pairs, (i, conj_idx))
+            else
+                push!(pairs, (conj_idx, i))
+            end
+            push!(used, i, conj_idx)
+        end
+    end
+
+    # Find poles without conjugates
+    unpaired = setdiff(eachindex(poles), used)
+
+    return pairs, unpaired
+end
+
+function Prony{A}(coefficients::Vector{B}, poles::Vector{B};
+                  zerotol = 10 * eps()) where {A <: Real, B <: Complex}
+    # * Find all conjugate pairs
+    conjugated, unconjugated = find_conjugates(poles; tol = zerotol)
+    conjugated = map(first, conjugated) # Extract positive freq components
+
+    # * Half coefficients of unconjugated poles because they will be counted twice
+    coefficients[unconjugated] ./= 2
+
+    idxs = vcat(conjugated, unconjugated) # Add unpaired poles
+    sort!(idxs)
+    return Prony{A, B}(coefficients[idxs], poles[idxs])
 end
 
 coefficients(P::Prony) = P.coefficients
 amplitudes(P::Prony) = map(abs, coefficients(P))
 poles(P::Prony) = P.poles
-damping_factors(P::Prony) = P.fs * map(log ∘ abs, poles(P))
-frequencies(P::Prony) = P.fs * map(angle, poles(P)) / (2 * π)
+dampingfactors(P::Prony) = map(real, poles(P))
+frequencies(P::Prony) = map(imag, poles(P)) / (2π)
 phases(P::Prony) = map(angle, coefficients(P))
 
 """
@@ -1068,7 +1117,10 @@ x(t) ≈ Σ Aₖ * exp(αₖ * t) * cos(2πfₖ * t + φₖ)
 """
 function prony(x::AbstractVector{A}, fs::B, p::Int;
                λ::Real = 1e-8) where {A <: Number, B <: Real}
-    V = promote_type(real(A), B)
+    V = real(A)
+    fs = convert(V, fs)
+    λ = convert(V, λ)
+
     N = length(x)
 
     if N < p
@@ -1078,32 +1130,32 @@ function prony(x::AbstractVector{A}, fs::B, p::Int;
     # We set up the equation T * a = -x_vec, where T is a Toeplitz-like data matrix.
     # This is the covariance method of linear prediction.
     T = zeros(eltype(x), N, p)
-    for j in 1:p
+    @inbounds for j in 1:p
         T[1:(N - p), j] = view(x, (p + 1 - j):(N - j))
     end
-    for i in 1:p
+    @inbounds for i in 1:p
         T[(N - p + i), i] = λ  # Regularization on the last p rows
     end
     T = factorize(T)
-    a = zeros(V, length(x))
+    a = zeros(A, length(x))
     a[1:(N - p)] = -x[(p + 1):N]
     ldiv!(T, a) # Overwrites the first p elements of a
 
     # Construct the companion matrix for the polynomial with coefficients `c`.
     C = zeros(eltype(a), p, p)
     C[1, :] = -view(a, 1:p)
-    for i in 1:(p - 1)
+    @inbounds for i in 1:(p - 1)
         C[i + 1, i] = 1
     end
-    h = eigvals(C)
+    h = eigvals(C) .+ 0im
 
     # Construct the Vandermonde matrix Z for the complex amplitudes
     Z = zeros(Complex{V}, N + p, p)
     Z_top = view(Z, 1:N, :)
-    for k in 1:p
+    @inbounds for k in 1:p
         Z_top[1, k] = one(Complex{V})
     end
-    for n in 2:N
+    @inbounds for n in 2:N
         for k in 1:p
             Z_top[n, k] = Z_top[n - 1, k] * h[k]
         end
@@ -1111,7 +1163,7 @@ function prony(x::AbstractVector{A}, fs::B, p::Int;
 
     # Add regularization
     Z_bottom = view(Z, (N + 1):(N + p), :)
-    for k in 1:p
+    @inbounds for k in 1:p
         Z_bottom[k, k] = λ
     end
 
@@ -1122,20 +1174,25 @@ function prony(x::AbstractVector{A}, fs::B, p::Int;
     Z = qr(Z)
     c = Vector{Complex{V}}(undef, p)
     ldiv!(c, Z, X)
-    return Prony(c, h, fs)
-end
 
-function prony(x::UnivariateTimeSeries, p::Int; kwargs...)
+    h .= fs * map(log, h) # * Convert to continuous-time
+
+    idxs = sortperm(map(abs ∘ angle, h)) # Order by frequency
+    return Prony{A}(c[idxs], h[idxs])
+end
+function prony(x::TimeseriesTools.UnivariateRegular, p::Int; kwargs...)
     fs = samplingrate(x)
     prony(parent(x), fs, p; kwargs...)
 end
 
-function reconstruct(P::Prony{V}, N::Integer; idxs = eachindex(poles(P))) where {V}
-    x = zeros(Complex{V}, N)
-    for k in idxs
-        A_k = coefficients(P)[k]
-        z_k = poles(P)[k]
-        current_pole_power = one(Complex{V})
+function reconstruct(P::Prony{A, B}, N::Integer, fs::Real;
+                     idxs = eachindex(poles(P))) where {A <: Complex, B <: Complex}
+    # Convert back to discrete poles
+    h = map(exp, poles(P)[idxs] / fs)
+    c = coefficients(P)[idxs]
+    x = zeros(B, N)
+    for (A_k, z_k) in zip(c, h)
+        current_pole_power = one(B)
         for n in 1:N
             x[n] += A_k * current_pole_power
             current_pole_power *= z_k
@@ -1143,7 +1200,52 @@ function reconstruct(P::Prony{V}, N::Integer; idxs = eachindex(poles(P))) where 
     end
     return x
 end
-function reconstruct(P::Prony{V}, x::AbstractVector{<:Real}; kwargs...) where {V}
-    reconstruct(P, length(x); kwargs...) |> real
+function reconstruct(P::Prony{A, B}, N::Integer, fs::Real;
+                     idxs = eachindex(poles(P))) where {A <: Real, B <: Complex}
+    # Convert back to discrete poles
+    h = map(exp, poles(P)[idxs] / fs)
+    c = coefficients(P)[idxs]
+
+    x = zeros(B, N)
+    for (A_k, z_k) in zip(c, h)
+        current_pole_power = one(B)
+        for n in 1:N
+            x[n] += A_k * current_pole_power
+            current_pole_power *= z_k
+        end
+
+        # * And the conjugates
+        A_k = conj(A_k)
+        z_k = conj(z_k)
+        current_pole_power = one(B)
+        for n in 1:N
+            x[n] += A_k * current_pole_power
+            current_pole_power *= z_k
+        end
+    end
+    imerror = map(abs, imag(x) ./ real(x))
+    if maximum(imerror) > 10 * eps()
+        @warn "Prony reconstruction has significant imaginary parts ($(maximum(imerror))). This may indicate numerical instability."
+    end
+    return real(x) # Imaginary parts should be negligible
 end
-reconstruct(P::Prony{V}, x; kwargs...) where {V} = reconstruct(P, length(x); kwargs...)
+function reconstruct(P::Prony, x::AbstractVector, fs::Real; kwargs...)
+    reconstruct(P, length(x), fs; kwargs...)
+end
+function reconstruct(P::Prony, x::TimeseriesTools.UnivariateRegular; kwargs...)
+    fs = samplingrate(x)
+    reconstruct(P, length(x), fs; kwargs...)
+end
+
+function components(P::Prony, args...; idxs = eachindex(poles(P)))
+    map(idxs) do i
+        reconstruct(P, args...; idxs = i)
+    end |> stack
+end
+cors(P::Prony{<:Real}, x) = cor(rcomponents(P, x), x) |> vec
+function errors(P::Prony{<:Real}, x, args...)
+    X = components(P, x, args...)
+    mapslices(X, dims = 1) do y
+        sqrt(mean(abs2, y - x))
+    end |> vec
+end
