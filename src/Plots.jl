@@ -45,6 +45,18 @@ function depthticks(x)
     end
     return string.(round.(Int, x))
 end
+function terseticks(x::Real; sigdigits = 5, kwargs...)
+    y = round(x; sigdigits, kwargs...)
+    s = string(y)
+    if occursin(".", s)
+        s = replace(s, r"(\.\d*?)0+$" => s"\1")
+        s = replace(s, r"\.$" => "")
+    end
+    return s
+end
+terseticks(x; kwargs...) = terseticks.(x; kwargs...)
+terseticks(; kwargs...) = x -> terseticks(x; kwargs...)
+
 function plotlayerints!(ax, ints; dx = 0.03, width = dx, axis = :y, newticks = true,
                         flipside = false, bgcolor = :transparent)
     acronyms = "L" .* layers
@@ -393,6 +405,9 @@ function fooof(x; kwargs...)
     AN.aperiodicfit(x, [3, 300]; aperiodic_mode = "fixed", max_n_peaks = 8,
                     peak_threshold = 1, peak_width_limits = [1, 50], kwargs...)
 end
+function fooof(χ::Number, b::Number, k::Number)
+    L = f -> 10.0 .^ (b - log10(k + (f)^χ))
+end
 function trial_1onf(x::UnivariateRegular)
     minfreq = 10.0u"Hz"
     maxfreq = 300.0u"Hz" # Should match upper limit of the 'pass' band in Calculations.jl
@@ -423,10 +438,10 @@ function plotspectrum!(ax, s::AbstractToolsArray;
         scatter!(ax, collect(freqs(pks)), collect(pks .* 1.25), color = :black,
                  markersize = 10, marker = :dtriangle)
         text!(ax, collect(freqs(pks)), collect(pks);
-              text = string.(round.(collect(freqs(pks)), digits = 1)) .* [" Hz"],
+              text = string.(round.(collect(freqs(pks)), sigdigits = 2)) .* [" Hz"],
               align = (:center, :bottom), color = :black, rotation = 0,
               fontsize = 16,
-              offset = (0, 15))
+              offset = (0, 5))
     end
 
     # * Fooof fit
@@ -438,4 +453,46 @@ function plotspectrum!(ax, s::AbstractToolsArray;
               fontsize = 16, align = (:right, :center))
     end
     return p, ps[:χ]
+end
+
+function plot_layerwise!(ax, A::ToolsArray{T, 1}, layers = nothing;
+                         upsample = 5,
+                         band = true, lines = true,
+                         scatter = false,
+                         legend = (), layerints = (),
+                         alpha = 0.8, bandalpha = 0.32,
+                         markersize = 10,
+                         linewidth = 3) where {M <: Real, T <: ToolsArray{M}}
+    ds = [d for d in dims(first(A)) if !(d isa Depth)]
+    ds = dimnum.([first(A)], ds)
+
+    map(decompose(reverse(A))...) do s, x
+        _μ, (_σl, _σh) = bootstrapmedian(x, dims = only(ds))
+        μ, σl, σh = SpatiotemporalMotifs.upsample.((_μ, _σl, _σh), upsample)
+
+        band && band!(ax, Point2f.(collect(σl), lookup(μ, 1)),
+              Point2f.(collect(σh), lookup(μ, 1));
+              color = (structurecolormap[s], bandalpha), label = s)
+        lines &&
+            lines!(ax, collect(μ), lookup(μ, 1); color = (structurecolormap[s], alpha),
+                   linewidth,
+                   label = s)
+        scatter && scatter!(ax, collect(_μ), lookup(_μ, 1);
+                 color = (structurecolormap[s], alpha), markersize,
+                 label = s)
+    end
+    if !isempty(legend)
+        l = axislegend(ax; nbanks = 2, labelsize = 12, merge = true,
+                       legend...)
+        reverselegend!(l)
+    end
+    isnothing(layers) ||
+        plotlayerints!(ax, layers; axis = :y, newticks = false, flipside = true,
+                       layerints...)
+    return ax
+end
+function plot_layerwise!(ax, A::ToolsArray{T, 3}, args...; kwargs...) where {T <: Real}
+    S = dims(A, Structure)
+    A = ToolsArray([A[Structure = At(s)] for s in S], (S,))
+    return plot_layerwise!(ax, A; args..., kwargs...)
 end

@@ -26,6 +26,21 @@ alpha = 0.8
 bandalpha = 0.2
 mkpath(plotdir("fig2"))
 
+if !isfile(calcdir("plots", savepath("fig2", Dict(), "jld2")))
+    if nprocs() == 1
+        if SpatiotemporalMotifs.CLUSTER()
+            using USydClusters
+            ourprocs = USydClusters.Physics.addprocs(30; mem = 6, ncpus = 1,
+                                                     project = projectdir(),
+                                                     queue = "taiji")
+        else
+            addprocs(19)
+        end
+    end
+    @everywhere using SpatiotemporalMotifs
+    @everywhere SpatiotemporalMotifs.@preamble
+end
+
 plot_data, data_file = produce_or_load(Dict(), calcdir("plots");
                                        filename = savepath("fig2")) do _
     session_table = load(calcdir("posthoc_session_table.jld2"), "session_table")
@@ -113,7 +128,22 @@ plot_data, data_file = produce_or_load(Dict(), calcdir("plots");
             layerints = load(calcdir("plots", "grand_unified_layers.jld2"), "layerints")
         end
 
-        plot_data = @strdict S layernames layernums layerints meanlayers S̄ oursessions Q
+        L = @withprogress name="Fooof $stimulus" begin
+            threadlog = -1
+            threadmax = length(S)
+            map(S) do s # If you can set up the cluster workers as above, should take about 5 minutes. Otherwise, 30 minutes
+                threadlog += 1
+                @logprogress threadlog / threadmax
+                pmap(SpatiotemporalMotifs.fooof, eachslice(ustripall(s), dims = (2, 3)))
+            end
+        end
+        χ = [getindex.(last.(l), :χ) for l in L]
+        b = [getindex.(last.(l), :b) for l in L]
+        k = [getindex.(last.(l), :k) for l in L]
+        χ, b, k = ToolsArray.([χ, b, k], [(Structure(structures),)])
+        fooof = Dict("χ" => χ, "b" => b, "k" => k)
+
+        plot_data = @strdict S layernames layernums layerints meanlayers S̄ oursessions Q fooof
         return plot_data
     end
 
@@ -196,29 +226,13 @@ for stimulus in stimuli
             f
         end
 
-        begin # * Calculate the channel-wise fits. Can take a good 30 minutes
-            file = calcdir("plots", "fooof", "fooof$filebase.jld2")
+        begin # * Load the channel-wise fits
+            χ = plot_data[string(stimulus)]["fooof"]["χ"]
+            b = plot_data[string(stimulus)]["fooof"]["b"]
+            k = plot_data[string(stimulus)]["fooof"]["k"]
+            L = SpatiotemporalMotifs.ramap(fooof, χ, b, k) # Fit functions
 
-            if isfile(file)
-                χ, b, L = load(file, "χ", "b", "L")
-            else
-                if haskey(ENV, "SM_CLUSTER") && length(procs()) == 1 # We have no running workers, but we could
-                    using USydClusters
-                    USydClusters.Physics.addprocs(64; mem = 32, ncpus = 6,
-                                                  project = projectdir()) # ? Can reuse these for the following bac calculations
-                    @everywhere using SpatiotemporalMotifs
-                    @everywhere SpatiotemporalMotifs.@preamble
-                    @everywhere @info "Packages loaded"
-                end
-                L = map(S) do s # If you can set up the cluster workers as above, should take about 5 minutes. Otherwise, 30 minutes
-                    pmap(fooof, eachslice(ustripall(s), dims = (2, 3)))
-                end
-                χ = [getindex.(last.(l), :χ) for l in L]
-                b = [getindex.(last.(l), :b) for l in L]
-                L = [first.(l) for l in L]
-                χ, b, L = ToolsArray.([χ, b, L], [(Structure(structures),)])
-                tagsave(file, Dict("χ" => χ, "b" => b, "L" => L))
-            end
+            # * Ensure structures and sessions match
             L = getindex.(L, [SessionID(At(oursessions))])
             L = L[Structure = At(structures)]
             χ = getindex.(χ, [SessionID(At(oursessions))])
@@ -253,7 +267,7 @@ for stimulus in stimuli
                       limits = ((-2.75, 2.75), (0, 1)), ytickformat = depthticks,
                       title = "1/𝑓 intercept", yreversed = true)
             for (i, _b) in b |> enumerate |> collect |> reverse
-                μ, (σl, σh) = bootstrapmedian(_b, dims = SessionID)
+                μ, (σl, σh) = bootstrapmedian(_b.+eps().*randn(size(_b)), dims = SessionID)
                 μ, σl, σh = upsample.((μ, σl, σh), 5)
 
                 band!(ax, Point2f.(collect(σl), lookup(μ, 1)),
@@ -596,7 +610,7 @@ for stimulus in stimuli
             # μt[𝑝t .> PTHR] .= NaN
             # μg[𝑝g .> PTHR] .= NaN
 
-            markersize = 8
+            markersize = 10
 
             ax = Axis(f[2, 1:2][1, 3]; #ylabel = "Cortical depth (%)",
                       xlabel = "Kendall's 𝜏",
@@ -604,31 +618,31 @@ for stimulus in stimuli
                       title = "1/𝑓 hierarchies", limits = ((-0.73, 0.73), (0, 1)),
                       yreversed = true)
 
-            vlines!(ax, 0; color = :gray, linewidth = 3)
+            vlines!(ax, 0; color = :gray, linewidth = 3, linestyle = :dash)
 
             band!(ax, Point2f.(collect(first.(σ)), unidepths),
                   Point2f.(collect(last.(σ)), unidepths);
-                  color = (cucumber, bandalpha),
+                  color = (crimson, bandalpha),
                   label = "1/𝑓 exponent")
             # lines!(ax, unidepths, collect(μ); alpha = bandalpha,
-            #        label = "1/𝑓 exponent", color = cucumber)
+            #        label = "1/𝑓 exponent", color = crimson)
             scatter!(ax, collect(μ[𝑝 .< PTHR]), unidepths[𝑝 .< PTHR];
-                     label = "1/𝑓 exponent", color = cucumber, markersize)
+                     label = "1/𝑓 exponent", color = crimson, markersize)
             scatter!(ax, collect(μ[𝑝 .≥ PTHR]), unidepths[𝑝 .≥ PTHR]; color = :transparent,
-                     strokecolor = cucumber,
+                     strokecolor = crimson,
                      strokewidth = 1, markersize)
 
             band!(ax, Point2f.(collect(first.(σb)), unidepths),
                   Point2f.(collect(last.(σb)), unidepths);
-                  color = (juliapurple, bandalpha),
+                  color = (cornflowerblue, bandalpha),
                   label = "1/𝑓 intercept")
             # lines!(ax, unidepths, collect(μ); alpha = bandalpha,
-            #        label = "1/𝑓 exponent", color = cucumber)
+            #        label = "1/𝑓 exponent", colorcornflowerblue)
             scatter!(ax, collect(μb[𝑝b .< PTHR]), unidepths[𝑝b .< PTHR];
-                     label = "1/𝑓 intercept", color = juliapurple, markersize)
+                     label = "1/𝑓 intercept", color = cornflowerblue, markersize)
             scatter!(ax, collect(μb[𝑝b .≥ PTHR]), unidepths[𝑝b .≥ PTHR];
                      color = :transparent,
-                     strokecolor = juliapurple,
+                     strokecolor = cornflowerblue,
                      strokewidth = 1, markersize)
 
             axislegend(ax, position = :lb, merge = true, labelsize = 12, nbanks = 1)

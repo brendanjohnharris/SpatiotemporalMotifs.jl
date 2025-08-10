@@ -326,14 +326,13 @@ plot_data, data_file = produce_or_load(Dict(), calcdir("plots");
 end
 
 begin # * Set up figure
-    @unpack pspikes, unitdepths, hit_psth, miss_psth = plot_data
+    @unpack pspikes, unitdepths, hit_psths, miss_psths = plot_data
     begin # * Set up figure
         f = SixPanel()
         gs = subdivide(f, 3, 2)
 
-        sf = SixPanel()
-        sgs = subdivide(sf[1, 1:2], 1, 3)
-        sgss = subdivide(sf[2:3, 1:2], 3, 2)
+        sf = TwoPanel()
+        sgs = subdivide(sf, 1, 3)
 
         layerints = load(calcdir("plots", "grand_unified_layers.jld2"), "layerints")
         bins = range(0, 1, length = 11)
@@ -343,10 +342,12 @@ end
 begin
     begin # * Plot, for each structure, spontaneous SPC
         @info "Plotting spontaneous spike--phase coupling"
-        ax = Axis(sgs[1], xlabel = "Cortical depth (%)", ylabel = "PPC",
+        ax = Axis(sgs[1], ylabel = "Cortical depth (%)", xlabel = "PPC",
                   title = "Spike-phase coupling (θ)",
-                  limits = ((0.05, 0.95), (0, nothing)),
-                  xtickformat = depthticks)
+                  limits = ((0, nothing), (0, 1)),
+                  ytickformat = depthticks,
+                  xtickformat = terseticks,
+                  yreversed = true)
         for structure in reverse(structures)
             idxs = unitdepths.structure_acronym .== structure
             allsesh_pspikes = @views unitdepths[idxs, :]
@@ -380,29 +381,30 @@ begin
             # _ms = map((args...) -> nansafe(mean)(collect(args)) |> first, mss...)
 
             _ls = lookup(_ms, 1)
-            ms = upsample(_ms, 10)
-            σl = upsample(_σl, 10)
-            σh = upsample(_σh, 10)
+            ms = upsample(_ms, 5)
+            σl = upsample(_σl, 5)
+            σh = upsample(_σh, 5)
             ls = lookup(ms, 1)
-            band!(ax, ls, collect(σl), collect(σh);
+            band!(ax, Point2f.(collect(σl), lookup(ms, 1)),
+                  Point2f.(collect(σh), lookup(ms, 1));
                   color = (structurecolormap[structure], 0.3), label = structure)
-            lines!(ax, ls, collect(ms), color = (structurecolormap[structure], 0.7),
+            lines!(ax, collect(ms), lookup(ms, 1),
+                   color = (structurecolormap[structure], 0.7),
                    label = structure)
-            scatter!(ax, _ls, collect(_ms); color = structurecolormap[structure],
+            scatter!(ax, collect(_ms), _ls; color = structurecolormap[structure],
                      label = structure)
         end
-        l = axislegend(ax, merge = true, nbanks = 2)
-        plotlayerints!(ax, layerints; axis = :x, flipside = false, newticks = false,
-                       bgcolor = Makie.RGBA(0, 0, 0, 0))
+        l = axislegend(ax, merge = true, nbanks = 2, position = :rb, fontsize = 10)
+        plotlayerints!(ax, layerints; axis = :y, flipside = true, newticks = false)
         reverselegend!(l)
     end
 
     begin # * Plot, for each structure, spontaneous SAC
         @info "Plotting spontaneous spike--amplitude coupling"
-        ax = Axis(sgs[2], xlabel = "Cortical depth (%)", ylabel = "SAC",
+        ax = Axis(sgs[2], ylabel = "Cortical depth (%)", xlabel = "SAC",
                   title = "Spike-amplitude coupling (γ)",
-                  limits = ((0.05, 0.95), (1.1, 1.5)),
-                  xtickformat = depthticks)
+                  limits = ((1.1, 1.5), (0, 1)),
+                  xtickformat = depthticks, yreversed = true)
         for structure in reverse(structures)
             idxs = unitdepths.structure_acronym .== structure
             allsesh_pspikes = @views unitdepths[idxs, :]
@@ -436,29 +438,32 @@ begin
             # _ms = map((args...) -> nansafe(mean)(collect(args)) |> first, mss...)
 
             _ls = lookup(_ms, 1)
-            ms = upsample(_ms, 10)
-            σl = upsample(_σl, 10)
-            σh = upsample(_σh, 10)
+            ms = upsample(_ms, 5)
+            σl = upsample(_σl, 5)
+            σh = upsample(_σh, 5)
             ls = lookup(ms, 1)
-            band!(ax, ls, collect(σl), collect(σh);
+            band!(ax, Point2f.(collect(σl), lookup(ms, 1)),
+                  Point2f.(collect(σh), lookup(ms, 1));
                   color = (structurecolormap[structure], 0.3), label = structure)
-            lines!(ax, ls, collect(ms), color = (structurecolormap[structure], 0.7),
+            lines!(ax, collect(ms), lookup(ms, 1),
+                   color = (structurecolormap[structure], 0.7),
                    label = structure)
-            scatter!(ax, _ls, collect(_ms); color = structurecolormap[structure],
+            scatter!(ax, collect(_ms), _ls; color = structurecolormap[structure],
                      label = structure)
         end
-        l = axislegend(ax, merge = true, nbanks = 2)
-        plotlayerints!(ax, layerints; axis = :x, flipside = false, newticks = false,
-                       bgcolor = Makie.RGBA(0, 0, 0, 0))
+        l = axislegend(ax, merge = true, nbanks = 2, position = :rb, fontsize = 10)
+        plotlayerints!(ax, layerints; axis = :y, flipside = true, newticks = false)
         reverselegend!(l)
     end
 
     begin # * Plot, for each structure, SPC
         @info "Plotting structure-wise spike--phase coupling"
-        ax = Axis(gs[1], xlabel = "Cortical depth (%)", ylabel = "PPC",
+        ax = Axis(gs[1], ylabel = "Cortical depth (%)", xlabel = "PPC",
                   title = "Spike-phase coupling (θ)",
-                  limits = ((0.05, 0.95), (0, nothing)),
-                  xtickformat = depthticks)
+                  limits = ((0, nothing), (0, 1)),
+                  ytickformat = depthticks,
+                  xtickformat = terseticks,
+                  yreversed = true)
         for structure in reverse(structures)
             idxs = pspikes.structure_acronym .== structure
             allsesh_pspikes = @views pspikes[idxs, :]
@@ -494,28 +499,30 @@ begin
             # _ms = map((args...) -> nansafe(mean)(collect(args)) |> first, mss...)
 
             _ls = lookup(_ms, 1)
-            ms = upsample(_ms, 10)
-            σl = upsample(_σl, 10)
-            σh = upsample(_σh, 10)
+            ms = upsample(_ms, 5)
+            σl = upsample(_σl, 5)
+            σh = upsample(_σh, 5)
             ls = lookup(ms, 1)
-            band!(ax, ls, collect(σl), collect(σh);
+            band!(ax, Point2f.(collect(σl), lookup(ms, 1)),
+                  Point2f.(collect(σh), lookup(ms, 1));
                   color = (structurecolormap[structure], 0.3), label = structure)
-            lines!(ax, ls, collect(ms), color = (structurecolormap[structure], 0.7),
+            lines!(ax, collect(ms), ls, color = (structurecolormap[structure], 0.7),
                    label = structure)
-            scatter!(ax, _ls, collect(_ms); color = structurecolormap[structure],
+            scatter!(ax, collect(_ms), _ls; color = structurecolormap[structure],
                      label = structure)
         end
-        l = axislegend(ax, merge = true, nbanks = 2)
-        plotlayerints!(ax, layerints; axis = :x, flipside = false, newticks = false,
-                       bgcolor = Makie.RGBA(0, 0, 0, 0))
+        l = axislegend(ax, merge = true, nbanks = 2, position = :rb)
+        plotlayerints!(ax, layerints; axis = :y, flipside = true, newticks = false)
         reverselegend!(l)
     end
     begin # * Plot, for each structure, SAC
         @info "Plotting structure-wise spike--amplitude coupling"
-        ax = Axis(gs[2], xlabel = "Cortical depth (%)", ylabel = "SAC",
+        ax = Axis(gs[2], ylabel = "Cortical depth (%)", xlabel = "SAC",
                   title = "Spike-amplitude coupling (γ)",
-                  limits = ((0.05, 0.95), (1.1, 1.5)),
-                  xtickformat = depthticks)
+                  limits = ((1.1, 1.5), (0, 1)),
+                  ytickformat = depthticks,
+                  xtickformat = terseticks,
+                  yreversed = true)
         for structure in reverse(structures)
             idxs = pspikes.structure_acronym .== structure
             allsesh_pspikes = @views pspikes[idxs, :]
@@ -548,17 +555,17 @@ begin
             σl = upsample(_σl, 10)
             σh = upsample(_σh, 10)
             ls = lookup(ms, 1)
-            band!(ax, ls, collect(σl), collect(σh);
+            band!(ax, Point2f.(collect(σl), lookup(ms, 1)),
+                  Point2f.(collect(σh), lookup(ms, 1));
                   color = (structurecolormap[structure], 0.3), label = structure)
-            lines!(ax, ls, collect(ms), color = (structurecolormap[structure], 0.7),
+            lines!(ax, collect(ms), ls, color = (structurecolormap[structure], 0.7),
                    label = structure)
-            scatter!(ax, _ls, collect(_ms); color = structurecolormap[structure],
+            scatter!(ax, collect(_ms), _ls; color = structurecolormap[structure],
                      label = structure)
         end
-        l = axislegend(ax, merge = true, nbanks = 2)
+        l = axislegend(ax, merge = true, nbanks = 2, position = :rb)
         reverselegend!(l)
-        plotlayerints!(ax, layerints; axis = :x, flipside = false, newticks = false,
-                       bgcolor = Makie.RGBA(0, 0, 0, 0))
+        plotlayerints!(ax, layerints; axis = :y, flipside = true, newticks = false)
     end
     f
 end
@@ -566,7 +573,7 @@ end
 begin # * Preferred phases for spontaneous
     @info "Plotting preferred spike phases for spontaneous"
     ax = PolarAxis(sgs[3]; theta_as_x = false, thetalimits = (0, 1.2pi),
-                   rticks = 0:0.25:1, rtickformat = depthticks,
+                   rticks = 0:0.5:1, rtickformat = depthticks,
                    title = "Layerwise PPC angle")
 
     for structure in reverse(structures)
@@ -692,390 +699,175 @@ begin # * Preferred phases
                linewidth = 7)
     end
 end
-
-# begin # * Plot mean layer-wise PPC for hit/miss trials
-#     sessionid = sessionids[1]
-#     x = pspikes[pspikes.ecephys_session_id .== sessionid, :]
-#     structure = "VISl"
-#     x = x[x.structure_acronym .== structure, :]
-#     x = x[0.0 .< x.streamlinedepth .< 0.4, :]
-
-#     ppcs = x.trial_pairwise_phase_consistency
-#     hitmiss = x.hitmiss
-#     hits = map(ppcs, hitmiss) do p, h
-#         filter(!isnan, p[h])
-#     end
-#     misses = map(ppcs, hitmiss) do p, h
-#         filter(!isnan, p[.!h])
-#     end
-# end
-# begin
-#     density(filter(!isnan, vcat(hits...)))
-#     vlines!(mean(filter(!isnan, vcat(hits...))), color = cornflowerblue, label = "mean hit")
-#     density!(filter(!isnan, vcat(misses...)))
-#     vlines!(mean(filter(!isnan, vcat(misses...))), color = crimson, label = "mean miss")
-#     axislegend(; position = :lt)
-#     current_axis().xlabel = "PPC"
-#     current_axis().ylabel = "Density"
-#     current_figure() |> display
-# end
-
-begin # * Filter only for sensitive and significant neurons
-    begin # * Only use neurons that have significant PPC's in both hit and miss cases
-        ps = pspikes.hit_onset_pairwise_phase_consistency_pvalue
-        ps[isnan.(ps)] .= 1.0
-        ps[ps .< 0] .= 0.0
-        ps = adjust(ps, BenjaminiHochberg())
-        significant_idxs = ps .< SpatiotemporalMotifs.PTHR
-
-        ps = pspikes.miss_onset_pairwise_phase_consistency_pvalue
-        ps[isnan.(ps)] .= 1.0
-        ps[ps .< 0] .= 0.0
-        ps = adjust(ps, BenjaminiHochberg())
-        significant_idxs = significant_idxs .& (ps .< SpatiotemporalMotifs.PTHR)
-
-        pspikes = pspikes[significant_idxs, :]
-    end
-
-    begin # * Only neurons that are sensitive to phase
-        cutoff_ppc = 0.1
-        sensitive_idxs = pspikes.pairwise_phase_consistency .> cutoff_ppc
-        pspikes = pspikes[sensitive_idxs, :]
-    end
-end
-
-# if false # * Preferred phase, hit vs miss, across layers
-#     @info "Plotting preferred spike phases"
-
-#     begin # * Set up figure
-#         f = Figure()
-#         layerints = load(calcdir("plots", "grand_unified_layers.jld2"), "layerints")
-#         bins = range(0, 1, length = 11)
-#     end
-
-#     ax = PolarAxis(f[1, 1]; theta_as_x = false, thetalimits = (0, 2pi),
-#                    rticks = 0:0.25:1, rtickformat = depthticks,
-#                    title = "Layerwise PPC angle", rlimits = (0.0, 0.8))
-
-#     for structure in reverse(structures)
-#         idxs = pspikes.structure_acronym .== structure
-#         allsesh_pspikes = @views pspikes[idxs, :]
-#         allangles = map(unique(allsesh_pspikes.ecephys_session_id)) do sesh
-#             _pspikes = @views allsesh_pspikes[allsesh_pspikes.ecephys_session_id .== sesh,
-#                                               :]
-#             _ys = _pspikes.hit_onset_pairwise_phase_consistency
-#             ys = _pspikes.hit_onset_pairwise_phase_consistency_angle
-#             xs = _pspikes.streamlinedepth .|> Float32
-#             ys = ys .|> Float32
-#             B = HistBins(xs; bins)
-#             _ms = rectify(B(ys), dims = :bin)
-#             c = rectify(B(_ys), dims = :bin)
-#             return _ms, c
-#         end
-#         css = last.(allangles)
-#         allangles = first.(allangles)
-
-#         catppc = cat(allangles...; dims = 2)
-#         catppc = map(eachrow(catppc)) do x
-#             x = vcat(x...)
-#         end
-#         _ms = pmap(Base.Fix1(bootstrapaverage, circularmean), catppc)
-#         σs = last.(_ms)
-#         _ms = first.(_ms)
-#         _σl = first.(σs)
-#         _σh = last.(σs)
-
-#         C = cat(css...; dims = 2)
-#         C = map(eachrow(C)) do x
-#             x = vcat(x...)
-#         end
-#         _cs = pmap(bootstrapmean, C)
-#         _cs = first.(_cs)
-
-#         # _ms, (_σl, _σh) = bootstrapaverage(circularmean, X; dims = 2)
-#         idxs = .!isnan.(_ms) .& .!isnan.(_σl) .& .!isnan.(_σh)
-#         _ms = _ms[idxs]
-
-#         # _cs, _ = bootstrapmedian(C; dims = 2)
-#         _cs = _cs[idxs]
-
-#         _ls = lookup(_ms, 1)
-
-#         x = unwrap(_ms)
-#         x = upsample(x, 5)
-#         ms = SpatiotemporalMotifs.wrap.(x; domain = (-π, π))
-
-#         cs = upsample(_cs, 10)
-#         cs = MinMax(cs)(cs)
-
-#         c = seethrough(structurecolormap[structure])
-#         # band!(ax, lookup(mu, 1), l, h; color = muc |> collect, colormap = c, label = s)
-#         lines!(ax, lookup(ms, 1), collect(ms), color = cs |> collect, label = structure,
-#                colormap = c,
-#                linewidth = 7)
-#     end
-#     display(f)
-# end
-
-begin # * Plot on the same polar axis the hit and miss angles for VISl only
-    structure = "VISl"
-
-    bins = range(0, 1, length = 11)
-
-    ax = PolarAxis(gs[4]; theta_as_x = false, thetalimits = (0, 2pi),
-                   rticks = 0:0.25:1, rtickformat = depthticks,
-                   title = "Layerwise PPC angle", rlimits = (0.0, 0.8))
-    cols = [:hit_onset_pairwise_phase_consistency_angle,
-        :miss_onset_pairwise_phase_consistency_angle]
-    for col in cols
-        idxs = pspikes.structure_acronym .== structure
-        allsesh_pspikes = @views pspikes[idxs, :]
-        allangles = map(unique(allsesh_pspikes.ecephys_session_id)) do sesh
-            _pspikes = @views allsesh_pspikes[allsesh_pspikes.ecephys_session_id .== sesh,
-                                              :]
-            ys = _pspikes[:, col]
-            xs = _pspikes.streamlinedepth .|> Float32
-            ys = ys .|> Float32
-            B = HistBins(xs; bins)
-            _ms = rectify(B(ys), dims = :bin)
-            return _ms
-        end
-
-        catppc = cat(allangles...; dims = 2)
-        catppc = map(eachrow(catppc)) do x
-            x = vcat(x...)
-        end
-        _ms = pmap(Base.Fix1(bootstrapaverage, circularmean), catppc)
-        σs = last.(_ms)
-        _ms = first.(_ms)
-        _σl = first.(σs)
-        _σh = last.(σs)
-
-        idxs = .!isnan.(_ms) .& .!isnan.(_σl) .& .!isnan.(_σh)
-        _ms = _ms[idxs]
-
-        _ls = lookup(_ms, 1)
-
-        x = unwrap(_ms)
-        x = upsample(x, 5)
-        ms = SpatiotemporalMotifs.wrap.(x; domain = (-π, π))
-
-        lines!(ax, lookup(ms, 1), collect(ms), label = structure, linewidth = 7)
-    end
-    display(f)
-end
-
-begin # * Plot the mean firing rate of theta-sensitive neurons. For hit vs miss across layers
-
-    # # * Average psths
-    # subspikes.hit_psth = map(eachrow(subspikes)) do row
-    #     psths = row.zscored_trial_psth_rates
-    #     psths = psths[row.hitmiss]
-    #     psths = filter(!isnothing, psths)
-    #     if isempty(psths)
-    #         return nothing
-    #     else
-    #         return convert.(Float32, mean(psths))
-    #     end
-    # end
-    # subspikes.miss_psth = map(eachrow(subspikes)) do row
-    #     psths = row.zscored_trial_psth_rates
-    #     psths = psths[.!row.hitmiss]
-    #     psths = filter(!isnothing, psths)
-    #     if isempty(psths)
-    #         return nothing
-    #     else
-    #         return convert.(Float32, mean(psths))
-    #     end
-    # end
-end
-
-begin # * Plot hit & miss firing rate in different layers (onset)
-    structure = "VISl" # !! Change to VISl
-
-    idxs = pspikes.structure_acronym .== [structure]
-    subspikes = pspikes[idxs, :]
-
-    # * Select theta-sensitive neurons
-    cutoff_ppc = 0.2
-    sensitive_idxs = subspikes.pairwise_phase_consistency .> cutoff_ppc
-
-    intt = -0.02 .. 0.2
-
-    f = Figure(size = (800, 300))
-    ax = Axis(f[1, 1], title = "Hit trials", xlabel = "Time (s)",
-              ylabel = "Normalized firing rate (Hz)")
-    ax2 = Axis(f[1, 2], title = "Miss trials", xlabel = "Time (s)",
-               ylabel = "Normalized firing rate (Hz)")
-
-    ics = zip(["Supragranular", "Granular", "Infragranular"],
-              [["L1", "L2/3"], ["L4"], ["L5", "L6"]])
-
-    for (compartment, clayers) in ics
-        lidxs = indexin(clayers, "L" .* SpatiotemporalMotifs.layers)
-        ss = subspikes.layer .∈ [clayers]
-        layer_spikes = subspikes[ss, :]
-
-        unitids = intersect(layer_spikes.ecephys_unit_id, lookup(hit_psths, Unit))
-        psth = hit_psths[Unit = At(unitids)]
-        psth = psth[𝑡 = intt]
-        idxs = allequal.(eachslice(psth, dims = 2))
-        psth = psth[:, .!idxs]
-
-        # psth = filter(!isnothing, layer_spikes.hit_psth)
-        # psth = rectify.(psth, dims = 𝑡)
-        # psth = ToolsArray(psth, (Unit(1:size(psth, 1)),)) |> stack
-
-        _μ, (_σl, _σh) = bootstrapmedian(psth, dims = 2)
-        # σ = std(hit_psth, dims = 2)
-        # σ = dropdims(σ, dims = 2)
-        # σl = μ .- σ / 2
-        # σh = μ .+ σ / 2
-
-        μ = upsample(_μ, 5)
-        σl = upsample(_σl, 5)
-        σh = upsample(_σh, 5)
-
-        ts = collect(lookup(μ, 𝑡))
-        band!(ax, ts, parent(σl), parent(σh), label = compartment,
-              color = (mean(layercolors[lidxs]), 0.3))
-        lines!(ax, μ, label = compartment,
-               color = mean(layercolors[lidxs]))
-        scatter!(ax, _μ, color = mean(layercolors[lidxs]),
-                 markersize = 15, label = compartment)
-
-        # miss_psth = filter(!isnothing, layer_spikes.miss_psth)
-        # miss_psth = filter(x -> !any(isnan, x), miss_psth)
-        # miss_psth = ToolsArray(miss_psth, (Unit(1:size(miss_psth, 1)),)) |> stack
-        # miss_psth = miss_psth[𝑡 = intt]
-
-        unitids = intersect(layer_spikes.ecephys_unit_id, lookup(miss_psths, Unit))
-        psth = miss_psths[Unit = At(unitids)]
-        psth = psth[𝑡 = intt]
-        idxs = allequal.(eachslice(psth, dims = 2))
-        psth = psth[:, .!idxs]
-
-        _μ, (_σl, _σh) = bootstrapmedian(psth, dims = 2)
-
-        μ = upsample(_μ, 5)
-        σl = upsample(_σl, 5)
-        σh = upsample(_σh, 5)
-
-        ts = collect(lookup(μ, 𝑡))
-        band!(ax2, ts, parent(σl), parent(σh), label = compartment,
-              color = (mean(layercolors[lidxs]), 0.3))
-        lines!(ax2, μ, label = compartment,
-               color = mean(layercolors[lidxs]))
-        scatter!(ax2, _μ, color = mean(layercolors[lidxs]),
-                 markersize = 15, label = compartment)
-    end
-
-    axislegend(ax; position = :rt, merge = true)
-    axislegend(ax2; position = :rt, merge = true)
-    linkyaxes!([ax, ax2])
-    display(f)
-end
-begin # * Plot hit & miss firing rate in different layers (offset
-    intt = 0.23 .. 0.45
-    f = Figure(size = (800, 300))
-    ax = Axis(f[1, 1], title = "Hit trials", xlabel = "Time (s)",
-              ylabel = "Normalized firing rate (Hz)")
-    ax2 = Axis(f[1, 2], title = "Miss trials", xlabel = "Time (s)",
-               ylabel = "Normalized firing rate (Hz)")
-
-    ics = zip(["Supragranular", "Granular", "Infragranular"],
-              [["L1", "L2/3"], ["L4"], ["L5", "L6"]])
-
-    for (compartment, clayers) in ics
-        lidxs = indexin(clayers, "L" .* SpatiotemporalMotifs.layers)
-        ss = subspikes.layer .∈ [clayers]
-        layer_spikes = subspikes[ss, :]
-        hit_psth = filter(!isnothing, layer_spikes.hit_psth)
-        hit_psth = rectify.(hit_psth, dims = 𝑡)
-        hit_psth = ToolsArray(hit_psth, (Unit(1:size(hit_psth, 1)),)) |> stack
-        hit_psth = hit_psth[𝑡 = intt]
-
-        _μ, (_σl, _σh) = bootstrapmedian(hit_psth, dims = 2)
-
-        # σ = std(hit_psth, dims = 2)
-        # σ = dropdims(σ, dims = 2)
-        # σl = μ .- σ / 2
-        # σh = μ .+ σ / 2
-
-        μ = upsample(_μ, 5)
-        σl = upsample(_σl, 5)
-        σh = upsample(_σh, 5)
-
-        ts = collect(lookup(μ, 𝑡))
-        band!(ax, ts, parent(σl), parent(σh), label = compartment,
-              color = (mean(layercolors[lidxs]), 0.3))
-        lines!(ax, μ, label = compartment,
-               color = mean(layercolors[lidxs]))
-        scatter!(ax, _μ, color = mean(layercolors[lidxs]),
-                 markersize = 15, label = compartment)
-
-        miss_psth = filter(!isnothing, layer_spikes.miss_psth)
-        miss_psth = filter(x -> !any(isnan, x), miss_psth)
-        miss_psth = ToolsArray(miss_psth, (Unit(1:size(miss_psth, 1)),)) |> stack
-        miss_psth = miss_psth[𝑡 = intt]
-        _μ, (_σl, _σh) = bootstrapmedian(miss_psth, dims = 2)
-
-        μ = upsample(_μ, 5)
-        σl = upsample(_σl, 5)
-        σh = upsample(_σh, 5)
-
-        ts = collect(lookup(μ, 𝑡))
-        band!(ax2, ts, parent(σl), parent(σh), label = compartment,
-              color = (mean(layercolors[lidxs]), 0.3))
-        lines!(ax2, μ, label = compartment,
-               color = mean(layercolors[lidxs]))
-        scatter!(ax2, _μ, color = mean(layercolors[lidxs]),
-                 markersize = 15, label = compartment)
-    end
-
-    axislegend(ax; position = :rt, merge = true)
-    axislegend(ax2; position = :rt, merge = true)
-    linkyaxes!([ax, ax2])
-    display(f)
-end
-
 begin
-    begin # * Average psths + hit-miss difference (z-scored)
-        structure = "VISp"
+    begin # * Filter only for sensitive and significant neurons
+        begin # * Only use neurons that have significant PPC's in both hit and miss cases
+            ps = pspikes.hit_onset_pairwise_phase_consistency_pvalue
+            ps = convert(Vector{Float64}, ps)
+            ps[isnan.(ps)] .= 1.0
+            ps[ps .< 0] .= 0.0
+            ps = adjust(ps, BenjaminiHochberg())
+            significant_idxs = ps .< SpatiotemporalMotifs.PTHR
 
-        idxs = pspikes.structure_acronym .== [structure]
-        subspikes = pspikes[idxs, :]
-        subspikes.hit_psth = map(eachrow(subspikes)) do row
-            psths = row.zscored_trial_psth_rates
-            psths = psths[row.hitmiss]
-            psths = filter(!isnothing, psths)
-            isempty(psths) && return nothing
-            return convert.(Float32, mean(psths))
+            ps = pspikes.miss_onset_pairwise_phase_consistency_pvalue
+            ps = convert(Vector{Float64}, ps)
+            ps[isnan.(ps)] .= 1.0
+            ps[ps .< 0] .= 0.0
+            ps = adjust(ps, BenjaminiHochberg())
+            significant_idxs = significant_idxs .& (ps .< SpatiotemporalMotifs.PTHR)
+
+            pspikes = pspikes[significant_idxs, :]
         end
 
-        subspikes.miss_psth = map(eachrow(subspikes)) do row
-            psths = row.zscored_trial_psth_rates
-            psths = psths[.!row.hitmiss]
-            psths = filter(!isnothing, psths)
-            isempty(psths) && return nothing
-            return convert.(Float32, mean(psths))
+        begin # * Only neurons that are sensitive to phase
+            cutoff_ppc = 0.1
+            sensitive_idxs = pspikes.pairwise_phase_consistency .> cutoff_ppc
+            pspikes = pspikes[sensitive_idxs, :]
         end
 
-        subspikes.diff_psth_z = map(eachrow(subspikes)) do row
-            h, m = row.hit_psth, row.miss_psth
-            (h === nothing || m === nothing) && return nothing
-            d = h .- m                                    # hit - miss
-            μ, σ = mean(d), std(d)
-            σ == 0.0f0 && return nothing                     # guard flat traces
-            return (d .- μ) ./ σ                           # z-scored difference
-        end
+        sensitive_units = unique(pspikes.ecephys_unit_id)
+        sensitive_units = intersect(sensitive_units, lookup(hit_psths, Unit),
+                                    lookup(miss_psths, Unit))
+        # hit_psths = hit_psths[Unit = At(sensitive_units)]
+        # miss_psths = miss_psths[Unit = At(sensitive_units)]
     end
 
-    begin # * Plot hit - miss firing rate (one axis)
-        intt = -0.0 .. 0.2
-        f = Figure(size = (800, 300))
-        ax = Axis(f[1, 1], title = "Hit − Miss (z)", xlabel = "Time (s)",
-                  ylabel = "Δ rate (z-score)")
+    begin # * Plot on the same polar axis the hit and miss angles for VISp only
+        mainstructure = "VISp"
+
+        sspikes = pspikes
+        # sunits = intersect(sensitive_units, sspikes.ecephys_unit_id)
+
+        bins = range(0, 1, length = 11)
+
+        # ax = PolarAxis(gs[4]; theta_as_x = false, thetalimits = (0, 2pi),
+        #                rticks = 0:0.25:1, rtickformat = depthticks,
+        #                title = "Layerwise PPC angle", rlimits = (0.0, 0.8))
+        cols = [:hit_onset_pairwise_phase_consistency_angle,
+            :miss_onset_pairwise_phase_consistency_angle]
+
+        function degs(x::Number)
+            return string(round(x * 180 / π, digits = 0), "°")
+        end
+        degs(x) = map(degs, x)
+        ax = Axis(gs[4]; xtickformat = degs,
+                  title = "PPC angle contrast",
+                  ytickformat = depthticks, yreversed = true, ylabel = "Cortical depth (%)",
+                  xlabel = "PPC angle (hit - miss)")
+
+        vlines!(ax, [0.0]; color = :gray)
+        map(structures |> reverse) do structure
+            idxs = sspikes.structure_acronym .== structure
+            allsesh_sspikes = @views sspikes[idxs, :]
+            allangles = map(unique(allsesh_sspikes.ecephys_session_id)) do sesh
+                _pspikes = @views allsesh_sspikes[allsesh_sspikes.ecephys_session_id .== sesh,
+                                                  :]
+                hys = _pspikes[:, :hit_onset_pairwise_phase_consistency_angle]
+                mys = _pspikes[:, :miss_onset_pairwise_phase_consistency_angle]
+                ys = phasegrad(hys, mys)
+                xs = _pspikes.streamlinedepth .|> Float32
+                ys = ys .|> Float32
+                B = HistBins(xs; bins)
+                _ms = rectify(B(ys), dims = :bin)
+                return _ms
+            end
+            catppc = cat(allangles...; dims = 2)
+            catppc = map(eachrow(catppc)) do x
+                x = vcat(x...)
+            end
+            _ms = pmap(Base.Fix1(bootstrapaverage, circularmean), catppc)
+            σs = last.(_ms)
+            _ms = first.(_ms)
+            _σl = first.(σs)
+            _σh = last.(σs)
+
+            idxs = .!isnan.(_ms) .& .!isnan.(_σl) .& .!isnan.(_σh)
+            _ms = _ms[idxs]
+            _ls = lookup(_ms, 1)
+            x = unwrap(_ms)
+            x = upsample(x, 5)
+            ms = SpatiotemporalMotifs.wrap.(x; domain = (-π, π))
+
+            x = unwrap(_σl[idxs])
+            x = upsample(x, 5)
+            _σl = SpatiotemporalMotifs.wrap.(x; domain = (-π, π))
+
+            x = unwrap(_σh[idxs])
+            x = upsample(x, 5)
+            _σh = SpatiotemporalMotifs.wrap.(x; domain = (-π, π))
+
+            # band!(ax, Point2f.(collect(_σl), lookup(ms, 1)),
+            #       Point2f.(collect(_σh), lookup(ms, 1));
+            #       color = (structurecolormap[structure], 0.3))
+            lines!(ax, collect(ms), lookup(ms, 1), label = structure, linewidth = 7,
+                   color =
+                   structurecolormap[structure])
+        end
+
+        spsf = SixPanel()
+        spgs = subdivide(spsf, 3, 2)
+        for (i, structure) in enumerate(structures) # Generate supplementary figure
+            subax = PolarAxis(spgs[i]; theta_as_x = false, thetalimits = (0, 2pi),
+                              rticks = 0:0.25:1, rtickformat = depthticks,
+                              title = "Layerwise PPC angle", rlimits = (0.0, 0.8))
+            for col in cols
+                idxs = sspikes.structure_acronym .== structure
+                allsesh_sspikes = @views sspikes[idxs, :]
+                allangles = map(unique(allsesh_sspikes.ecephys_session_id)) do sesh
+                    _pspikes = @views allsesh_sspikes[allsesh_sspikes.ecephys_session_id .== sesh,
+                                                      :]
+                    ys = _pspikes[:, col]
+                    xs = _pspikes.streamlinedepth .|> Float32
+                    ys = ys .|> Float32
+                    B = HistBins(xs; bins)
+                    _ms = rectify(B(ys), dims = :bin)
+                    return _ms
+                end
+
+                catppc = cat(allangles...; dims = 2)
+                catppc = map(eachrow(catppc)) do x
+                    x = vcat(x...)
+                end
+                _ms = pmap(Base.Fix1(bootstrapaverage, circularmean), catppc)
+                σs = last.(_ms)
+                _ms = first.(_ms)
+                _σl = first.(σs)
+                _σh = last.(σs)
+
+                idxs = .!isnan.(_ms) .& .!isnan.(_σl) .& .!isnan.(_σh)
+                _ms = _ms[idxs]
+
+                _ls = lookup(_ms, 1)
+
+                x = unwrap(_ms)
+                x = upsample(x, 5)
+                ms = SpatiotemporalMotifs.wrap.(x; domain = (-π, π))
+
+                lines!(subax, lookup(ms, 1), collect(ms), label = structure, linewidth = 7)
+            end
+        end
+        display(spsf)
+    end
+
+    begin # * Plot hit & miss firing rate in different layers (onset)
+        idxs = pspikes.structure_acronym .== [mainstructure]
+        subspikes = pspikes[idxs, :]
+
+        intt = -0.03 .. 0.2
+
+        ax = Axis(gs[5], title = "Hit trials ($mainstructure)", xlabel = "Time (s)",
+                  ylabel = "Normalized firing-rate change",
+                  limits = ((-0.01, 0.185), nothing),
+                  xtickformat = terseticks,
+                  ytickformat = terseticks)
+        ax2 = Axis(gs[6], title = "Miss trials ($mainstructure)", xlabel = "Time (s)",
+                   ylabel = "Normalized firing-rate change",
+                   limits = ((-0.01, 0.185), nothing),
+                   xtickformat = terseticks,
+                   ytickformat = terseticks)
+
+        vlines!(ax, [0.0], color = (:black, 0.4), linestyle = :dash)
+        vlines!(ax2, [0.0], color = (:black, 0.4), linestyle = :dash)
 
         ics = zip(["Supragranular", "Granular", "Infragranular"],
                   [["L1", "L2/3"], ["L4"], ["L5", "L6"]])
@@ -1085,35 +877,171 @@ begin
             ss = subspikes.layer .∈ [clayers]
             layer_spikes = subspikes[ss, :]
 
-            diff_psth = filter(!isnothing, layer_spikes.diff_psth_z)
-            diff_psth = filter(x -> !any(isnan, x), diff_psth)
-            diff_psth = ToolsArray(diff_psth, (Unit(1:size(diff_psth, 1)),)) |> stack
-            diff_psth = diff_psth[𝑡 = intt]
+            unitids = intersect(layer_spikes.ecephys_unit_id, lookup(hit_psths, Unit))
+            psth = hit_psths[Unit = At(unitids)]
+            psth = psth[𝑡 = intt]
+            idxs = allequal.(eachslice(psth, dims = 2))
+            psth = psth[:, .!idxs]
 
-            _μ, (_σl, _σh) = bootstrapmedian(diff_psth, dims = 2)
+            # psth = filter(!isnothing, layer_spikes.hit_psth)
+            # psth = rectify.(psth, dims = 𝑡)
+            # psth = ToolsArray(psth, (Unit(1:size(psth, 1)),)) |> stack
+
+            _μ, (_σl, _σh) = bootstrapmedian(psth, dims = 2)
+            # σ = std(hit_psth, dims = 2)
+            # σ = dropdims(σ, dims = 2)
+            # σl = μ .- σ / 2
+            # σh = μ .+ σ / 2
 
             μ = upsample(_μ, 5)
             σl = upsample(_σl, 5)
             σh = upsample(_σh, 5)
 
             ts = collect(lookup(μ, 𝑡))
-            col = mean(layercolors[lidxs])
-
             band!(ax, ts, parent(σl), parent(σh), label = compartment,
-                  color = (col, 0.3))
-            lines!(ax, μ, label = compartment, color = col)
-            scatter!(ax, _μ, color = col, markersize = 15, label = compartment)
+                  color = (mean(layercolors[lidxs]), 0.3))
+            lines!(ax, μ, label = compartment,
+                   color = mean(layercolors[lidxs]))
+            scatter!(ax, _μ, color = mean(layercolors[lidxs]),
+                     markersize = 15, label = compartment)
+
+            # miss_psth = filter(!isnothing, layer_spikes.miss_psth)
+            # miss_psth = filter(x -> !any(isnan, x), miss_psth)
+            # miss_psth = ToolsArray(miss_psth, (Unit(1:size(miss_psth, 1)),)) |> stack
+            # miss_psth = miss_psth[𝑡 = intt]
+
+            unitids = intersect(layer_spikes.ecephys_unit_id, lookup(miss_psths, Unit))
+            psth = miss_psths[Unit = At(unitids)]
+            psth = psth[𝑡 = intt]
+            idxs = allequal.(eachslice(psth, dims = 2))
+            psth = psth[:, .!idxs]
+
+            _μ, (_σl, _σh) = bootstrapmedian(psth, dims = 2)
+
+            μ = upsample(_μ, 5)
+            σl = upsample(_σl, 5)
+            σh = upsample(_σh, 5)
+
+            ts = collect(lookup(μ, 𝑡))
+            band!(ax2, ts, parent(σl), parent(σh), label = compartment,
+                  color = (mean(layercolors[lidxs]), 0.3))
+            lines!(ax2, μ, label = compartment,
+                   color = mean(layercolors[lidxs]))
+            scatter!(ax2, _μ, color = mean(layercolors[lidxs]),
+                     markersize = 15, label = compartment)
         end
 
         axislegend(ax; position = :rt, merge = true)
+        axislegend(ax2; position = :rt, merge = true)
+        linkyaxes!([ax, ax2])
         display(f)
     end
 end
 
+begin # * Hit/miss firing rates for each structure
+    frsf = Figure(size = (1440, 720) .* 1.25)
+    frgs = subdivide(frsf, 3, 2)
+
+    map(enumerate(structures)) do (i, structure)
+        subgs = frgs[i]
+
+        begin # * Plot hit & miss firing rate in different layers (onset)
+            idxs = pspikes.structure_acronym .== [structure]
+            subspikes = pspikes[idxs, :]
+
+            intt = -0.03 .. 0.2
+
+            ax = Axis(subgs[1, 1], title = "Hit trials ($structure)", xlabel = "Time (s)",
+                      ylabel = "Normalized firing rate change",
+                      limits = ((-0.01, 0.185), nothing),
+                      xtickformat = terseticks,
+                      ytickformat = terseticks)
+            ax2 = Axis(subgs[1, 2], title = "Miss trials ($structure)", xlabel = "Time (s)",
+                       ylabel = "Normalized firing rate change",
+                       limits = ((-0.01, 0.185), nothing),
+                       xtickformat = terseticks,
+                       ytickformat = terseticks)
+
+            vlines!(ax, [0.0], color = (:black, 0.4), linestyle = :dash)
+            vlines!(ax2, [0.0], color = (:black, 0.4), linestyle = :dash)
+
+            ics = zip(["Supragranular", "Granular", "Infragranular"],
+                      [["L1", "L2/3"], ["L4"], ["L5", "L6"]])
+
+            for (compartment, clayers) in ics
+                lidxs = indexin(clayers, "L" .* SpatiotemporalMotifs.layers)
+                ss = subspikes.layer .∈ [clayers]
+                layer_spikes = subspikes[ss, :]
+
+                unitids = intersect(layer_spikes.ecephys_unit_id, lookup(hit_psths, Unit))
+                psth = hit_psths[Unit = At(unitids)]
+                psth = psth[𝑡 = intt]
+                idxs = allequal.(eachslice(psth, dims = 2))
+                psth = psth[:, .!idxs]
+
+                # psth = filter(!isnothing, layer_spikes.hit_psth)
+                # psth = rectify.(psth, dims = 𝑡)
+                # psth = ToolsArray(psth, (Unit(1:size(psth, 1)),)) |> stack
+
+                _μ, (_σl, _σh) = bootstrapmedian(psth, dims = 2)
+                # σ = std(hit_psth, dims = 2)
+                # σ = dropdims(σ, dims = 2)
+                # σl = μ .- σ / 2
+                # σh = μ .+ σ / 2
+
+                μ = upsample(_μ, 5)
+                σl = upsample(_σl, 5)
+                σh = upsample(_σh, 5)
+
+                ts = collect(lookup(μ, 𝑡))
+                band!(ax, ts, parent(σl), parent(σh), label = compartment,
+                      color = (mean(layercolors[lidxs]), 0.3))
+                lines!(ax, μ, label = compartment,
+                       color = mean(layercolors[lidxs]))
+                scatter!(ax, _μ, color = mean(layercolors[lidxs]),
+                         markersize = 15, label = compartment)
+
+                # miss_psth = filter(!isnothing, layer_spikes.miss_psth)
+                # miss_psth = filter(x -> !any(isnan, x), miss_psth)
+                # miss_psth = ToolsArray(miss_psth, (Unit(1:size(miss_psth, 1)),)) |> stack
+                # miss_psth = miss_psth[𝑡 = intt]
+
+                unitids = intersect(layer_spikes.ecephys_unit_id, lookup(miss_psths, Unit))
+                psth = miss_psths[Unit = At(unitids)]
+                psth = psth[𝑡 = intt]
+                idxs = allequal.(eachslice(psth, dims = 2))
+                psth = psth[:, .!idxs]
+
+                _μ, (_σl, _σh) = bootstrapmedian(psth, dims = 2)
+
+                μ = upsample(_μ, 3)
+                σl = upsample(_σl, 3)
+                σh = upsample(_σh, 3)
+
+                ts = collect(lookup(μ, 𝑡))
+                band!(ax2, ts, parent(σl), parent(σh), label = compartment,
+                      color = (mean(layercolors[lidxs]), 0.3))
+                lines!(ax2, μ, label = compartment,
+                       color = mean(layercolors[lidxs]))
+                scatter!(ax2, _μ, color = mean(layercolors[lidxs]),
+                         markersize = 15, label = compartment)
+            end
+
+            if structure == "VISp"
+                axislegend(ax; position = :rt, merge = true)
+                axislegend(ax2; position = :rt, merge = true)
+            end
+            linkyaxes!([ax, ax2])
+        end
+    end
+    display(frsf)
+end
 begin
     addlabels!(f, labelformat)
     addlabels!(sf, labelformat)
     wsave(plotdir("fig6", "spike_lfp.pdf"), f)
     wsave(plotdir("fig6", "spike_lfp_spontaneous.pdf"), sf)
+    wsave(plotdir("fig6", "spike_phase_hitmiss.pdf"), spsf)
+    wsave(plotdir("fig6", "firing_rates.pdf"), frsf)
     f
 end

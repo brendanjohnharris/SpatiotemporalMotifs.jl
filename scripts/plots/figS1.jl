@@ -219,33 +219,34 @@ begin # * Plotting
               ylabel = "Cortical depth (%)",
               xlabel = "1/f exponent (hit - miss)",
               ytickformat = depthticks, title = "1/f contrast", yreversed = true,
-              limits = (nothing, (0, 1)))
+              limits = ((-0.07, 0.12), (0, 1)),
+              xtickformat = terseticks)
 
-    plotlayerints!(ax, layerints; axis = :y, flipside = false, newticks = false,
-                   bgcolor = Makie.RGBA(0, 0, 0, 0))
+    plotlayerints!(ax, layerints; axis = :y, flipside = true, newticks = false)
+    SpatiotemporalMotifs.plot_layerwise!(ax, Δχ; scatter = true)
 
-    map(eachslice(Δχ, dims = Structure)) do Δχ_structure
-        structure = only(refdims(Δχ_structure, Structure))
-        μ, (σl, σh) = bootstrapmedian(Δχ_structure, dims = 2)
+    # map(eachslice(Δχ, dims = Structure)) do Δχ_structure
+    #     structure = only(refdims(Δχ_structure, Structure))
+    #     μ, (σl, σh) = bootstrapmedian(Δχ_structure, dims = 2)
 
-        _μ = upsample(μ, 5)
-        _σl, _σh = upsample(σl, 5), upsample(σh, 5)
+    #     _μ = upsample(μ, 5)
+    #     _σl, _σh = upsample(σl, 5), upsample(σh, 5)
 
-        band!(ax, Point2f.(collect(_σl), lookup(_μ, 1)),
-              Point2f.(collect(_σh), lookup(_μ, 1)); label = structure,
-              color = (structurecolormap[structure], 0.2))
-        lines!(ax, collect(_μ), lookup(_μ, 1), label = structure,
-               color = structurecolormap[structure])
+    #     band!(ax, Point2f.(collect(_σl), lookup(_μ, 1)),
+    #           Point2f.(collect(_σh), lookup(_μ, 1)); label = structure,
+    #           color = (structurecolormap[structure], 0.2))
+    #     lines!(ax, collect(_μ), lookup(_μ, 1), label = structure,
+    #            color = structurecolormap[structure])
 
-        sigs = 𝑝[Structure = At(structure)] .< SpatiotemporalMotifs.PTHR
+    #     sigs = 𝑝[Structure = At(structure)] .< SpatiotemporalMotifs.PTHR
 
-        scatter!(ax, collect(μ[sigs]), lookup(μ[sigs], 1),
-                 color = structurecolormap[structure], label = structure)
+    #     scatter!(ax, collect(μ[sigs]), lookup(μ[sigs], 1),
+    #              color = structurecolormap[structure], label = structure)
 
-        scatter!(ax, collect(μ[.!sigs]), lookup(μ[.!sigs], 1),
-                 strokecolor = structurecolormap[structure], label = structure,
-                 color = :white, strokewidth = 4)
-    end
+    #     scatter!(ax, collect(μ[.!sigs]), lookup(μ[.!sigs], 1),
+    #              strokecolor = structurecolormap[structure], label = structure,
+    #              color = :white, strokewidth = 4)
+    # end
     display(f)
 end
 
@@ -253,53 +254,43 @@ begin # * Plot classification accuracy
     ax = Axis(gs[2], ylabel = "Balanced accuracy",
               limits = ((0.5, 4.5), (nothing, 1.0)),
               xticks = ([1.5, 3.5], ["Regional", "Layerwise"]),
-              title = "1/f classification")
+              title = "1/f classification",
+              ytickformat = terseticks)
+
+    hlines!(ax, [0.5]; color = (:black, 0.5), linestyle = :dash, linewidth = 2)
 
     # * Mean 1/f accuracy
     x = first.(filter(!isnothing, bac_mean))
     xs = last.(filter(!isnothing, bac_mean)) |> Iterators.flatten |> collect
     vspan!(ax, 0.5, 2.5; alpha = 0.2, color = (california, 0.2))
-    boxplot!(ax, ones(length(x)), x, color = california)
-    boxplot!(ax, ones(length(xs)) .+ 1, xs, color = :gray)
+    boxplot!(ax, ones(length(x)), x, color = (california, 0.7))
+    boxplot!(ax, ones(length(xs)) .+ 1, xs, color = (:gray, 0.7))
 
     # * Layerwise 1/f accuracy
     x = first.(filter(!isnothing, bac))
     xs = last.(filter(!isnothing, bac)) |> Iterators.flatten |> collect
     vspan!(ax, 2.5, 4.5; color = (cucumber, 0.2))
-    boxplot!(ax, ones(length(x)) .+ 2, x, color = cucumber)
-    boxplot!(ax, ones(length(xs)) .+ 3, xs, color = :gray)
+    boxplot!(ax, ones(length(x)) .+ 2, x, color = (cucumber, 0.7))
+    boxplot!(ax, ones(length(xs)) .+ 3, xs, color = (:gray, 0.7))
 
     display(f)
 end
 
 begin # * Plot weights of lda classifier for full classification
     ax = Axis(gs[3], xlabel = "Weight", ylabel = "Cortical depth (%)",
-              title = "Classifier weights", yreversed = true, limits = (nothing, (0, 1)))
+              title = "Classifier weights", yreversed = true,
+              limits = ((-0.35, 0.35), (0, 1)),
+              xtickformat = terseticks)
 
-    plotlayerints!(ax, layerints; axis = :y, flipside = false, newticks = false,
-                   bgcolor = Makie.RGBA(0, 0, 0, 0))
-    map(eachslice(W, dims = Structure)) do W_structure
-        structure = only(refdims(W_structure, Structure))
-        μ, (σl, σh) = bootstrapmedian(W_structure, dims = 2)
-
-        _μ = upsample(μ, 5)
-        _σl, _σh = upsample(σl, 5), upsample(σh, 5)
-
-        band!(ax, Point2f.(collect(_σl), lookup(_μ, 1)),
-              Point2f.(collect(_σh), lookup(_μ, 1)); label = structure,
-              color = (structurecolormap[structure], 0.2))
-        lines!(ax, collect(_μ), lookup(_μ, 1); label = structure,
-               color = structurecolormap[structure])
-        scatter!(ax, collect(μ), lookup(μ, 1);
-                 color = structurecolormap[structure], label = structure)
-    end
+    plotlayerints!(ax, layerints; axis = :y, flipside = true, newticks = false)
+    SpatiotemporalMotifs.plot_layerwise!(ax, W; scatter = true)
 
     display(f)
 end
 
 begin # * Save figure
-    Legend(gs[4], ax; merge = true, title = "Structure")
+    Legend(gs[4], ax, "Area"; merge = true) |> reverselegend!
     addlabels!(f, labelformat)
-    save(plotdir("figS1", "figS1.pdf"), f)
+    wsave(plotdir("figS1", "figS1.pdf"), f)
     display(f)
 end

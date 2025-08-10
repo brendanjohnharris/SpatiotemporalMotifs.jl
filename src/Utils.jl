@@ -877,7 +877,7 @@ function bootstrapaverage(average, x::AbstractVector{T}; confint = 0.95,
     x = filter(!isnan, x)
     x = filter(!isinf, x)
 
-    b = Bootstrap.bootstrap(nansafe(average), x, Bootstrap.BalancedSampling(N))
+    b = Bootstrap.bootstrap(average, x, Bootstrap.BalancedSampling(N))
     μ, σ... = only(Bootstrap.confint(b, Bootstrap.BCaConfInt(confint)))
     return μ, σ
 end
@@ -897,7 +897,7 @@ function bootstrapaverage(average, X::AbstractArray; dims = 1, kwargs...)
     return μ, (σl, σh)
 end
 function bootstrapaverage(average, X::AbstractToolsArray; dims = 1, kwargs...)
-    if length(dims) > 1
+    if (dims isa Tuple || dims isa AbstractVector) && length(dims) > 1
         error("Only one dimension can be specified")
     end
     dims = dimnum(X, dims)
@@ -1011,15 +1011,15 @@ function hierarchicalkendall(x::AbstractVector{<:Real}, y::AbstractDimArray,
 end
 
 # * Recursive array map
-ramap(f, x) = f(x)
-ramap(f, x::AbstractArray) = map(Base.Fix1(ramap, f), x)
-function ramap(f, leaf::Type{T}, x) where {T}
+ramap(f, x, args...) = f(x, args...)
+ramap(f, x::AbstractArray, args...) = map((args...,) -> ramap(f, args...), x, args...)
+function ramap(f, leaf::Type{T}, x, args...) where {T}
     if x isa T
-        return f(x)
+        return f(x, args...)
     elseif x isa AbstractArray
-        return map(el -> ramap(f, leaf, el), x)
+        return map((els...,) -> ramap(f, leaf, els...), x, args...)
     else
-        return f(x)
+        return f(x, args...)
     end
 end
 

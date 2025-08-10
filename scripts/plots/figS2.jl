@@ -167,46 +167,68 @@ end
 # end
 function pformat(x)
     bins = intervals(0.0:0.1:0.9)
-    x = mean(x, dims = :changetime)
+    x = median(x, dims = :changetime)
     x = dropdims(x, dims = (𝑡, :changetime))
     x = groupby(x, Depth => Bins(bins))
-    x = mean.(x)
+    x = map(x) do x
+        isempty(x) && return NaN
+        median(x)
+    end
     x = set(x, Depth => mean.(lookup(x, Depth)))
 end
-begin # * Plot normalized amplitude distribution (flashes)
-    stimulus = "flash_250ms"
 
-    amps = plot_data[stimulus]["prony_fit"]["amplitudes"]
+begin
+    # stimulus = "flash_250ms"
+    stimulus = "r\"Natural_Images\""
+
+    amps = ToolsArray(plot_data[stimulus]["prony_fit"]["amplitudes"],
+                      (Structure(structures),))
     bamps = SpatiotemporalMotifs.ramap(pformat, ToolsArray{T, 2} where {T}, amps) .|> stack
 
-    fs = plot_data[stimulus]["prony_fit"]["frequencies"]
+    fs = ToolsArray(plot_data[stimulus]["prony_fit"]["frequencies"],
+                    (Structure(structures),))
     bfs = SpatiotemporalMotifs.ramap(pformat, ToolsArray{T, 2} where {T}, fs) .|> stack
 
-    errors = plot_data[stimulus]["prony_fit"]["rmse"]
+    errors = ToolsArray(plot_data[stimulus]["prony_fit"]["rmse"], (Structure(structures),))
     berrors = SpatiotemporalMotifs.ramap(pformat, ToolsArray{T, 2} where {T}, errors) .|>
               stack
+
+    damps = ToolsArray(plot_data[stimulus]["prony_fit"]["damps"], (Structure(structures),))
+    bdamps = SpatiotemporalMotifs.ramap(pformat, ToolsArray{T, 2} where {T}, damps) .|>
+             stack
 end
+
 begin
-    f = Figure()
-    ax = Axis(f[1, 1])
-    map(structures, bamps) do structure, x
-        # m = mean(amp, dims = 2)
-        # m = dropdims(m, dims = 2)
+    f = TwoPanel()
+    gs = subdivide(f, 1, 4)
+    layerints = load(calcdir("plots", "grand_unified_layers.jld2"), "layerints")
 
-        μ, (σl, σh) = bootstrapmedian(x, dims = 2)
+    # * Frequencies
+    ax = Axis(gs[1]; ytickformat = depthticks, yreversed = true,
+              xtickformat = terseticks, limits = ((3.6, 6.99), (0, 1)), title = "Frequency",
+              xlabel = "Average frequency (Hz)", ylabel = "Cortical depth (%)")
+    SpatiotemporalMotifs.plot_layerwise!(ax, bfs, layerints; scatter = true)
 
-        band!(ax, Point2f.(collect(σl), lookup(μ, 1)),
-              Point2f.(collect(σh), lookup(μ, 1));
-              color = (structurecolormap[structure], 0.32), label = structure)
-        lines!(ax, parent(μ), lookup(μ, 1); color = structurecolormap[structure])
-    end
+    # * Amplitudes
+    ax = Axis(gs[2]; ytickformat = depthticks, yreversed = true,
+              xtickformat = terseticks, limits = ((0.8, 1.59), (0, 1)), title = "Amplitude",
+              xlabel = "Average normalized amplitude", yticklabelsvisible = false)
+    SpatiotemporalMotifs.plot_layerwise!(ax, bamps, layerints; scatter = true)
 
+    # * Errors
+    ax = Axis(gs[3]; ytickformat = depthticks, yreversed = true,
+              xtickformat = terseticks, limits = ((0.74, 0.95), (0, 1)), title = "Error",
+              xlabel = "Average RMSE", yticklabelsvisible = false)
+    SpatiotemporalMotifs.plot_layerwise!(ax, berrors, layerints; scatter = true)
+    Legend(gs[4], contents(gs[3]) |> only, "Area"; merge = true) |>
+    reverselegend!
     f
 end
 
-amps = map(structures, amps) do structure, amp
-    # * Group across unified depths
-
+begin
+    addlabels!(f, labelformat)
+    display(f)
+    wsave(plotdir("figS2", "figS2.pdf"), f)
 end
 
 # begin

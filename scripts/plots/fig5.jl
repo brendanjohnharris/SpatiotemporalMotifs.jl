@@ -524,7 +524,7 @@ begin # * Global and spatiotemporal PAC
                 x = s .* 10^4 # Modulation index
                 p = heatmap!(ax, (x); colormap = seethrough(reverse(sunrise)),
                              rasterize = 5)
-                contour!(ax, log10.(x); levels = 5, colormap = reverse(sunrise))
+                contour!(ax, log10.(x); levels = 5, color = :gray)
                 Colorbar(g[1, 2], p; label = "Modulation index (×10⁴)")
             end
             addlabels!(f, labelformat)

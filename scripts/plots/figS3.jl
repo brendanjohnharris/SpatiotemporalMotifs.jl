@@ -14,7 +14,7 @@ using SpatiotemporalMotifs
 @preamble
 set_theme!(foresight(:physics))
 
-plot_data, data_file = produce_or_load(Dict("thr" => 0.75), calcdir("plots");
+plot_data, data_file = produce_or_load(Dict("thr" => 0.5), calcdir("plots");
                                        filename = savepath("figS3")) do config
     thr = config["thr"]
     begin # * Load active vs passive order parameters
@@ -139,7 +139,7 @@ plot_data, data_file = produce_or_load(Dict("thr" => 0.75), calcdir("plots");
         end
     end
 
-    begin # * Extract the probability mass of 'coherent' events; |OP| > 0.75
+    begin # * Extract the probability mass of 'coherent' events; |OP| > 0.5
         coherent_events = map(data) do R
             R = SpatiotemporalMotifs.ramap(Base.Fix2(getindex, 1), R)
             out = map(R) do y
@@ -154,8 +154,8 @@ plot_data, data_file = produce_or_load(Dict("thr" => 0.75), calcdir("plots");
             R = SpatiotemporalMotifs.ramap(Base.Fix2(getindex, 2), R)
             out = map(R) do y
                 out = map(y) do x
-                    l = sum(x -> x .< -0.5, x) / length(x)
-                    u = sum(x -> x .> 0.5, x) / length(x)
+                    l = sum(x -> x .< -thr, x) / length(x)
+                    u = sum(x -> x .> thr, x) / length(x)
                     return [l, u]
                 end |> stack
             end |> stack
@@ -186,7 +186,9 @@ begin # * Order parameter for passive natural images
               title = "Passive order parameter",
               xautolimitmargin = (0, 0), xminorticksvisible = true,
               xminorticks = IntervalsBetween(5), yminorticksvisible = true,
-              yminorticks = IntervalsBetween(5))
+              yminorticks = IntervalsBetween(5),
+              xtickformat = terseticks,
+              ytickformat = terseticks)
     hlines!(ax, [0]; color = (:black, 0.5), linestyle = :dash, linewidth = 2)
     vlines!(ax, [0, 0.25]; color = (:black, 0.5), linestyle = :dash, linewidth = 2)
     for structure in reverse(structures)
@@ -215,12 +217,14 @@ begin # * Plot contrast of active and passive
               title = "Order parameter contrast", xautolimitmargin = (0, 0),
               xminorticksvisible = true,
               xminorticks = IntervalsBetween(5), yminorticksvisible = true,
-              yminorticks = IntervalsBetween(5))
+              yminorticks = IntervalsBetween(5),
+              xtickformat = terseticks,
+              ytickformat = terseticks)
 
     hlines!(ax, [0]; color = (:black, 0.5), linestyle = :dash, linewidth = 2)
     vlines!(ax, [0, 0.25]; color = (:black, 0.5), linestyle = :dash, linewidth = 2)
 
-    map(lookup(m, Structure)) do structure
+    map(reverse(lookup(m, Structure))) do structure
         mstructure = m[Structure = At(structure), 𝑡(SpatiotemporalMotifs.INTERVAL)] |>
                      ustripall
 
@@ -267,7 +271,10 @@ begin # * Plot boxplots of probability of coherent events
             end
 
             ax = Axis(f[i + 1, j]; ylabel = "Probability of coherent events",
-                      xticks = (1.5:1:3.5, string.(slabels)), title, xticklabelsize = 15)
+                      xticks = (1.5:1:3.5, string.(slabels)), title, xticklabelsize = 15,
+                      ytickformat = terseticks)
+
+            vlines!(ax, [2, 3]; color = (:black, 0.5), linewidth = 2)
 
             if surr
                 levents = coherent_events_sur[side = At(side)]
@@ -315,4 +322,5 @@ begin # * Plot boxplots of probability of coherent events
     # end
     addlabels!(f, labelformat)
     display(f)
+    wsave(plotdir("figS3", "figS3.pdf"), f)
 end
