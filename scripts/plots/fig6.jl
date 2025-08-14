@@ -728,81 +728,17 @@ begin
         sensitive_units = unique(pspikes.ecephys_unit_id)
         sensitive_units = intersect(sensitive_units, lookup(hit_psths, Unit),
                                     lookup(miss_psths, Unit))
-        # hit_psths = hit_psths[Unit = At(sensitive_units)]
-        # miss_psths = miss_psths[Unit = At(sensitive_units)]
     end
 
     begin # * Plot on the same polar axis the hit and miss angles for VISp only
         mainstructure = "VISp"
 
         sspikes = pspikes
-        # sunits = intersect(sensitive_units, sspikes.ecephys_unit_id)
 
         bins = range(0, 1, length = 11)
 
-        # ax = PolarAxis(gs[4]; theta_as_x = false, thetalimits = (0, 2pi),
-        #                rticks = 0:0.25:1, rtickformat = depthticks,
-        #                title = "Layerwise PPC angle", rlimits = (0.0, 0.8))
         cols = [:hit_onset_pairwise_phase_consistency_angle,
             :miss_onset_pairwise_phase_consistency_angle]
-
-        # function degs(x::Number)
-        #     return string(round(x * 180 / π, digits = 0), "°")
-        # end
-        # degs(x) = map(degs, x)
-        # ax = Axis(gs[4]; xtickformat = degs,
-        #           title = "PPC angle contrast",
-        #           ytickformat = depthticks, yreversed = true, ylabel = "Cortical depth (%)",
-        #           xlabel = "PPC angle (hit - miss)")
-
-        # vlines!(ax, [0.0]; color = :gray)
-        # map(structures |> reverse) do structure
-        #     idxs = sspikes.structure_acronym .== structure
-        #     allsesh_sspikes = @views sspikes[idxs, :]
-        #     allangles = map(unique(allsesh_sspikes.ecephys_session_id)) do sesh
-        #         _pspikes = @views allsesh_sspikes[allsesh_sspikes.ecephys_session_id .== sesh,
-        #                                           :]
-        #         hys = _pspikes[:, :hit_onset_pairwise_phase_consistency_angle]
-        #         mys = _pspikes[:, :miss_onset_pairwise_phase_consistency_angle]
-        #         ys = phasegrad(hys, mys)
-        #         xs = _pspikes.streamlinedepth .|> Float32
-        #         ys = ys .|> Float32
-        #         B = HistBins(xs; bins)
-        #         _ms = rectify(B(ys), dims = :bin)
-        #         return _ms
-        #     end
-        #     catppc = cat(allangles...; dims = 2)
-        #     catppc = map(eachrow(catppc)) do x
-        #         x = vcat(x...)
-        #     end
-        #     _ms = pmap(Base.Fix1(bootstrapaverage, circularmean), catppc)
-        #     σs = last.(_ms)
-        #     _ms = first.(_ms)
-        #     _σl = first.(σs)
-        #     _σh = last.(σs)
-
-        #     idxs = .!isnan.(_ms) .& .!isnan.(_σl) .& .!isnan.(_σh)
-        #     _ms = _ms[idxs]
-        #     _ls = lookup(_ms, 1)
-        #     x = unwrap(_ms)
-        #     x = upsample(x, 5)
-        #     ms = SpatiotemporalMotifs.wrap.(x; domain = (-π, π))
-
-        #     x = unwrap(_σl[idxs])
-        #     x = upsample(x, 5)
-        #     _σl = SpatiotemporalMotifs.wrap.(x; domain = (-π, π))
-
-        #     x = unwrap(_σh[idxs])
-        #     x = upsample(x, 5)
-        #     _σh = SpatiotemporalMotifs.wrap.(x; domain = (-π, π))
-
-        #     # band!(ax, Point2f.(collect(_σl), lookup(ms, 1)),
-        #     #       Point2f.(collect(_σh), lookup(ms, 1));
-        #     #       color = (structurecolormap[structure], 0.3))
-        #     lines!(ax, collect(ms), lookup(ms, 1), label = structure, linewidth = 7,
-        #            color =
-        #            structurecolormap[structure])
-        # end
 
         spsf = SixPanel()
         spgs = subdivide(spsf, 3, 2)
@@ -884,15 +820,7 @@ begin
             idxs = allequal.(eachslice(psth, dims = 2))
             psth = psth[:, .!idxs]
 
-            # psth = filter(!isnothing, layer_spikes.hit_psth)
-            # psth = rectify.(psth, dims = 𝑡)
-            # psth = ToolsArray(psth, (Unit(1:size(psth, 1)),)) |> stack
-
             _μ, (_σl, _σh) = bootstrapmedian(psth, dims = 2)
-            # σ = std(hit_psth, dims = 2)
-            # σ = dropdims(σ, dims = 2)
-            # σl = μ .- σ / 2
-            # σh = μ .+ σ / 2
 
             μ = upsample(_μ, 5)
             σl = upsample(_σl, 5)
@@ -905,11 +833,6 @@ begin
                    color = mean(layercolors[lidxs]))
             scatter!(ax, _μ, color = mean(layercolors[lidxs]),
                      markersize = 15, label = compartment)
-
-            # miss_psth = filter(!isnothing, layer_spikes.miss_psth)
-            # miss_psth = filter(x -> !any(isnan, x), miss_psth)
-            # miss_psth = ToolsArray(miss_psth, (Unit(1:size(miss_psth, 1)),)) |> stack
-            # miss_psth = miss_psth[𝑡 = intt]
 
             unitids = intersect(layer_spikes.ecephys_unit_id, lookup(miss_psths, Unit))
             psth = miss_psths[Unit = At(unitids)]
@@ -980,15 +903,7 @@ begin # * Hit/miss firing rates for each structure
                 idxs = allequal.(eachslice(psth, dims = 2))
                 psth = psth[:, .!idxs]
 
-                # psth = filter(!isnothing, layer_spikes.hit_psth)
-                # psth = rectify.(psth, dims = 𝑡)
-                # psth = ToolsArray(psth, (Unit(1:size(psth, 1)),)) |> stack
-
                 _μ, (_σl, _σh) = bootstrapmedian(psth, dims = 2)
-                # σ = std(hit_psth, dims = 2)
-                # σ = dropdims(σ, dims = 2)
-                # σl = μ .- σ / 2
-                # σh = μ .+ σ / 2
 
                 μ = upsample(_μ, 5)
                 σl = upsample(_σl, 5)
@@ -1001,11 +916,6 @@ begin # * Hit/miss firing rates for each structure
                        color = mean(layercolors[lidxs]))
                 scatter!(ax, _μ, color = mean(layercolors[lidxs]),
                          markersize = 15, label = compartment)
-
-                # miss_psth = filter(!isnothing, layer_spikes.miss_psth)
-                # miss_psth = filter(x -> !any(isnan, x), miss_psth)
-                # miss_psth = ToolsArray(miss_psth, (Unit(1:size(miss_psth, 1)),)) |> stack
-                # miss_psth = miss_psth[𝑡 = intt]
 
                 unitids = intersect(layer_spikes.ecephys_unit_id, lookup(miss_psths, Unit))
                 psth = miss_psths[Unit = At(unitids)]
@@ -1038,148 +948,6 @@ begin # * Hit/miss firing rates for each structure
     display(frsf)
 end
 
-# begin
-#     sspikes = pspikes
-#     # sunits = intersect(sensitive_units, sspikes.ecephys_unit_id)
-
-#     bins = range(0, 1, length = 11)
-
-#     # ax = PolarAxis(gs[4]; theta_as_x = false, thetalimits = (0, 2pi),
-#     #                rticks = 0:0.25:1, rtickformat = depthticks,
-#     #                title = "Layerwise PPC angle", rlimits = (0.0, 0.8))
-#     cols = [:hit_onset_pairwise_phase_consistency_angle,
-#         :miss_onset_pairwise_phase_consistency_angle]
-
-#     function degs(x::Number)
-#         return string(round(x * 180 / π, digits = 0), "°")
-#     end
-#     degs(x) = map(degs, x)
-
-#     ics = zip(["L2/3", "L4", "L5", "L6"],
-#               [["L2/3"], ["L4"], ["L5"], ["L6"]])
-
-#     ax = Axis(f[1, 1])
-
-#     vlines!(ax, [0.0]; color = :gray)
-#     ms = map(structures) do structure
-#         idxs = sspikes.structure_acronym .== structure
-#         allsesh_sspikes = @views sspikes[idxs, :]
-#         allangles = map(unique(allsesh_sspikes.ecephys_session_id)) do sesh
-#             _pspikes = @views allsesh_sspikes[allsesh_sspikes.ecephys_session_id .== sesh,
-#                                               :]
-#             hys = _pspikes[:, :hit_onset_pairwise_phase_consistency_angle]
-#             mys = _pspikes[:, :miss_onset_pairwise_phase_consistency_angle]
-#             ys = phasegrad(hys, mys)
-#             o = map(ics) do (compartment, clayers)
-#                 idxs = map(_pspikes.layer) do l
-#                     l in clayers
-#                 end
-#                 ms = circularmean(ys[idxs])
-#             end
-#             ToolsArray(o, (Dim{:compartment}(first.(ics)),))
-#         end
-#         allangles = ToolsArray(allangles,
-#                                (SessionID(unique(allsesh_sspikes.ecephys_session_id)),)) |>
-#                     stack
-#     end
-
-#     # * Normalize phase diffs
-#     # ms = map(ms) do _ms
-#     #     n = fit(nansafe(ZScore), _ms, dims = 2)
-#     #     ms = n(_ms)
-#     # end
-
-#     layerdiffs = map(1:length(ics)) do i
-#         x = getindex.(ms, i, :)
-#         x = filter.(!isnan, x)
-#     end
-
-#     map(enumerate(ics .|> first)) do (i, compartment)
-#         map(enumerate(layerdiffs[i])) do (j, x)
-#             if i == 4
-#                 xs = fill(i + j / length(structures), length(x))
-#                 boxplot!(ax, xs, collect(x); color = structurecolors[j],
-#                          label = compartment, markersize = 10, width = 0.1,
-#                          whiskerlinewidth = 0, show_outliers = false)
-#             end
-#         end
-#     end
-
-#     hms = ToolsArray(ms, (Structure(structures),)) |> stack
-#     hms = nansafe(mean, dims = 2)(hms)
-#     hms = dropdims(hms, dims = SessionID)
-#     heatmap(collect(hms), colormap = binarysunset, colorrange = (-0.8, 0.8))
-
-#     f
-# end
-
-# begin # * Plot on the same polar axis the hit and miss angles for VISp only
-#     mainstructure = "VISp"
-
-#     sspikes = pspikes
-#     # sunits = intersect(sensitive_units, sspikes.ecephys_unit_id)
-
-#     bins = range(0.15, 1, length = 8)
-
-#     # ax = PolarAxis(gs[4]; theta_as_x = false, thetalimits = (0, 2pi),
-#     #                rticks = 0:0.25:1, rtickformat = depthticks,
-#     #                title = "Layerwise PPC angle", rlimits = (0.0, 0.8))
-#     cols = [:hit_onset_pairwise_phase_consistency_angle,
-#         :miss_onset_pairwise_phase_consistency_angle]
-
-#     function degs(x::Number)
-#         return string(round(x * 180 / π, digits = 0), "°")
-#     end
-#     degs(x) = map(degs, x)
-
-#     f = Figure()
-#     ax = Axis(f[1, 1]; xtickformat = degs,
-#               title = "PPC angle contrast",
-#               ytickformat = depthticks, yreversed = true, ylabel = "Cortical depth (%)",
-#               xlabel = "PPC angle (hit - miss)")
-
-#     vlines!(ax, [0.0]; color = :gray)
-#     map(structures |> reverse) do structure
-#         idxs = sspikes.structure_acronym .== structure
-#         allsesh_sspikes = @views sspikes[idxs, :]
-#         allangles = map(unique(allsesh_sspikes.ecephys_session_id)) do sesh
-#             _pspikes = @views allsesh_sspikes[allsesh_sspikes.ecephys_session_id .== sesh,
-#                                               :]
-#             hys = _pspikes[:, :hit_onset_pairwise_phase_consistency_angle]
-#             mys = _pspikes[:, :miss_onset_pairwise_phase_consistency_angle]
-#             ys = phasegrad(hys, mys)
-#             xs = _pspikes.streamlinedepth .|> Float32
-#             ys = ys .|> Float32
-#             B = HistBins(xs; bins)
-#             _ms = rectify(B(ys), dims = :bin)
-#             return _ms
-#         end
-#         catppc = cat(allangles...; dims = 2)
-#         catppc = map(eachrow(catppc)) do x
-#             x = vcat(x...)
-#         end
-#         _ms = map(circularmean, catppc)
-
-#         idxs = .!isnan.(_ms)
-#         _ms = _ms[idxs]
-#         _ls = lookup(_ms, 1)
-#         x = unwrap(_ms)
-#         x = upsample(x, 5)
-#         ms = SpatiotemporalMotifs.wrap.(x; domain = (-π, π))
-
-#         # * Do a test about significant differences from 0
-#         𝑝 = map(catppc) do x
-#             Main.@infiltrate
-#             HypothesisTests.pvalue(HypothesisTests.SignedRankTest(x))
-#         end
-
-#         lines!(ax, collect(ms), lookup(ms, 1), label = structure, linewidth = 7,
-#                color =
-#                structurecolormap[structure])
-#     end
-#     display(f)
-# end
-
 begin # * Plot on the same polar axis the hit and miss angles for VISp only
     mainstructure = "VISp" # * WHY DIFFERENT!!!
 
@@ -1188,16 +956,8 @@ begin # * Plot on the same polar axis the hit and miss angles for VISp only
 
     bins = range(0.1, 1, length = 6)
 
-    # ax = PolarAxis(gs[4]; theta_as_x = false, thetalimits = (0, 2pi),
-    #                rticks = 0:0.25:1, rtickformat = depthticks,
-    #                title = "Layerwise PPC angle", rlimits = (0.0, 0.8))
     cols = [:hit_onset_pairwise_phase_consistency_angle,
         :miss_onset_pairwise_phase_consistency_angle]
-
-    # function degs(x::Number)
-    #     return string(round(Int, x * 180 / π), "°")
-    # end
-    # degs(x) = map(degs, x)
 
     ms = map(structures) do structure
         idxs = sspikes.structure_acronym .== structure
@@ -1208,28 +968,25 @@ begin # * Plot on the same polar axis the hit and miss angles for VISp only
             hys = _pspikes[:, :hit_onset_pairwise_phase_consistency_angle]
             mys = _pspikes[:, :miss_onset_pairwise_phase_consistency_angle]
             ys = phasegrad(hys, mys)
-            xs = _pspikes.streamlinedepth .|> Float32
+            # xs = _pspikes.streamlinedepth .|> Float32
+            xs = _pspikes.layer
             ys = ys .|> Float32
-            B = HistBins(xs; bins)
-            _ms = rectify(B(ys), dims = :bin)
+            # B = HistBins(xs; bins)
+            # _ms = rectify(B(ys), dims = :bin)
+            # ys = ToolsArray(ys, (Depth(xs),))
+            _layers = 'L' .* SpatiotemporalMotifs.layers[2:end]
+            _ms = map(_layers) do l
+                is = xs .== [l]
+                ys[is]
+            end
+            _ms = ToolsArray(_ms, (Depth(_layers),))
             return _ms
         end
         catppc = cat(allangles...; dims = 2)
         catppc = map(eachrow(catppc)) do x
             x = vcat(x...)
         end
-        # _ms = pmap(Base.Fix1(bootstrapaverage, circularmean), catppc)
-        # σs = last.(_ms)
-        # _ms = first.(_ms)
-        # _σl = first.(σs)
-        # _σh = last.(σs)
 
-        # idxs = .!isnan.(_ms)
-        # _ms = _ms[idxs]
-        # _ls = lookup(_ms, 1)
-        # x = unwrap(_ms)
-        # x = upsample(x, 10)
-        # ms = SpatiotemporalMotifs.wrap.(x; domain = (-π, π))
         _ms = map(nansafe(circularmean), catppc) .|> only
         ms = _ms
 
@@ -1239,38 +996,38 @@ begin # * Plot on the same polar axis the hit and miss angles for VISp only
             HypothesisTests.pvalue(HypothesisTests.SignedRankTest(Float64.(x)))
         end
 
-        # x = unwrap(_σl[idxs])
-        # x = upsample(x, 5)
-        # _σl = SpatiotemporalMotifs.wrap.(x; domain = (-π, π))
-
-        # x = unwrap(_σh[idxs])
-        # x = upsample(x, 5)
-        # _σh = SpatiotemporalMotifs.wrap.(x; domain = (-π, π))
         return ms, 𝑝
     end
     𝑝 = ToolsArray(last.(ms), (Structure(structures),)) |> stack
     𝑝[:] .= MultipleTesting.adjust(𝑝[:], BenjaminiHochberg())
     ms = ToolsArray(first.(ms), (Structure(structures),)) |> stack
-    # heatmap(ms, colormap = darksunset, colorrange = (-1.75, 1.75))
-    # contour!(lookup(𝑝, 1), 1:size(𝑝, 2), 𝑝, levels = [0.01])
-    # display(current_figure())
-
 end
 begin # * Heatmap figure
-    f = Figure()
-    ax = Axis(f[1, 1], ylabel = "Cortical depth (%)", ytickformat = depthticks,
-              xticks = (1:6, structures), xticklabelrotation = pi / 8, yreversed = true)
+    ax = Axis(gs[4][1, 1], ylabel = "Cortical layer",
+              yticks = (1:4, SpatiotemporalMotifs.layers[2:end]),
+              xticks = (1:6, structures), xticklabelrotation = pi / 8, yreversed = true,
+              limits = ((0.35, 6.5), (0.5, 4.5)),
+              title = "PPC angle contrast")
     colorrange = (-2 * pi / 4, 2 * pi / 4)
+    function degs(x::Number)
+        return string(round(Int, x * 180 / π), "°")
+    end
+    degs(x) = map(degs, x)
 
-    as = deepcopy(ms)
-    as[𝑝 .> SpatiotemporalMotifs.PTHR * 5] .= NaN
-    p = heatmap!(ax, 1:size(ms, 2), lookup(ms, 1), collect(ms)'; colormap = darksunset,
+    # * Add vertical lines corresponding to the layers
+    for l in 1:size(ms, Depth)
+        c = SpatiotemporalMotifs.layercolors[l + 1]
+        lines!(ax, [0.41, 0.41], [l - 0.5, l + 0.5];
+               color = c, linewidth = 30, linecap = :butt)
+    end
+
+    p = heatmap!(ax, 1:size(ms, 2), 1:size(ms, 1), collect(ms)'; colormap = darksunset,
                  colorrange, lowclip = first(darksunset), highclip = last(darksunset))
-    pp = set(𝑝, Structure => 1:size(𝑝, Structure))'
+    pp = set(𝑝, Structure => 1:size(𝑝, Structure), Depth => 1:size(𝑝, Depth))'
     sigs = findall(pp .< SpatiotemporalMotifs.PTHR)
     sigs = collect(Iterators.product(lookup(pp)...))[sigs] .|> Point2f
 
-    ywidth = mean(diff(lookup(ms, 1)))
+    ywidth = 1 #mean(diff(lookup(ms, 1)))
     xwidth = 1
     function box_corners(center::Point2f, xwidth::Real, ywidth::Real)
         x, y = center
@@ -1288,43 +1045,16 @@ begin # * Heatmap figure
         box_corners(s, xwidth, ywidth)
     end
     poly!.(ax, boxes, color = :transparent, strokecolor = :white, strokewidth = 2)
+    # plotlayerints!(ax, layerints; axis = :y, flipside = true, newticks = false)
     Colorbar(gs[4][1, 2], p; label = "Phase difference (hit - miss)",
              tickformat = degs, ticks = (-pi / 2):(pi / 4):(pi / 2))
 end
-# begin # * plot stacked traces
-#     f = Figure()
-#     ax = Axis(f[1, 1], ylabel = "Phase difference (hit - miss)", ytickformat = degs)
-
-#     mprev = zeros(size(ms, 1))
-#     map(enumerate(structures)) do (i, structure)
-#         m = ms[:, i]
-#         # offset = -minimum((m .- mprev)) + 0.5
-#         # m = m .+ (offset)
-#         # mprev .= m # Offset
-#         p = 𝑝[:, i]
-#         vlines!(ax, [2 * i]; color = structurecolors[i], linestyle = :dash)
-#         lines!(ax, 2 * i .+ collect(m), lookup(m, 1), label = structure,
-#                linewidth = 7, color = structurecolormap[structure])
-
-#         sig = p .< SpatiotemporalMotifs.PTHR
-#         sp = p[sig]
-#         nsp = p[.!sig]
-#         scatter!(ax, 2 * i .+ m[bin = Near(lookup(sp, 1))] |> collect, lookup(sp, 1),
-#                  markersize = 20, strokecolor = structurecolors[i], strokewidth = 5,
-#                  color = structurecolors[i])
-#         scatter!(ax, 2 * i .+ m[bin = Near(lookup(nsp, 1))] |> collect, lookup(nsp, 1),
-#                  markersize = 20, strokecolor = structurecolors[i], strokewidth = 5,
-#                  color = :white)
-#     end
-#     f
-# end
 
 begin
     addlabels!(f, labelformat)
     addlabels!(sf, labelformat)
     wsave(plotdir("fig6", "spike_lfp.pdf"), f)
     wsave(plotdir("fig6", "spike_lfp_spontaneous.pdf"), sf)
-    # wsave(plotdir("fig6", "spike_phase_hitmiss.pdf"), spsf)
     wsave(plotdir("fig6", "firing_rates.pdf"), frsf)
     f
 end
