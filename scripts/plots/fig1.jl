@@ -64,14 +64,15 @@ plot_data, data_file = produce_or_load(copy(config), calcdir("plots");
                 img = fill(Makie.RGBA(0, 0, 0, 0), size(_img))
                 is = _img[.!isnan.(_img)] ./ 255
                 img[.!isnan.(_img)] .= Makie.RGBA.(is, is, is, 1.0)
+                return img
             end
 
             _img = df[1, :unwarped]
             img = fill(Makie.RGBA(0, 0, 0, 0), size(_img))
             img[.!isnan.(_img)] .= Makie.RGBA.(0.5, 0.5, 0.5, 1.0)
-            prepend!(imgs, img)
+            prepend!(imgs, [img])
 
-            out["stimulus_examples"] = imgs
+            out["stimulus_examples"] = imgs |> unique
         end
         return out
     end
@@ -232,7 +233,7 @@ begin # ? Figure 1A
     f
 
     begin # * Save a few representative stimulus images
-        map(enumerate(plot_data["stimulus_examples"])) do (i, img)
+        map(enumerate(plot_data["VISp"]["stimulus_examples"])) do (i, img)
             wsave(plotdir("fig1", "stimulus_examples", "natural_images_$i.png"), img)
         end
     end

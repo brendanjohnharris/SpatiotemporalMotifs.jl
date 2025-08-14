@@ -267,7 +267,8 @@ for stimulus in stimuli
                       limits = ((-2.75, 2.75), (0, 1)), ytickformat = depthticks,
                       title = "1/𝑓 intercept", yreversed = true)
             for (i, _b) in b |> enumerate |> collect |> reverse
-                μ, (σl, σh) = bootstrapmedian(_b.+eps().*randn(size(_b)), dims = SessionID)
+                μ, (σl, σh) = bootstrapmedian(_b .+ eps() .* randn(size(_b)),
+                                              dims = SessionID)
                 μ, σl, σh = upsample.((μ, σl, σh), 5)
 
                 band!(ax, Point2f.(collect(σl), lookup(μ, 1)),

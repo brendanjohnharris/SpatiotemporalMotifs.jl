@@ -922,17 +922,13 @@ features `y`. `y` should have dimensions `Depth`, `SessionID`, and `Structure`.
 mode can be either `:group` or `:individual`. In the `:group` mode, the Kendall's tau
 """
 function hierarchicalkendall(x::AbstractVector{<:Real}, y::AbstractDimArray,
-                             mode = Val(:group); kwargs...)
+                             mode::Symbol = :group; kwargs...)
     hasdim(y, Depth) ||
         throw(ArgumentError("Argument 2 should have a Depth dimension"))
     hasdim(y, SessionID) ||
         throw(ArgumentError("Argument 2 should have a SessionID dimension"))
     hasdim(y, Structure) ||
         throw(ArgumentError("Argument 2 should have a Structure dimension"))
-    hierarchicalkendall(x, y, mode; kwargs...)
-end
-function hierarchicalkendall(x::AbstractVector{<:Real}, y::AbstractDimArray,
-                             mode::Symbol; kwargs...)
     hierarchicalkendall(x, y, Val(mode); kwargs...)
 end
 function pairedkendall(xy)
@@ -953,7 +949,7 @@ function _hierarchicalkendall(xx, yy; N = 10000, confint = 0.95)
         @assert size(xx) == size(ys)
         pairedkendall(collect(zip(xx, ys)))
     end
-    𝑝 = mean(abs.(μ) .< abs.(μsur))
+    𝑝 = mean(abs.(μ) .< abs.(μsur)) # * Good, permutation test
     return μ, σ, 𝑝
 end
 
@@ -986,12 +982,12 @@ function hierarchicalkendall(x::AbstractVector{<:Real}, y::AbstractDimArray,
     return first.(ms), getindex.(ms, 2), 𝑝
 end
 function hierarchicalkendall(x::AbstractVector{<:Real}, y::AbstractDimArray,
-                             ::Val{:individual}; N)
+                             ::Val{:individual})
     y = permutedims(y, (Depth, SessionID, Structure)) # Check right orientation
     ms = asyncmap(eachslice(y, dims = Depth)) do yy
         mnms = map(eachslice(yy, dims = SessionID)) do yyy # Individual 6-vector
             μ = corkendall(x, yyy)
-            s = map(1:N) do _ # Generate distribution of null correlations
+            s = begin # Generate one null per session
                 idxs = randperm(length(yyy))
                 corkendall(x, yyy[idxs]) # A shuffle
             end
@@ -1000,8 +996,8 @@ function hierarchicalkendall(x::AbstractVector{<:Real}, y::AbstractDimArray,
         μ = first.(mnms)
         s = last.(mnms)
         σ = (percentile(μ, 25), percentile(μ, 75))
-        s = collect(Iterators.flatten(s)) #!BAD artificial s
-        𝑝 = MannWhitneyUTest(s, μ) |> pvalue
+        𝑝 = HypothesisTests.SignedRankTest(convert(Vector{Float64}, μ),
+                                           convert(Vector{Float64}, s)) |> pvalue # A paired test; each session has one null
         μ = median(μ)
         return μ, σ, 𝑝
     end

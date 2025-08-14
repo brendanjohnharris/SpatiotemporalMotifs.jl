@@ -652,7 +652,7 @@ begin # * Order parameters
                 end
 
                 # * Individual level
-                μ, σ, 𝑝 = hierarchicalkendall(x, y, :individual; N) .|> first
+                μ, σ, 𝑝 = hierarchicalkendall(x, y, :individual) .|> first
                 open(statsfile, "a+") do file
                     write(file, "\n## Individual level")
                     write(file, "\nmedian τ = $μ")
@@ -688,7 +688,7 @@ begin # * Order parameters
                     test = HypothesisTests.SignedRankTest(Float64.(bac_pre),
                                                           Float64.(bac_sur))
                     𝑝 = HypothesisTests.pvalue(test; tail = :both)
-                    write(file, "\nU-test, right-sided 𝑝 to sur= $𝑝")
+                    write(file, "\nSigned rank test, right-sided 𝑝 to sur= $𝑝")
                     write(file, "\n")
 
                     write(file, "\n## Order parameter post-offset\n")
@@ -700,7 +700,7 @@ begin # * Order parameters
                     test = HypothesisTests.SignedRankTest(Float64.(bac_pre),
                                                           Float64.(bac_post))
                     𝑝 = HypothesisTests.pvalue(test; tail = :both)
-                    write(file, "\nU-test, two-sided 𝑝 to pre. = $𝑝")
+                    write(file, "\nSigned-rank test, two-sided 𝑝 to pre. = $𝑝")
                     write(file, "\n")
 
                     write(file, "\n## Mean LFP pre-offset \n")
@@ -710,9 +710,9 @@ begin # * Order parameters
                     #                                                             bac_lfp_pre[1]);
                     #                            tail = :right)
                     test = HypothesisTests.SignedRankTest(Float64.(bac_pre),
-                                                          Float64.(bac_lfp_pre))
+                                                          Float64.(bac_lfp_pre[1]))
                     𝑝 = HypothesisTests.pvalue(test; tail = :both)
-                    write(file, "\nU-test, two-sided 𝑝 to pre. = $𝑝")
+                    write(file, "\nSigned-rank test, two-sided 𝑝 to pre. = $𝑝")
                     write(file, "\n")
 
                     write(file, "\n## Order parameter pre-offset null\n")
@@ -723,14 +723,15 @@ begin # * Order parameters
             end
 
             boxplot!(ax, fill(1, length(bac_post)), bac_post; boxargs...,
-                     color = cornflowerblue,
-                     label = "Order parameter")
+                     color = (cornflowerblue, 0.8),
+                     label = "Order parameter", whiskerlinewidth = 3)
             boxplot!(ax, fill(2, length(bac_lfp_post[1])), bac_lfp_post[1]; boxargs...,
-                     color = juliapurple, label = "Mean LFP")
+                     color = (juliapurple, 0.8), label = "Mean LFP", whiskerlinewidth = 3)
             boxplot!(ax,
                      vcat([fill(3 + i, length(bac_lfp_post[1])) for i in [-0.3, 0, 0.3]]...),
                      reverse(vcat(bac_lfp_post[2:end]...)); boxargs..., width = 0.3,
-                     color = crimson, label = "Compartmental LFP")
+                     color = (crimson, 0.8), label = "Compartmental LFP",
+                     whiskerlinewidth = 3)
             text!(ax, 3 .+ [-0.3, 0, 0.3], [0.4, 0.4, 0.4]; text = reverse(["S", "M", "D"]),
                   align = (:center, :center))
 

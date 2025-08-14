@@ -263,15 +263,15 @@ begin # * Plot classification accuracy
     x = first.(filter(!isnothing, bac_mean))
     xs = last.(filter(!isnothing, bac_mean)) |> Iterators.flatten |> collect
     vspan!(ax, 0.5, 2.5; alpha = 0.2, color = (california, 0.2))
-    boxplot!(ax, ones(length(x)), x, color = (california, 0.7))
-    boxplot!(ax, ones(length(xs)) .+ 1, xs, color = (:gray, 0.7))
+    boxplot!(ax, ones(length(x)), x, color = (california, 0.7), whiskerlinewidth = 3)
+    boxplot!(ax, ones(length(xs)) .+ 1, xs, color = (:gray, 0.7), whiskerlinewidth = 3)
 
     # * Layerwise 1/f accuracy
     x = first.(filter(!isnothing, bac))
     xs = last.(filter(!isnothing, bac)) |> Iterators.flatten |> collect
     vspan!(ax, 2.5, 4.5; color = (cucumber, 0.2))
-    boxplot!(ax, ones(length(x)) .+ 2, x, color = (cucumber, 0.7))
-    boxplot!(ax, ones(length(xs)) .+ 3, xs, color = (:gray, 0.7))
+    boxplot!(ax, ones(length(x)) .+ 2, x, color = (cucumber, 0.7), whiskerlinewidth = 3)
+    boxplot!(ax, ones(length(xs)) .+ 3, xs, color = (:gray, 0.7), whiskerlinewidth = 3)
 
     display(f)
 end
