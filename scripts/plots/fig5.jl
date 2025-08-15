@@ -487,7 +487,7 @@ begin # * Burst masks and schematic
                 write(file, "\n")
 
                 # * Individual level
-                μ, σ, 𝑝 = hierarchicalkendall(x, ustrip.(y), :individual; N) .|> first
+                μ, σ, 𝑝 = hierarchicalkendall(x, ustrip.(y), :individual) .|> first
                 write(file, "\n## Individual level")
                 write(file, "\nmedian τ = $μ")
                 write(file, "\nIQR = $(σ[2] - σ[1])")

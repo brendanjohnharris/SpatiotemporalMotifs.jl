@@ -11,40 +11,40 @@
 # 7. `scripts/calculations/unify_calculations.jl`
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+mkdir -p "$DIR/logs"
 chmod -R u+x "$DIR/scripts/plots/"
 
 start=$(date +%s)
 
-
 echo "Producing Fig. 1"
-"$DIR/scripts/plots/fig1.jl"
+"$DIR/scripts/plots/fig1.jl" > "$DIR/logs/fig1.log" 2>&1
 
 echo "Producing Fig. 2"
-"$DIR/scripts/plots/fig2.jl"
+"$DIR/scripts/plots/fig2.jl" > "$DIR/logs/fig2.log" 2>&1
 
 echo "Producing Fig. 3"
-"$DIR/scripts/plots/fig3.jl"
+"$DIR/scripts/plots/fig3.jl" > "$DIR/logs/fig3.log" 2>&1
 
 echo "Producing Fig. 4"
-"$DIR/scripts/plots/fig4.jl"
+"$DIR/scripts/plots/fig4.jl" > "$DIR/logs/fig4.log" 2>&1
 
 echo "Producing Fig. 5"
-"$DIR/scripts/plots/fig5.jl"
+"$DIR/scripts/plots/fig5.jl" > "$DIR/logs/fig5.log" 2>&1
 
 echo "Producing Fig. 6"
-"$DIR/scripts/plots/fig6.jl"
+"$DIR/scripts/plots/fig6.jl" > "$DIR/logs/fig6.log" 2>&1
 
 echo "Producing Fig. S1"
-"$DIR/scripts/plots/figS1.jl"
+"$DIR/scripts/plots/figS1.jl" > "$DIR/logs/figS1.log" 2>&1
 
 echo "Producing Fig. S2"
-"$DIR/scripts/plots/figS2.jl"
+"$DIR/scripts/plots/figS2.jl" > "$DIR/logs/figS2.log" 2>&1
 
 echo "Producing Fig. S3"
-"$DIR/scripts/plots/figS3.jl"
+"$DIR/scripts/plots/figS3.jl" > "$DIR/logs/figS3.log" 2>&1
 
 echo "Producing Fig. S4"
-"$DIR/scripts/plots/figS4.jl"
+"$DIR/scripts/plots/figS4.jl" > "$DIR/logs/figS4.log" 2>&1
 
 
 end=$(date +%s)

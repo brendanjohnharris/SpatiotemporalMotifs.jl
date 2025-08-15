@@ -16,6 +16,7 @@ data*/
 docsb/build/
 docs/site/
 /plots*/
+logs/
 cache/
 tempfig.png
 test/
