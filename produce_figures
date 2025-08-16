@@ -2,10 +2,10 @@
 
 # ? This script produces all figures from the full set of "data/calculations" files.
 # ? It expects that you have already run the following scripts:
-# 1. `scripts/calculations/download_data.jl`
-# 2. `scripts/calculations/session_selection.jl`
+# 1. `scripts/calculations/session_selection.jl`
+# 2. `scripts/calculations/download_data.jl`
 # 3. `scripts/calculations/cluster/power_spectra.jl`
-# 4. `scripts/calculations/calculations.jl`
+# 4. `scripts/calculations/cluster/calculations.jl`
 # 5. `scripts/calculations/collect_calculations.jl`
 # 6. `scripts/calculations/posthoc_session_filter.jl`
 # 7. `scripts/calculations/unify_calculations.jl`

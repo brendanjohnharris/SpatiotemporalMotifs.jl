@@ -343,7 +343,7 @@ begin
     begin # * Plot, for each structure, spontaneous SPC
         @info "Plotting spontaneous spike--phase coupling"
         ax = Axis(sgs[1], ylabel = "Cortical depth (%)", xlabel = "PPC",
-                  title = "Spike-phase coupling (θ)",
+                  title = "θ spike-phase coupling",
                   limits = ((0, nothing), (0, 1)),
                   ytickformat = depthticks,
                   xtickformat = terseticks,
@@ -402,9 +402,9 @@ begin
     begin # * Plot, for each structure, spontaneous SAC
         @info "Plotting spontaneous spike--amplitude coupling"
         ax = Axis(sgs[2], ylabel = "Cortical depth (%)", xlabel = "SAC",
-                  title = "Spike-amplitude coupling (γ)",
+                  title = "γ spike-amplitude coupling",
                   limits = ((1.1, 1.5), (0, 1)),
-                  xtickformat = depthticks, yreversed = true)
+                  ytickformat = depthticks, xtickformat = terseticks, yreversed = true)
         for structure in reverse(structures)
             idxs = unitdepths.structure_acronym .== structure
             allsesh_pspikes = @views unitdepths[idxs, :]

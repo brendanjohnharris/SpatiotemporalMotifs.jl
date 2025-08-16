@@ -19,7 +19,7 @@ using Distributed
 set_theme!(foresight(:physics))
 
 stimuli = [r"Natural_Images", "spontaneous", "flash_250ms"]
-xtickformat = x -> string.(round.(Int, x))
+xtickformat = terseticks
 theta = Interval(SpatiotemporalMotifs.THETA()...)
 gamma = Interval(SpatiotemporalMotifs.GAMMA()...)
 alpha = 0.8
@@ -286,6 +286,7 @@ for stimulus in stimuli
             ax = Axis(f[2, 1:2][1, 1]; ylabel = "Cortical depth (%)",
                       xlabel = "1/𝑓 exponent",
                       limits = ((0.9, 2.1), (0, 1)), ytickformat = depthticks,
+                      xtickformat,
                       title = "1/𝑓 exponent", yreversed = true)
             for (i, chi) in χ |> enumerate |> collect |> reverse
                 μ, (σl, σh) = bootstrapmedian(chi, dims = SessionID)
@@ -324,7 +325,7 @@ for stimulus in stimuli
 
                 ax = Axis(gs[i][1, 1], xlabel = "Frequency (Hz)",
                           ylabel = "Cortical depth (%)",
-                          xtickformat = depthticks,
+                          ytickformat = depthticks,
                           limits = ((1, 200), (nothing, nothing)), yreversed = true,
                           aspect = 1,
                           title = metadata(x)[:structure], xticks = [1, 100, 200])
@@ -616,6 +617,7 @@ for stimulus in stimuli
             ax = Axis(f[2, 1:2][1, 3]; #ylabel = "Cortical depth (%)",
                       xlabel = "Kendall's 𝜏",
                       ytickformat = depthticks,
+                      xtickformat,
                       title = "1/𝑓 hierarchies", limits = ((-0.73, 0.73), (0, 1)),
                       yreversed = true)
 
@@ -657,7 +659,7 @@ for stimulus in stimuli
 
             ax = Axis(f[3, 1:2][1, 3]; # ylabel = "Cortical depth (%)",
                       xlabel = "Kendall's 𝜏",
-                      ytickformat = depthticks,
+                      ytickformat = depthticks, xtickformat,
                       title = "Timescale hierarchies", limits = ((-0.73, 0.73), (0, 1)),
                       yreversed = true)
 
@@ -690,7 +692,7 @@ for stimulus in stimuli
 
             plotlayerints!(ax, layerints; axis = :y, newticks = false, flipside = true)
         end
-        addlabels!(f, ["A", "D", "F", "E", "C", "B", "G", "H"])
+        addlabels!(f, ["a", "d", "f", "e", "c", "b", "g", "h"])
         f |> display
     end
     wsave(plotdir("fig2", "power_spectra$filebase.pdf"), f)

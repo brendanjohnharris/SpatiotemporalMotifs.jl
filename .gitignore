@@ -23,4 +23,5 @@ test/
 scripts/calculations/float32_conversion.jl
 data/old/
 old_data/
+old_plots/
 Manifest copy.toml

@@ -388,7 +388,7 @@ begin # * Burst masks and schematic
         ax = Axis(gs[1]; title = "Burst duration", xlabel = "Cortical depth (%)",
                   xtickformat = depthticks,
                   ytickformat = x -> string.(round.(Int, x .* 1000)),
-                  ylabel = "Duration (ms)", limits = ((0, 1), (0.025, 0.08)))
+                  ylabel = "Duration (ms)", limits = ((0, 1), (0.02, 0.08)))
         map((reverse ∘ collect ∘ enumerate)(structures)) do (i, s)
             μ, (σl, σh) = bootstrapmedian(tbins[i] |> ustripall; dims = 2)
             mu = upsample(μ, 10)
@@ -422,6 +422,7 @@ begin # * Burst masks and schematic
     begin # * Plot widths
         @info "Plotting burst widths"
         ax = Axis(mgs[2]; title = "Burst width", xlabel = "Time (s)",
+                  xtickformat = terseticks,
                   ylabel = "Width (μm)", limits = ((-0.25, 0.75), (nothing, nothing)))
         vlines!(ax, [0.0, 0.25]; color = (:black, 0.5), linestyle = :dash, linewidth = 3)
         map((reverse ∘ collect ∘ enumerate)(structures)) do (i, s)
@@ -432,7 +433,7 @@ begin # * Burst masks and schematic
             band!(ax, lookup(mu, 1), l, h; color = (structurecolormap[s], 0.2), label = s)
             lines!(ax, lookup(mu, 1), collect(mu), color = structurecolormap[s], label = s,
                    alpha = α,
-                   linewidth = 4)
+                   linewidth = 3)
             scatter!(ax, lookup(μ, 1), collect(μ), color = structurecolormap[s], label = s,
                      markersize = 10, alpha = α)
         end
@@ -517,7 +518,7 @@ begin # * Global and spatiotemporal PAC
             gs = subdivide(f, 3, 2)
             map(gs, structures, S) do g, structure, s
                 ax = Axis(g[1, 1]; title = structure, xlabel = "Phase frequency (Hz)",
-                          ylabel = "Amplitude frequency (Hz)")
+                          ylabel = "Amplitude frequency (Hz)", xtickformat = terseticks)
                 s = dropdims(mean(s, dims = SessionID); dims = SessionID)
                 s = upsample(s, 5, 1)
                 s = upsample(s, 5, 2)
@@ -536,7 +537,7 @@ begin # * Global and spatiotemporal PAC
             structure = "VISl"
             ax = Axis(mgs[3][1, 1]; title = "$structure comodulogram",
                       xlabel = "Phase frequency (Hz)",
-                      ylabel = "Amplitude frequency (Hz)")
+                      ylabel = "Amplitude frequency (Hz)", xtickformat = terseticks)
             s = S[lookup(_Q, Structure) .== structure] |> only
             s = dropdims(mean(s, dims = SessionID); dims = SessionID)
             s = upsample(s, 5, 1)
@@ -556,7 +557,8 @@ begin # * Global and spatiotemporal PAC
         for (g, l, P) in zip(gs, layerints, PAC)
             s = metadata(P)[:structure]
             ax = Axis(g[1, 1]; title = s, yreversed = true,
-                      limits = (nothing, (extrema(lookup(P, Depth)))), xlabel = "Time (s)")
+                      limits = (nothing, (extrema(lookup(P, Depth)))), xlabel = "Time (s)",
+                      xtickformat = terseticks)
             x = ustripall(P[𝑡 = SpatiotemporalMotifs.INTERVAL]) .* 10^3
             colorrange = (0, maximum(x))
             p = plotlayermap!(ax, x, l; rasterize = 5, colorrange) |> first
@@ -565,7 +567,7 @@ begin # * Global and spatiotemporal PAC
             if s == "VISl"
                 ax = Axis(mgs[6][1, 1]; title = "$s spatiotemporal PAC", yreversed = true,
                           limits = (nothing, (extrema(lookup(P, Depth)))),
-                          xlabel = "Time (s)")
+                          xlabel = "Time (s)", xtickformat = terseticks)
 
                 x = ustripall(P[𝑡 = SpatiotemporalMotifs.INTERVAL]) .* 10^3
                 colorrange = (0, maximum(x))
@@ -585,7 +587,8 @@ begin # * Layer-wise PAC
     begin # * Plot layer-wise PAC
         ax = Axis(mgs[4]; ylabel = "Cortical depth (%)",
                   xlabel = "Median PAC",
-                  ytickformat = depthticks, limits = ((-0.0004, nothing), (0, 1)),
+                  ytickformat = depthticks, xtickformat = terseticks,
+                  limits = ((-0.0004, nothing), (0, 1)),
                   title = "Layerwise θ-γ PAC", yreversed = true)
         for (i, p) in enumerate(pacc)
             s = structures[i]
@@ -600,7 +603,7 @@ begin # * Layer-wise PAC
                   label = s)
             lines!(ax, collect(mu), lookup(mu, 1), color = structurecolormap[s], label = s,
                    alpha = 0.8,
-                   linewidth = 4)
+                   linewidth = 3)
             scatter!(ax, collect(μ), lookup(μ, 1), color = structurecolormap[s], label = s,
                      markersize = 10, alpha = 0.8)
         end

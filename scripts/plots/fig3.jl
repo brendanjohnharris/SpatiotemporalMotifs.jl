@@ -373,8 +373,8 @@ begin # * Wavenumbers
             @unpack m_hit, m_miss, structure, ints = data
 
             # * Hit
-            ax = Axis(fg[1, 1], yreversed = true)
-            ax.limits = (nothing, ylims)
+            ax = Axis(fg[1, 1], yreversed = true, xtickformat = terseticks)
+            ax.limits = ((-0.24, 0.74), ylims)
             ax.title = structure * ": hit"
             p = plotlayermap!(ax, m_hit, ints; arrows = true,
                               colorrange = maincolorrange) |>
@@ -384,9 +384,9 @@ begin # * Wavenumbers
             end
 
             if structure == mainstructure # * Plot into main figure
-                ax = Axis(mfs[1], yreversed = true)
+                ax = Axis(mfs[1], yreversed = true, xtickformat = terseticks)
                 ax.xlabel = "Time (s)"
-                ax.limits = (nothing, ylims)
+                ax.limits = ((-0.24, 0.74), ylims)
                 ax.title = structure * ": hit"
                 p = plotlayermap!(ax, m_hit, ints; arrows = true,
                                   colorrange = maincolorrange) |>
@@ -398,8 +398,8 @@ begin # * Wavenumbers
             end
 
             # * Miss
-            ax = Axis(fg[1, 2], yreversed = true)
-            ax.limits = (nothing, ylims)
+            ax = Axis(fg[1, 2], yreversed = true, xtickformat = terseticks)
+            ax.limits = ((-0.24, 0.74), ylims)
             ax.title = structure * ": miss"
             # ax.yticklabelsvisible = false
             p = plotlayermap!(ax, m_miss, ints; arrows = true,
@@ -410,9 +410,9 @@ begin # * Wavenumbers
             end
 
             if structure == mainstructure # * Plot into main figure
-                ax = Axis(mfs[2], yreversed = true)
+                ax = Axis(mfs[2], yreversed = true, xtickformat = terseticks)
                 ax.xlabel = "Time (s)"
-                ax.limits = (nothing, ylims)
+                ax.limits = ((-0.24, 0.74), ylims)
                 ax.title = structure * ": miss"
                 p = plotlayermap!(ax, m_miss, ints; arrows = true,
                                   colorrange = maincolorrange) |>
@@ -427,8 +427,8 @@ begin # * Wavenumbers
         map(plot_data["wavenumbers"]["flashes"], fgs) do data, fg
             @unpack m_flashes, structure, ints = data
 
-            ax = Axis(fg[1, 3], yreversed = true)
-            ax.limits = (nothing, ylims)
+            ax = Axis(fg[1, 3], yreversed = true, xtickformat = terseticks)
+            ax.limits = ((-0.24, 0.74), ylims)
             ax.title = structure * ": flashes"
             p = plotlayermap!(ax, m_flashes, ints; arrows = true,
                               colorrange = maincolorrange) |>
@@ -439,8 +439,9 @@ begin # * Wavenumbers
             c.label = "θ wavenumber ($(unit(eltype(m_flashes))))"
             if structure == mainstructure
                 colorrange = maincolorrange
-                ax = Axis(mfs[3], yreversed = true, xlabel = "Time (s)")
-                ax.limits = (nothing, ylims)
+                ax = Axis(mfs[3], yreversed = true, xlabel = "Time (s)",
+                          xtickformat = terseticks)
+                ax.limits = ((-0.24, 0.74), ylims)
                 ax.title = structure * ": flashes"
                 p = plotlayermap!(ax, m_flashes, ints; arrows = true,
                                   colorrange = maincolorrange) |>
@@ -467,8 +468,8 @@ begin # * Supplemental material: csd in each region
         @unpack csd_hit, csd_miss, ints, structure = data
 
         # * Hit
-        ax = Axis(fg[1, 1], yreversed = true)
-        ax.limits = (nothing, ylims)
+        ax = Axis(fg[1, 1], yreversed = true, xtickformat = terseticks)
+        ax.limits = ((-0.24, 0.74), ylims)
         ax.title = structure * ": hit"
 
         # colorrange = maximum(abs.(ustripall(m))) * [-1, 1]
@@ -493,8 +494,8 @@ begin # * Supplemental material: csd in each region
         # end
 
         # * Miss
-        ax = Axis(fg[1, 2], yreversed = true)
-        ax.limits = (nothing, ylims)
+        ax = Axis(fg[1, 2], yreversed = true, xtickformat = terseticks)
+        ax.limits = ((-0.24, 0.74), ylims)
         ax.title = structure * ": miss"
         p = plotlayermap!(ax, csd_miss, ints; arrows = false, colorrange = csdcolorrange,
                           colormap = defaultcolormap) |> first
@@ -518,8 +519,8 @@ begin # * Supplemental material: csd in each region
         map(plot_data["wavenumbers"]["flashes"], fgs) do data, fg
             @unpack csd_flashes, structure, ints = data
 
-            ax = Axis(fg[1, 3], yreversed = true)
-            ax.limits = (nothing, ylims)
+            ax = Axis(fg[1, 3], yreversed = true, xtickformat = terseticks)
+            ax.limits = ((-0.24, 0.74), ylims)
             ax.title = structure * ": flashes"
             # colorrange = maximum(abs.(ustripall(m))) * [-1, 1]
             p = plotlayermap!(ax, csd_flashes, ints; arrows = false,
@@ -565,7 +566,8 @@ begin # * Order parameters
                       title = "Order parameter during flashes",
                       xautolimitmargin = (0, 0), xminorticksvisible = true,
                       xminorticks = IntervalsBetween(5), yminorticksvisible = true,
-                      yminorticks = IntervalsBetween(5))
+                      yminorticks = IntervalsBetween(5), xtickformat = terseticks,
+                      ytickformat = terseticks)
             hlines!(ax, [0]; color = (:black, 0.5), linestyle = :dash, linewidth = 2)
             vlines!(ax, [0, 0.25]; color = (:black, 0.5), linestyle = :dash, linewidth = 2)
             for (i, O) in reverse(collect(enumerate(Ō)))
@@ -604,7 +606,8 @@ begin # * Order parameters
                       title = "Order parameter during task",
                       xautolimitmargin = (0, 0), xminorticksvisible = true,
                       xminorticks = IntervalsBetween(5), yminorticksvisible = true,
-                      yminorticks = IntervalsBetween(5))
+                      yminorticks = IntervalsBetween(5), xtickformat = terseticks,
+                      ytickformat = terseticks)
             hlines!(ax, [0]; color = (:black, 0.5), linestyle = :dash, linewidth = 2)
             vlines!(ax, [0, 0.25]; color = (:black, 0.5), linestyle = :dash, linewidth = 2)
             for (i, O) in reverse(collect(enumerate(Ō)))
@@ -753,7 +756,7 @@ begin # * Order parameters
         end
         begin # * Plot region-wise weightings
             ax = Axis(fig[2, 2]; xlabel = "Time (s)", ylabel = "Normalized LDA weight",
-                      title = "Regional classification weights")
+                      title = "Regional classification weights", xtickformat = terseticks)
             vlines!(ax, [0, 0.25], color = (:black, 0.2), linestyle = :dash)
             hlines!(ax, [0], color = (:black, 0.5), linewidth = 2)
             for structure in (collect(lookup(W, Structure)))

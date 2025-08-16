@@ -79,7 +79,7 @@ function getpref(::Type{T}, prefname, envname, default = nothing) where {T}
     return default::T
 end
 THETA() = getpref(NTuple{2, Number}, "theta", "SM_THETA", (3, 10))
-GAMMA() = getpref(NTuple{2, Number}, "gamma", "SM_GAMMA", (3, 10))
+GAMMA() = getpref(NTuple{2, Number}, "gamma", "SM_GAMMA", (30, 100))
 CLUSTER() = getpref(Bool, "cluster", "SM_CLUSTER", false)
 const INTERVAL = -0.25u"s" .. 0.75u"s"
 const structures = ["VISp", "VISl", "VISrl", "VISal", "VISpm", "VISam"]

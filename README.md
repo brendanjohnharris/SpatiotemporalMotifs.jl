@@ -102,7 +102,7 @@ This script aligns the collected session-specific calculations for each structur
 
 ### 2. Final analyses
 The following scripts take the calculated data from [step 1](#1.-performing-calculations), perform statistical analyses, save to a reduced plot dataset (`data/plots/`), then generate generate figures (saved to `plots/`).
-The resulting plot data and figure files have can be found on Figshare.
+The resulting plot data and figure files can be found on Figshare.
 
 #### Fig. 1: Schematics
 
@@ -112,38 +112,33 @@ The resulting plot data and figure files have can be found on Figshare.
 #### Fig. 2: Power spectra
 
 [`fig2.jl`](scripts/plots/fig2.jl) produces a figure summarizing the spectral properties of visual cortical LFPs.
-It also produces a version of Fig. 2 for other visual stimuli.
+It also produces a version of Fig. 2 for other visual stimuli (Fig. S5 and Fig. S6).
 The script will take about 2 hours to run without pre-computed `fooof.jld` files, otherwise, about 15 minutes.
 
 #### Fig. 3: Translaminar theta propagation
 
-1. [`fig3.jl`](scripts/plots/fig3.jl): produces heatmaps of the median wavenumber in `VISl` during hit, miss, and flash trials, as well as order parameter time courses and LDA hit/miss classification.
+1. [`fig3.jl`](scripts/plots/fig3.jl): produces heatmaps of the median wavenumber in `VISl` during hit, miss, and flash trials, as well as order parameter time courses and LDA hit/miss classification. This script also produces the supplemental wavenumber (Fig. S7) and current-source density (Fig. S8) figures.
 
 #### Fig. 4: Hierarchical theta propagation
 [`fig4.jl`](scripts/plots/fig4.jl) plots anatomical and functional networks as well as hierarchical order parameters.
 
 #### Fig. 5: Gamma packets and nested dynamics
-[`fig5.jl`](scripts/plots/fig5.jl) plots gamma burst width and theta--gamma phase-amplitude coupling
+[`fig5.jl`](scripts/plots/fig5.jl) plots gamma burst width and theta--gamma phase-amplitude coupling, as well as supplemental comodulagrams (Fig. S9) and spatiotemporal theta--gamma coupling heatmaps (Fig. S10).
 
 #### Fig. 6: Spike-LFP coupling
-[`fig6.jl`](scripts/plots/fig6.jl) plots spike--phase coupling for theta, spike--amplitude coupling for gamma, and preferred spike--theta phase during both spontaneous and task periods.
+[`fig6.jl`](scripts/plots/fig6.jl) plots spike--phase coupling for theta, spike--amplitude coupling for gamma, and preferred spike--theta phase during the task period, as well as preffered phase and firing rate differences between hit and miss trials. This script also produces a spike-LFP coupling figure for the spontaneous condition (Fig. S11), and firing-rate time courses for all visual areas (Fig. S12).
 
 ### 3. Replotting all results
 
-If you have downloaded the plot data from Figsahre, and placed the data files in `data/plots/`, you can replot all figures by running the [`produce_figures.jl`](produce_figures) shell script.
-This file simply runs all of the plot scripts in the order listed in [step 2](#2.-final-analyses) and saves the results to `plots/`. Ensure that you have properly instantiated this project via the Julia REPL before running this script.
+If you have downloaded the plot data from Figshare, and placed the data files in `data/plots/`, you can replot all figures by running the [`produce_figures.jl`](produce_figures) shell script.
+This file simply runs all of the plot scripts in the order listed in [step 2](#2.-final-analyses) and saves the results to `plots/`, taking around an hour. Ensure that you have properly instantiated this project via the Julia REPL before running this script.
 
 
 ## Project configuration
-You can configure this project (e.g. to rerun calculations with different theta and gamma bands) by setting the following environment variables, either in your shell startup script or with the `Preferences` package:
+You can configure this project by setting the following environment variables, either in your shell startup script (`SM_THETA` and `SM_GAMMA`) or with the `Preferences` package.
+By setting the following values and running [`figS5.jl`](scripts/plots/figS5.jl) and [`figS6.jl`](scripts/plots/figS6.jl), you can produce theta propagation figures for 3--5 Hz and 6--10 Hz bands (Fig. S13. and Fig. S14).
 ```julia
 using Preferences, SpatiotemporalMotifs
 set_preferences!(SpatiotemporalMotifs, "theta" => "(3, 10)", force=true) # Theta band, in Hz
 set_preferences!(SpatiotemporalMotifs, "gamma" => "(30, 100)", force=true) # Gamma band, in Hz
 ```
-```bash
-# ~/.bashrc
-export SM_THETA="(3, 10)"
-export SM_GAMMA="(30, 100)"
-```
-

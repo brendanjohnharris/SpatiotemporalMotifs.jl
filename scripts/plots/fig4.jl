@@ -301,7 +301,7 @@ begin # * Plots
     begin # * Correlation to hierarchy score
         ax = Axis(gs[2][1, 1], yreversed = true, xlabel = "Time (s)",
                   ylabel = "Cortical depth (%)", title = " ", ytickformat = depthticks,
-                  xticks = -0.25:0.25:0.75)
+                  xticks = -0.25:0.25:0.75, xtickformat = terseticks)
         plevels = [-3.0, -5.0]
         pdiff = mean(diff(plevels))
         prange = extrema(plevels) .+ [pdiff, -pdiff] ./ 2
@@ -337,7 +337,7 @@ begin # * Plots
     begin # * Correlation to functional hierarchy score
         ax = Axis(gs[4][1, 1], yreversed = true, xlabel = "Time (s)",
                   ylabel = "Cortical depth (%)", title = " ", ytickformat = depthticks,
-                  xticks = -0.25:0.25:0.75)
+                  xticks = -0.25:0.25:0.75, xtickformat = terseticks)
         # ∂̄ = dropdims(mean(∂h, dims = Trial), dims = Trial)
         H = deepcopy(𝑝_f)
         H[:] .= adjust(H[:], BenjaminiHochberg())
