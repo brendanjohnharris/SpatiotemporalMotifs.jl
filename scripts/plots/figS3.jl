@@ -21,7 +21,8 @@ plot_data, data_file = produce_or_load(Dict("thr" => 0.5), calcdir("plots");
         path = calcdir("calculations")
         vars = [:k, :ω]
 
-        session_table = load(calcdir("posthoc_session_table.jld2"), "session_table")
+        session_table = load(calcdir("plots", "posthoc_session_table.jld2"),
+                             "session_table")
         oursessions = session_table.ecephys_session_id
         begin # * Active natural images
             stimulus = r"Natural_Images"
@@ -103,7 +104,8 @@ plot_data, data_file = produce_or_load(Dict("thr" => 0.5), calcdir("plots");
     begin # * Load spontaneous order parameter
         pQ = calcquality(calcdir("power_spectra"))
         stimuli = [r"Natural_Images", "flash_250ms", "spontaneous"]
-        session_table = load(calcdir("posthoc_session_table.jld2"), "session_table")
+        session_table = load(calcdir("plots", "posthoc_session_table.jld2"),
+                             "session_table")
         oursessions = session_table.ecephys_session_id
 
         data = map(stimuli) do stimulus

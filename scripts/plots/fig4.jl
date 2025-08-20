@@ -34,7 +34,7 @@ end
 
 plot_data, data_file = produce_or_load(Dict(), calcdir("plots");
                                        filename = savepath("fig4")) do config
-    session_table = load(calcdir("posthoc_session_table.jld2"), "session_table")
+    session_table = load(calcdir("plots", "posthoc_session_table.jld2"), "session_table")
     oursessions = session_table.ecephys_session_id
 
     path = calcdir("calculations")
@@ -320,7 +320,8 @@ begin # * Plots
                  linestyle = :dash, colorrange = prange)
         Colorbar(gs[2][1, 2], p;
                  label = rich("Mean order parameter ",
-                              rich("A", subscript("θ"), font = "Times Italic")))
+                              rich("A", subscript("θ"), font = "Times Italic")),
+                 tickformat = terseticks)
         Colorbar(gs[2][1, 1]; colormap = levelmap,
                  ticks = plevels,
                  colorrange = extrema(plevels) .+
@@ -350,7 +351,8 @@ begin # * Plots
                  linestyle = :dash, colorrange = prange)
         Colorbar(gs[4][1, 2], p;
                  label = rich("Mean order parameter ",
-                              rich("F", subscript("θ"), font = "Times Italic")))
+                              rich("F", subscript("θ"), font = "Times Italic")),
+                 tickformat = terseticks)
         Colorbar(gs[4][1, 1]; colormap = levelmap, ticks = plevels,
                  colorrange = extrema(plevels) .+
                               [mean(diff(plevels)), -mean(diff(plevels))] ./ 2,

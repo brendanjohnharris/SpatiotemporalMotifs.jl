@@ -13,7 +13,7 @@ import USydClusters.Physics: addprocs, selfdestruct
 using USydClusters
 SM.@preamble
 
-session_table = load(calcdir("session_table.jld2"), "session_table")
+session_table = load(calcdir("plots", "session_table.jld2"), "session_table")
 oursessions = session_table.ecephys_session_id
 
 outpath = calcdir("calculations")

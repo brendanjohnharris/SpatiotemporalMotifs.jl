@@ -17,7 +17,7 @@ set_theme!(foresight(:physics))
 
 stimulus = r"Natural_Images"
 
-session_table = load(calcdir("session_table.jld2"), "session_table")
+session_table = load(calcdir("plots", "session_table.jld2"), "session_table")
 oursessions = deepcopy(session_table)
 
 begin
@@ -84,15 +84,16 @@ end
 
 begin
     newsessions = subset(oursessions, :ecephys_session_id => ByRow(∈(goodsessions)))
-    tagsave(calcdir("posthoc_session_table.jld2"), Dict("session_table" => newsessions))
-    write(calcdir("posthoc_session_table.json"), JSON.json(newsessions))
     mkpath(calcdir("plots"))
+    tagsave(calcdir("plots", "posthoc_session_table.jld2"),
+            Dict("session_table" => newsessions))
+    write(calcdir("plots", "posthoc_session_table.json"), JSON.json(newsessions))
 end
 # Read the dataframe as read("$(@__DIR__)/../plots/session_table.json", String) |> JSON.parse |> DataFrame
 
 begin # * Formatted subject table
     using Dates
-    file = calcdir("posthoc_session_table.jld2")
+    file = calcdir("plots", "posthoc_session_table.jld2")
     newsessions = load(file, "session_table")
     experimental_model_table = newsessions[:,
                                            [:mouse_id,

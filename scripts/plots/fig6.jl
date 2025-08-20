@@ -32,7 +32,7 @@ plot_data, data_file = produce_or_load(Dict(), calcdir("plots");
     outfile = calcdir("out&stimulus=$(stimulus).jld2")
     vars = [:ϕ, :r]
 
-    session_table = load(calcdir("posthoc_session_table.jld2"), "session_table")
+    session_table = load(calcdir("plots", "posthoc_session_table.jld2"), "session_table")
     oursessions = session_table.ecephys_session_id
 
     path = calcdir("calculations")
@@ -938,6 +938,7 @@ begin # * Hit/miss firing rates for each structure
             plot_fr!([ax, ax2, ax3], i, structure)
         end
     end
+    addlabels!(frgs, frsf, labelformat, recurse = [])
     display(frsf)
 end
 

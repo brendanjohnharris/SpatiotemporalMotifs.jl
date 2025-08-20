@@ -18,7 +18,7 @@ set_theme!(foresight(:physics))
 begin # * Load the CSD flashes
 end
 # begin # * Load the CSD passive natural images
-#     session_table = load(calcdir("posthoc_session_table.jld2"), "session_table")
+#     session_table = load(calcdir("plots", "posthoc_session_table.jld2"), "session_table")
 #     oursessions = session_table.ecephys_session_id
 #     path = calcdir("calculations")
 #     Q = calcquality(path)[Structure = At(structures)]
@@ -49,7 +49,8 @@ begin # * Save average CSD for each session
                                       filename = savepath("figS4")) do conf
         stimulus = conf["stimulus"]
 
-        session_table = load(calcdir("posthoc_session_table.jld2"), "session_table")
+        session_table = load(calcdir("plots", "posthoc_session_table.jld2"),
+                             "session_table")
         oursessions = session_table.ecephys_session_id
         path = calcdir("calculations")
         Q = calcquality(path)[Structure = At(structures)]
@@ -76,7 +77,7 @@ begin # * Save average CSD for each session
             x = ToolsArray(x, (SessionID(sessionids),))
         end
 
-        # session_table = load(calcdir("posthoc_session_table.jld2"), "session_table")
+        # session_table = load(calcdir("plots", "posthoc_session_table.jld2"), "session_table")
         # oursessions = session_table.ecephys_session_id
         # path = calcdir("calculations")
         # Q = calcquality(path)[Structure = At(structures)]

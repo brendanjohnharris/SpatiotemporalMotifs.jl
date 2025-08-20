@@ -43,7 +43,7 @@ end
 
 plot_data, data_file = produce_or_load(Dict(), calcdir("plots");
                                        filename = savepath("fig2")) do _
-    session_table = load(calcdir("posthoc_session_table.jld2"), "session_table")
+    session_table = load(calcdir("plots", "posthoc_session_table.jld2"), "session_table")
     oursessions = session_table.ecephys_session_id
     path = calcdir("power_spectra")
     QQ = calcquality(path)
@@ -154,7 +154,7 @@ for stimulus in stimuli
     @info "Plotting spectra for $stimulus"
     @unpack S, layernames, layernums, layerints, meanlayers, S̄, oursessions, Q = plot_data[string(stimulus)]
     begin
-        filebase = stimulus == "spontaneous" ? "" : "_$stimulus"
+        filebase = stimulus == "spontaneous" ? "" : "_$(val_to_string(stimulus))"
         statsfile = plotdir("fig2", "power_spectra$filebase.txt")
         close(open(statsfile, "w")) # Create the file or clear it
         f = SixPanel()
@@ -345,7 +345,9 @@ for stimulus in stimuli
             # rowsize!(fs.layout, 2, Aspect(2, 0.9))
             # rowsize!(fs.layout, 3, Aspect(2, 0.9))
             fs
-            wsave(plotdir("fig2", "relative_power_supplement$filebase.pdf"), fs)
+            wsave(plotdir("fig2",
+                          "relative_power_supplement$filebase.pdf"),
+                  fs)
         end
 
         begin # * Plot fooof residuals. Bands are 1 S.D.
@@ -446,7 +448,9 @@ for stimulus in stimuli
                 # linkxaxes!(ax, ax2)
             end
             addlabels!(sf, labelformat)
-            wsave(plotdir("fig2", "residual_power_supplement$(filebase).pdf"), sf)
+            wsave(plotdir("fig2",
+                          "residual_power_supplement$filebase.pdf"),
+                  sf)
             sf
         end
 

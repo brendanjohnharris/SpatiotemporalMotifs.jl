@@ -24,7 +24,7 @@ end
 begin
     stimulus = r"Natural_Images"
 
-    session_table = load(calcdir("posthoc_session_table.jld2"), "session_table")
+    session_table = load(calcdir("plots", "posthoc_session_table.jld2"), "session_table")
     oursessions = session_table.ecephys_session_id
 
     # * Theta wavenumber

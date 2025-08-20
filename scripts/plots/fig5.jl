@@ -25,7 +25,7 @@ stimuli = [r"Natural_Images", "spontaneous", "flash_250ms"]
 plot_data, data_file = produce_or_load(config, calcdir("plots");
                                        filename = savepath("fig5")) do config
     stimulus = r"Natural_Images" # Stimulus for the final figure
-    session_table = load(calcdir("posthoc_session_table.jld2"), "session_table")
+    session_table = load(calcdir("plots", "posthoc_session_table.jld2"), "session_table")
     oursessions = session_table.ecephys_session_id
     layerints = load(calcdir("plots", "grand_unified_layers.jld2"), "layerints")
     @unpack thr = config
@@ -530,7 +530,7 @@ begin # * Global and spatiotemporal PAC
             end
             addlabels!(f, labelformat)
             display(f)
-            wsave(plotdir("fig5", "comodulograms_$stimulus.pdf"), f)
+            wsave(plotdir("fig5", "comodulograms_$(val_to_string(stimulus)).pdf"), f)
         end
 
         if stimulus == "spontaneous" # * Plot into main figure

@@ -20,7 +20,7 @@ set_theme!(foresight(:physics))
 #     stimulus = r"Natural_Images"
 #     vars = [:ϕ, :r]
 
-#     session_table = load(calcdir("posthoc_session_table.jld2"), "session_table")
+#     session_table = load(calcdir("plots", "posthoc_session_table.jld2"), "session_table")
 #     oursessions = session_table.ecephys_session_id
 
 #     path = calcdir("calculations")

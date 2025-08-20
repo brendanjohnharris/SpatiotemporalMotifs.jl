@@ -22,7 +22,8 @@ plot_data, data_file = produce_or_load(Dict(), calcdir("plots");
     begin
         stimulus = r"Natural_Images"
         begin # * Load the trial LFP for natural images
-            session_table = load(calcdir("posthoc_session_table.jld2"), "session_table")
+            session_table = load(calcdir("plots", "posthoc_session_table.jld2"),
+                                 "session_table")
             oursessions = session_table.ecephys_session_id
             path = calcdir("calculations")
             Q = calcquality(path)[Structure = At(structures)]
@@ -56,7 +57,8 @@ plot_data, data_file = produce_or_load(Dict(), calcdir("plots");
     begin # * Load the evoked oscillations for the flashes stimulus
         stimulus = "flash_250ms"
         begin # * Load the trial LFP for natural images
-            session_table = load(calcdir("posthoc_session_table.jld2"), "session_table")
+            session_table = load(calcdir("plots", "posthoc_session_table.jld2"),
+                                 "session_table")
             oursessions = session_table.ecephys_session_id
             path = calcdir("calculations")
             Q = calcquality(path)[Structure = At(structures)]

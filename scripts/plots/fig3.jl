@@ -49,7 +49,7 @@ end
 plot_data, data_file = produce_or_load(config, calcdir("plots");
                                        filename = savepath("fig3")) do config
     @unpack regcoef, folds, repeats = config
-    session_table = load(calcdir("posthoc_session_table.jld2"), "session_table")
+    session_table = load(calcdir("plots", "posthoc_session_table.jld2"), "session_table")
     oursessions = session_table.ecephys_session_id
     # vars = [:csd, :k, :ω]
     vars = [:θ, :csd, :k, :ω]

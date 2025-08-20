@@ -45,7 +45,7 @@ function _preamble()
         using Term
         using Term.Progress
         import AllenNeuropixels: Chan, Unit, Depth, Log𝑓
-        import SpatiotemporalMotifs: calcdir, ramap
+        import SpatiotemporalMotifs: calcdir, ramap, val_to_string
         import SpatiotemporalMotifs: prony, amplitudes, frequencies, reconstruct
         using TerminalLoggers, Logging
         global_logger(TerminalLogger(right_justify = 200))

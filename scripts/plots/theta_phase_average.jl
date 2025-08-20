@@ -16,7 +16,7 @@ using Random
 set_theme!(foresight(:physics))
 
 # begin # * Load the trial LFP for natural images
-#     session_table = load(calcdir("posthoc_session_table.jld2"), "session_table")
+#     session_table = load(calcdir("plots", "posthoc_session_table.jld2"), "session_table")
 #     oursessions = session_table.ecephys_session_id
 #     path = calcdir("calculations")
 #     Q = calcquality(path)[Structure = At(structures)]

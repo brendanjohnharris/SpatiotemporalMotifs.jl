@@ -838,7 +838,8 @@ function unify_calculations(Q; stimulus, vars = sort([:V, :csd, :θ, :ϕ, :r, :k
         @info "Loading calculations"
         out = load_calculations(Q; vars, stimulus, outpath, kwargs...)
         @info "Loaded calculations, unifying"
-        session_table = load(calcdir("posthoc_session_table.jld2"), "session_table")
+        session_table = load(calcdir("plots", "posthoc_session_table.jld2"),
+                             "session_table")
         oursessions = session_table.ecephys_session_id
         out = map(out) do O
             filter(o -> (o[:sessionid] in oursessions), O)
