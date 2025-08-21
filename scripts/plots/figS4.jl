@@ -300,5 +300,5 @@ begin # * Paired change plots
     end
     addlabels!(f, labelformat)
     display(f)
-    wsave(plotdir("figS6", "figS6.pdf"), f)
+    wsave(plotdir("figS4", "figS4.pdf"), f)
 end

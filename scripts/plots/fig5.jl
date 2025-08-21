@@ -8,19 +8,35 @@ using DrWatson
 import TimeseriesTools: freqs
 using FileIO
 using Unitful
-using Images
 using ModulationIndices
 import CairoMakie.Axis
 using SpatiotemporalMotifs
 import SpatiotemporalMotifs: HistBins, structures
 using Peaks
+using ImageSegmentation
 @preamble
 set_theme!(foresight(:physics))
 
-thr = 2.0
-config = @strdict thr
+begin # * Parameters
+    stimuli = [r"Natural_Images", "spontaneous", "flash_250ms"]
+    thr = 2.0
+    config = @strdict thr
+end
 
-stimuli = [r"Natural_Images", "spontaneous", "flash_250ms"]
+if !isfile(calcdir("plots", savepath("fig5", config, "jld2")))
+    if nprocs() == 1
+        if SpatiotemporalMotifs.CLUSTER()
+            using USydClusters
+            ourprocs = USydClusters.Physics.addprocs(6; mem = 33, ncpus = 8,
+                                                     project = projectdir(),
+                                                     queue = "l40s")
+        else
+            addprocs(6)
+        end
+    end
+    @everywhere using SpatiotemporalMotifs
+    @everywhere SpatiotemporalMotifs.@preamble
+end
 
 plot_data, data_file = produce_or_load(config, calcdir("plots");
                                        filename = savepath("fig5")) do config
