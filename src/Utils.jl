@@ -17,7 +17,7 @@ function _preamble()
         using StatsBase
         using MultivariateStats
         using Random
-        using Images
+        import Images
         using LinearAlgebra
         using Unitful
         using FileIO

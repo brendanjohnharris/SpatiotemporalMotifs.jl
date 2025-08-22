@@ -13,7 +13,6 @@ import CairoMakie.Axis
 using SpatiotemporalMotifs
 import SpatiotemporalMotifs: HistBins, structures
 using Peaks
-using ImageSegmentation
 @preamble
 set_theme!(foresight(:physics))
 
@@ -76,8 +75,8 @@ plot_data, data_file = produce_or_load(config, calcdir("plots");
                     length(m) < 1000 &&
                         @warn "Input seems too short to be a time series..."
                     m = Matrix(m') # label_components segfaults with vectors
-                    cs = label_components(m)
-                    c = component_lengths(cs) |> last
+                    cs = Images.ImageMorphology.label_components(m)
+                    c = Images.ImageMorphology.component_lengths(cs) |> last
                     c = c * samplingperiod(r)
                 end
 
@@ -92,8 +91,8 @@ plot_data, data_file = produce_or_load(config, calcdir("plots");
                     @assert eltype(m) <: Bool
                     length(m) > 30 && @warn "Input seems too long to be layer-wise..."
                     m = Matrix(m') # label_components segfaults with vectors
-                    cs = label_components(m)
-                    c = component_lengths(cs) |> last
+                    cs = Images.ImageMorphology.label_components(m)
+                    c = Images.ImageMorphology.component_lengths(cs) |> last
                     c = c * step(lookup(_m, Depth)) .* u"μm"
                 end
                 return m, Δt, Δx
@@ -709,6 +708,6 @@ begin # * Layer-wise PAC
 end
 
 begin
-    addlabels!(mf, labelformat)
+    addlabels!(mf, ["a", "b", "e", "c", "d", "f"])
     wsave(plotdir("fig5", "nested_dynamics.pdf"), mf)
 end
