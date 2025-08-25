@@ -1,5 +1,6 @@
 # SpatiotemporalMotifs.jl
-[![Zenodo](https://zenodo.org/badge/DOI/10.5281/zenodo.14550386.svg)](https://doi.org/10.5281/zenodo.14550386)
+[![Zenodo](https://img.shields.io/badge/Zenodo-1682D4?logo=zenodo&logoColor=fff&style=for-the-badge)](https://doi.org/10.5281/zenodo.14550386)
+[![Figshare](https://img.shields.io/badge/figshare-556472?logo=figshare&logoColor=fff&style=for-the-badge)](https://doi.org/10.6084/m9.figshare.29928659)
 
 Julia code for reproducing the results of _Nested spatiotemporal theta-gamma waves organize hierarchical visual processing_.
 
@@ -130,7 +131,7 @@ The script will take about 2 hours to run without pre-computed `fooof.jld` files
 
 ### 3. Replotting all results
 
-If you have downloaded the plot data from Figshare, and placed the data files in `data/plots/`, you can replot all figures by running the [`produce_figures.jl`](produce_figures) shell script.
+If you have downloaded the plot data from [Figshare](https://doi.org/10.6084/m9.figshare.29928659), and placed the `data` directory in the project root folder, you can replot all figures by running the [`produce_figures.jl`](produce_figures) shell script.
 This file simply runs all of the plot scripts in the order listed in [step 2](#2.-final-analyses) and saves the results to `plots/`, taking around an hour. Ensure that you have properly instantiated this project via the Julia REPL before running this script.
 
 

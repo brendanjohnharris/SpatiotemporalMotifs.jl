@@ -274,22 +274,30 @@ plot_data, data_file = produce_or_load(Dict(), calcdir("plots");
         @info "Calculating hit/miss PSTH"
         pspikes.hit_psth = map(eachrow(pspikes)) do row
             psths = row.zscored_trial_psth_rates
-            psths = psths[row.hitmiss]
-            psths = filter(!isnothing, psths)
-            if isempty(psths)
+            if isnothing(psths)
                 return nothing
             else
-                return convert.(Float32, mean(psths))
+                psths = psths[row.hitmiss]
+                psths = filter(!isnothing, psths)
+                if isempty(psths)
+                    return nothing
+                else
+                    return convert.(Float32, mean(psths))
+                end
             end
         end
         pspikes.miss_psth = map(eachrow(pspikes)) do row
             psths = row.zscored_trial_psth_rates
-            psths = psths[.!row.hitmiss]
-            psths = filter(!isnothing, psths)
-            if isempty(psths)
+            if isnothing(psths)
                 return nothing
             else
-                return convert.(Float32, mean(psths))
+                psths = psths[.!row.hitmiss]
+                psths = filter(!isnothing, psths)
+                if isempty(psths)
+                    return nothing
+                else
+                    return convert.(Float32, mean(psths))
+                end
             end
         end
     end

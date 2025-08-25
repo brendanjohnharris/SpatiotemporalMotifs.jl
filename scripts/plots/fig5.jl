@@ -45,8 +45,8 @@ plot_data, data_file = produce_or_load(config, calcdir("plots");
     layerints = load(calcdir("plots", "grand_unified_layers.jld2"), "layerints")
     @unpack thr = config
 
-    begin # * Extract burst mask from each trial. Takes about 20 minutes on 128 cores
-        @info "Calculating γ-bursts"
+    begin # * Extract packet mask from each trial. Takes about 20 minutes on 128 cores
+        @info "Calculating γ-packets"
         vars = [:r]
 
         path = calcdir("calculations")
@@ -102,7 +102,7 @@ plot_data, data_file = produce_or_load(config, calcdir("plots");
         end
         m, Δt, Δx = [getindex.(Bs, i) for i in eachindex(Bs[1])]
 
-        @info "Calculating burst densities"
+        @info "Calculating packet densities"
         Ns = map(m) do vm
             structure = metadata(vm[1])[:structure]
             ts = SpatiotemporalMotifs.INTERVAL
@@ -176,7 +176,7 @@ plot_data, data_file = produce_or_load(config, calcdir("plots");
         layernames = getindex.(uni, :layernames)
         layernums = getindex.(uni, :layernums)
 
-        begin # * Normalize amplitudes and generate a burst mask
+        begin # * Normalize amplitudes and generate a packet mask
             r = [abs.(uni[i][:r]) for i in eachindex(uni)]
 
             ϕ = [uni[i][:ϕ] for i in eachindex(uni)]
@@ -281,8 +281,8 @@ begin # * Set up master plot
     oursessions = plot_data["oursessions"]
 end
 
-begin # * Burst masks and schematic
-    @info "Plotting γ burst schematic"
+begin # * packet masks and schematic
+    @info "Plotting γ packet schematic"
     @unpack Ns, Δt, Δx, ints, schemr = plot_data["gamma_bursts"]
     begin # * Setup plot
         f = TwoPanel()
@@ -302,7 +302,7 @@ begin # * Burst masks and schematic
                    xlabel = "Time (ms)",
                    ylabel = "Cortical depth (%)",
                    ytickformat = depthticks,
-                   title = "γ-burst detection")
+                   title = "γ-packet detection")
         ax.zspinesvisible = false
         ax.zgridvisible = false
         hidezdecorations!(ax)
@@ -356,12 +356,12 @@ begin # * Burst masks and schematic
         ax.azimuth = -1.3π / 3
     end
 
-    begin # * Heatmap of burst likelihood
-        @info "Plotting burst likelihoods"
+    begin # * Heatmap of packet likelihood
+        @info "Plotting packet likelihoods"
         function pf!(g, i; compact = false, kwargs...)
             structure, N = Ns[i]
             ts = SpatiotemporalMotifs.INTERVAL
-            ax = Axis(g[1, 1]; title = "Burst likelihood ($structure)", xlabel = "Time (s)",
+            ax = Axis(g[1, 1]; title = "Packet likelihood ($structure)", xlabel = "Time (s)",
                       yreversed = true,
                       limits = (extrema(ts |> ustripall), (0.05, 0.95)))
 
@@ -386,7 +386,7 @@ begin # * Burst masks and schematic
         wsave(plotdir("fig5", "supplemental_burst_likelihood.pdf"), sf)
     end
 
-    begin # * Distribution of burst durations
+    begin # * Distribution of packet durations
         bins = range(0, 1, length = 11)
         tbins = map(Δt) do tt
             ts = map(tt) do t
@@ -399,8 +399,8 @@ begin # * Burst masks and schematic
         end
     end
     begin # * Plot durations
-        @info "Plotting burst durations"
-        ax = Axis(gs[1]; title = "Burst duration", xlabel = "Cortical depth (%)",
+        @info "Plotting packet durations"
+        ax = Axis(gs[1]; title = "Packet duration", xlabel = "Cortical depth (%)",
                   xtickformat = depthticks,
                   ytickformat = x -> string.(round.(Int, x .* 1000)),
                   ylabel = "Duration (ms)", limits = ((0, 1), (0.02, 0.08)))
@@ -435,8 +435,8 @@ begin # * Burst masks and schematic
         end
     end
     begin # * Plot widths
-        @info "Plotting burst widths"
-        ax = Axis(mgs[2]; title = "Burst width", xlabel = "Time (s)",
+        @info "Plotting packet widths"
+        ax = Axis(mgs[2]; title = "Packet width", xlabel = "Time (s)",
                   xtickformat = terseticks,
                   ylabel = "Width (μm)", limits = ((-0.25, 0.75), (nothing, nothing)))
         vlines!(ax, [0.0, 0.25]; color = (:black, 0.5), linestyle = :dash, linewidth = 3)
@@ -467,20 +467,20 @@ begin # * Burst masks and schematic
         statsfile = plotdir("fig5", "nested_dynamics.txt")
         close(open(statsfile, "w")) # Create the file or clear it
         open(statsfile, "a+") do file
-            write(file, "\n# Burst durations\n")
+            write(file, "\n# Packet durations\n")
             write(file, "Mean duration (s) = $(mean(vcat(parent.(tbins)...)))\n")
             write(file, "Duration std (s) = $(std(vcat(parent.(tbins)...)))\n")
         end
         open(statsfile, "a+") do file
-            write(file, "\n# Burst widths\n")
+            write(file, "\n# Packet widths\n")
             write(file, "Mean width (μm) = $(mean(vcat(parent.(xbins)...)))\n")
             write(file, "Width std (s) = $(std(vcat(parent.(xbins)...)))\n")
         end
         for T in [0u"s" .. 0.25u"s", 0.25u"s" .. 0.5u"s"]
-            @info "Saving burst statistics for $T"
+            @info "Saving packet statistics for $T"
             N = 1e6
             open(statsfile, "a+") do file
-                write(file, "\n# Burst widths $T\n")
+                write(file, "\n# Packet widths $T\n")
                 subxbins = getindex.(xbins, [T], [:])
                 x = getindex.([SpatiotemporalMotifs.hierarchy_scores], structures)
                 _y = stack(Structure(structures), subxbins)
