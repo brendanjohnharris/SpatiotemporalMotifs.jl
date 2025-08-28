@@ -1,0 +1,39 @@
+#! /bin/bash
+
+# ? Run `rclone config` to set up the ftp link named 'sciencedb', using the host, port, username, and password provided by ScienceDB
+
+# * Choose folders
+script_dir=$(dirname "$(realpath "$0")")
+TARGET="sciencedb"
+DIR="data"
+EXCL=("calculations/" "power_spectra/" "plots/")
+INCL=("plots/experimental_model_table.csv" "plots/posthoc_session_table.jld2" "plots/grand_unified_layers.jld2" "plots/posthoc_session_table.jld2" "plots/session_table.jld2" "plots/session_table.json")
+MANIFEST="databank_manifest.txt"
+
+cd $script_dir/$DIR
+
+# * Generate a list of files to upload (manifest) and their intended size. Must have `tree` installed
+find . -mindepth 1 -type f -printf '%P\n' | sort > "$MANIFEST"
+
+# * Filter out EXCL folders from the manifest file
+for excl in "${EXCL[@]}"; do
+    # The grep pattern is updated to match paths from the start of the line
+    grep -v "^${excl}" "$MANIFEST" > "${MANIFEST}.tmp" && mv "${MANIFEST}.tmp" "$MANIFEST"
+done
+
+# *Add back explicitly included files that exist
+for file in "${INCL[@]}"; do
+    # The echo command no longer prepends './'
+    [[ -f "$file" ]] && echo "$file" >> "$MANIFEST"
+done
+
+# * Sort and clean up duplicates
+sort "$MANIFEST" | uniq > "${MANIFEST}.tmp" && mv "${MANIFEST}.tmp" "$MANIFEST"
+
+{ echo "# Manifest generated on $(date)"; cat "$MANIFEST"; } > "${MANIFEST}.tmp" && mv "${MANIFEST}.tmp" "$MANIFEST"
+echo "Wrote manifest to $script_dir/$DIR/$MANIFEST"
+
+# * Upload test file (manifest)
+rclone -v --progress --delete-before --transfers 8 sync ./ $TARGET:/$DIR --files-from $MANIFEST
+
+echo "Transfer complete"

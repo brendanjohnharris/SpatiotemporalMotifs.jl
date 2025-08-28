@@ -238,7 +238,7 @@ end
 begin # * Plots
     @info "Plotting inter-areal phase delays"
     @unpack unidepths, FF_score, ∂h̄, ∂f̄, ∂h̄_sur, ∂f̄_sur, 𝑝_h, 𝑝_f = plot_data
-    f = FourPanel()
+    f = Foresight._panels(; size = (720, 460))
     gs = subdivide(f, 2, 2)
     layerints = load(calcdir("plots", "grand_unified_layers.jld2"), "layerints")
     begin # * Schematic of hierarchy
@@ -299,7 +299,7 @@ begin # * Plots
                               ilabels_fontsize = 7)
     end
     begin # * Correlation to hierarchy score
-        ax = Axis(gs[2][1, 1], yreversed = true, xlabel = "Time (s)",
+        ax = Axis(gs[2][1, 1], yreversed = true,
                   ylabel = "Cortical depth (%)", title = " ", ytickformat = depthticks,
                   xticks = -0.25:0.25:0.75, xtickformat = terseticks)
         plevels = [-3.0, -5.0]
@@ -358,7 +358,7 @@ begin # * Plots
                               [mean(diff(plevels)), -mean(diff(plevels))] ./ 2,
                  tickformat = X -> [L"10^{%$(round(Int, x))}" for x in X],
                  vertical = false,
-                 flipaxis = true, label = "Corrected 𝑝-value", tellheight = false,
+                 flipaxis = true, tellheight = false,
                  valign = :top)
         plotlayerints!(ax, layerints; flipside = false, newticks = false,
                        bgcolor = Makie.RGBA(0, 0, 0, 0))
