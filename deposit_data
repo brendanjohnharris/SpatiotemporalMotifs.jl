@@ -43,6 +43,6 @@ sort "$MANIFEST" | uniq > "${MANIFEST}.tmp" && mv "${MANIFEST}.tmp" "$MANIFEST"
 echo "Wrote manifest to $script_dir/$DIR/$MANIFEST"
 
 # * Upload test file (manifest)
-rclone -v --progress --delete-before --transfers 16 sync ./ $TARGET:/$DIR --files-from $MANIFEST
+rclone -v --progress --delete-before --transfers 8 sync ./ $TARGET:/$DIR --files-from $MANIFEST
 
 echo "Transfer complete"
