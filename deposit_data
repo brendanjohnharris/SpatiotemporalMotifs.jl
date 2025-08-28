@@ -8,11 +8,20 @@ TARGET="sciencedb"
 DIR="data"
 EXCL=("calculations/" "power_spectra/" "plots/")
 INCL=("plots/experimental_model_table.csv" "plots/posthoc_session_table.jld2" "plots/grand_unified_layers.jld2" "plots/posthoc_session_table.jld2" "plots/session_table.jld2" "plots/session_table.json")
+ZIP=("power_spectra/")
 MANIFEST="databank_manifest.txt"
 
 cd $script_dir/$DIR
 
-# * Generate a list of files to upload (manifest) and their intended size. Must have `tree` installed
+# * First zip all folders in ZIP
+for folder in "${ZIP[@]}"; do
+    if [[ -d "$folder" ]]; then
+        echo "Compressing $folder..."
+        tar -cf "${folder%/}.tar" "$folder"
+    fi
+done
+
+# * Generate a list of files to upload (manifest) and their intended size
 find . -mindepth 1 -type f -printf '%P\n' | sort > "$MANIFEST"
 
 # * Filter out EXCL folders from the manifest file
@@ -34,6 +43,6 @@ sort "$MANIFEST" | uniq > "${MANIFEST}.tmp" && mv "${MANIFEST}.tmp" "$MANIFEST"
 echo "Wrote manifest to $script_dir/$DIR/$MANIFEST"
 
 # * Upload test file (manifest)
-rclone -v --progress --delete-before --transfers 8 sync ./ $TARGET:/$DIR --files-from $MANIFEST
+rclone -v --progress --delete-before --transfers 16 sync ./ $TARGET:/$DIR --files-from $MANIFEST
 
 echo "Transfer complete"
