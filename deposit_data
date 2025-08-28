@@ -26,13 +26,11 @@ find . -mindepth 1 -type f -printf '%P\n' | sort > "$MANIFEST"
 
 # * Filter out EXCL folders from the manifest file
 for excl in "${EXCL[@]}"; do
-    # The grep pattern is updated to match paths from the start of the line
     grep -v "^${excl}" "$MANIFEST" > "${MANIFEST}.tmp" && mv "${MANIFEST}.tmp" "$MANIFEST"
 done
 
 # *Add back explicitly included files that exist
 for file in "${INCL[@]}"; do
-    # The echo command no longer prepends './'
     [[ -f "$file" ]] && echo "$file" >> "$MANIFEST"
 done
 
