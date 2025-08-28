@@ -137,7 +137,7 @@ This file simply runs all of the plot scripts in the order listed in [step 2](#2
 
 ## Project configuration
 You can configure this project by setting the following environment variables, either in your shell startup script (`SM_THETA` and `SM_GAMMA`) or with the `Preferences` package.
-By setting the following values and running [`figS5.jl`](scripts/plots/figS5.jl) and [`figS6.jl`](scripts/plots/figS6.jl), you can produce theta propagation figures for 3--5 Hz and 6--10 Hz bands (Fig. S13. and Fig. S14).
+By setting the following values and running [`fig3.jl`](scripts/plots/fig3.jl) and [`fig4.jl`](scripts/plots/fig4.jl), you can produce theta propagation figures for 3--5 Hz and 6--10 Hz bands (Fig. S13. and Fig. S14).
 ```julia
 using Preferences, SpatiotemporalMotifs
 set_preferences!(SpatiotemporalMotifs, "theta" => "(3, 10)", force=true) # Theta band, in Hz
