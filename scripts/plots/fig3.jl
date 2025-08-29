@@ -672,7 +672,8 @@ begin # * Order parameters
                       ylabel = "Balanced accuracy", title = "Hit/miss classification",
                       limits = ((0.5, 7.5), (0.35, 0.95)), xminorticksvisible = false)
             boxargs = (; width = 0.75, strokewidth = 5, whiskerwidth = 0.2,
-                       strokecolor = (:gray, 0.0), whiskerlinewidth = 6) # !!!! Show outliers??
+                       strokecolor = (:gray, 0.0), whiskerlinewidth = 3,
+                       medianlinewidth = 3)
 
             vspan!(ax, 0.5, 3.5; color = (california, 0.2))
             vspan!(ax, 3.5, 6.5; color = (cucumber, 0.2))
@@ -727,32 +728,32 @@ begin # * Order parameters
 
             boxplot!(ax, fill(1, length(bac_post)), bac_post; boxargs...,
                      color = (cornflowerblue, 0.8),
-                     label = "Order parameter", whiskerlinewidth = 3)
+                     label = "Order\nparameter")
             boxplot!(ax, fill(2, length(bac_lfp_post[1])), bac_lfp_post[1]; boxargs...,
-                     color = (juliapurple, 0.8), label = "Mean LFP", whiskerlinewidth = 3)
+                     color = (juliapurple, 0.8), label = "Mean LFP")
             boxplot!(ax,
                      vcat([fill(3 + i, length(bac_lfp_post[1])) for i in [-0.3, 0, 0.3]]...),
                      reverse(vcat(bac_lfp_post[2:end]...)); boxargs..., width = 0.3,
-                     color = (crimson, 0.8), label = "Compartmental LFP",
-                     whiskerlinewidth = 3)
+                     color = (crimson, 0.8), label = "Compartmental\nLFP")
             text!(ax, 3 .+ [-0.3, 0, 0.3], [0.4, 0.4, 0.4]; text = reverse(["S", "M", "D"]),
                   align = (:center, :center))
 
             boxplot!(ax, fill(4, length(bac_pre)), bac_pre; boxargs...,
                      color = cornflowerblue,
-                     label = "Order parameter")
+                     label = "Order\nparameter")
             boxplot!(ax, fill(5, length(bac_lfp_pre[1])), bac_lfp_pre[1]; boxargs...,
                      color = juliapurple, label = "Mean LFP")
             boxplot!(ax,
                      vcat([fill(6 + i, length(bac_lfp_pre[1])) for i in [-0.3, 0, 0.3]]...),
                      reverse(vcat(bac_lfp_pre[2:end]...)); boxargs..., width = 0.3,
                      color = crimson,
-                     label = "Compartmental LFP")
+                     label = "Compartmental\nLFP")
             text!(ax, 6 .+ [-0.3, 0, 0.3], [0.4, 0.4, 0.4]; text = reverse(["S", "M", "D"]),
                   align = (:center, :center))
 
             boxplot!(ax, fill(7, length(bac_sur)), bac_sur; color = :gray, boxargs...)
-            axislegend(ax; merge = true, labelsize = 10)
+            axislegend(ax; merge = true, labelsize = 14, orientation = :horizontal,
+                       patchsize = (10, 20), position = :lt)
         end
         begin # * Plot region-wise weightings
             ax = Axis(fig[2, 2]; xlabel = "Time (s)", ylabel = "Normalized LDA weight",
