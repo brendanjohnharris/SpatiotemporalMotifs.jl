@@ -402,7 +402,8 @@ begin
             scatter!(ax, collect(_ms), _ls; color = structurecolormap[structure],
                      label = structure)
         end
-        l = axislegend(ax, merge = true, nbanks = 2, position = :rb, fontsize = 10)
+        l = axislegend(ax, merge = true, nbanks = 2, position = :rb, fontsize = 10,
+                       padding = fill(4, 4))
         plotlayerints!(ax, layerints; axis = :y, flipside = true, newticks = false)
         reverselegend!(l)
     end
@@ -459,7 +460,8 @@ begin
             scatter!(ax, collect(_ms), _ls; color = structurecolormap[structure],
                      label = structure)
         end
-        l = axislegend(ax, merge = true, nbanks = 2, position = :rb, fontsize = 10)
+        l = axislegend(ax, merge = true, nbanks = 2, position = :rb, fontsize = 10,
+                       padding = fill(4, 4))
         plotlayerints!(ax, layerints; axis = :y, flipside = true, newticks = false)
         reverselegend!(l)
     end
@@ -467,7 +469,7 @@ begin
     begin # * Plot, for each structure, SPC
         @info "Plotting structure-wise spike--phase coupling"
         ax = Axis(gs[1], ylabel = "Cortical depth (%)", xlabel = "PPC",
-                  title = "Spike-phase coupling (θ)",
+                  title = "θ spike-phase coupling",
                   limits = ((0, nothing), (0, 1)),
                   ytickformat = depthticks,
                   xtickformat = terseticks,
@@ -519,14 +521,14 @@ begin
             scatter!(ax, collect(_ms), _ls; color = structurecolormap[structure],
                      label = structure)
         end
-        l = axislegend(ax, merge = true, nbanks = 2, position = :rb)
+        l = axislegend(ax, merge = true, nbanks = 2, position = :rb, padding = fill(4, 4))
         plotlayerints!(ax, layerints; axis = :y, flipside = true, newticks = false)
         reverselegend!(l)
     end
     begin # * Plot, for each structure, SAC
         @info "Plotting structure-wise spike--amplitude coupling"
         ax = Axis(gs[2], ylabel = "Cortical depth (%)", xlabel = "SAC",
-                  title = "Spike-amplitude coupling (γ)",
+                  title = "γ spike-amplitude coupling",
                   limits = ((1.1, 1.5), (0, 1)),
                   ytickformat = depthticks,
                   xtickformat = terseticks,
@@ -571,7 +573,7 @@ begin
             scatter!(ax, collect(_ms), _ls; color = structurecolormap[structure],
                      label = structure)
         end
-        l = axislegend(ax, merge = true, nbanks = 2, position = :rb)
+        l = axislegend(ax, merge = true, nbanks = 2, position = :rb, padding = fill(4, 4))
         reverselegend!(l)
         plotlayerints!(ax, layerints; axis = :y, flipside = true, newticks = false)
     end

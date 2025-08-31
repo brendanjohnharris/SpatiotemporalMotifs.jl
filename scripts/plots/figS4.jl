@@ -287,7 +287,7 @@ begin # * Paired change plots
 
         segs = zip(zip(_x, _y) .|> Point2f, zip(x, y) .|> Point2f)
         map(segs) do seg
-            lines!(ax, seg...; color = :black, linewidth = 0.2)
+            lines!(ax, seg...; color = :black, linewidth = 0.1)
         end
         violin!(ax, fill(2 - 0.025, length(y)), y; side = :right, width = 1.0,
                 show_median = true, color = (structurecolors[structure], 0.8),

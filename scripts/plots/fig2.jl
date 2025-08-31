@@ -32,7 +32,7 @@ if !isfile(calcdir("plots", savepath("fig2", Dict(), "jld2")))
             using USydClusters
             ourprocs = USydClusters.Physics.addprocs(30; mem = 6, ncpus = 1,
                                                      project = projectdir(),
-                                                     queue = "taiji")
+                                                     queue = "l40s")
         else
             addprocs(19)
         end
@@ -64,9 +64,9 @@ plot_data, data_file = produce_or_load(Dict(), calcdir("plots");
                     S = load(filename, "S")
                 end
                 out = filter(!isnothing, out)
-                out = filter(x -> maximum(DimensionalData.metadata(x)[:streamlinedepths]) >
-                                  0.90,
-                             out) # Remove sessions that don't have data to a reasonable depth
+                out = filter(out) do x # Remove sessions that don't have data to a reasonable depth
+                    maximum(DimensionalData.metadata(x)[:streamlinedepths]) > 0.90
+                end
 
                 m = DimensionalData.metadata.(out)
                 sessions = getindex.(m, :sessionid)
@@ -121,17 +121,17 @@ plot_data, data_file = produce_or_load(Dict(), calcdir("plots");
             end
             S̄ = ToolsArray(S̄ |> collect, (Structure(lookup(Q, Structure)),))
             S = ToolsArray(S |> collect, (Structure(lookup(Q, Structure)),))
-            S̄ = map(S̄) do s
-                N = UnitEnergy(s, dims = 1)
-                N(s) .|> Float32
-            end
+            # S̄ = map(S̄) do s
+            #     N = UnitEnergy(s, dims = 1)
+            #     N(s) .|> Float32
+            # end # ! No normalization
             layerints = load(calcdir("plots", "grand_unified_layers.jld2"), "layerints")
         end
 
         L = @withprogress name="Fooof $stimulus" begin
             threadlog = -1
             threadmax = length(S)
-            map(S) do s # If you can set up the cluster workers as above, should take about 5 minutes. Otherwise, 30 minutes
+            map(S) do s # If you can set up the cluster workers as above, each stimulus should take about 5 minutes. Otherwise, 30 minutes
                 threadlog += 1
                 @logprogress threadlog / threadmax
                 pmap(SpatiotemporalMotifs.fooof, eachslice(ustripall(s), dims = (2, 3)))
@@ -159,9 +159,15 @@ for stimulus in stimuli
         close(open(statsfile, "w")) # Create the file or clear it
         f = SixPanel()
 
-        begin # * Mean power spectrum in VISp and VISam. Bands show 1 S.D.
+        begin # * Mean power spectrum. Bands show 1 S.D.
             axargs = (; xscale = log10, yscale = log10,
-                      limits = ((3, 300), (10^(-5.5), 1.5)),
+                      limits = ((3, 300), (exp10(-15), exp10(-8.5))),
+                      yticks = (exp10.([-14, -12, -10]),
+                                [
+                                    rich("10", superscript("-14")),
+                                    rich("10", superscript("-12")),
+                                    rich("10", superscript("-10"))
+                                ]),
                       xlabel = "Frequency (Hz)",
                       xgridvisible = true,
                       ygridvisible = true,
@@ -191,7 +197,7 @@ for stimulus in stimuli
                 s = S̄[Structure = At(structure)][𝑓 = 3u"Hz" .. 300u"Hz"]
                 s = s ./ 10^((i - 1.5) / 2.5)
                 yc = only(mean(s[𝑓 = Near(3u"Hz")]))
-                if i == 1
+                if i == 1 && stimulus != r"Natural_Images"
                     plotspectrum!(ax, s; textposition = (3, yc),
                                   color = structurecolors[i], annotations = [:peaks],
                                   label = structure)
@@ -220,9 +226,10 @@ for stimulus in stimuli
             #     end
             # end
 
-            axislegend(ax, position = :rt, nbanks = 3, labelsize = 10, merge = true,
+            axislegend(ax, position = :rt, labelsize = 12, merge = true,
                        backgroundcolor = :white,
-                       framevisible = true, padding = (5, 5, 5, 5))
+                       framevisible = true, padding = (5, 5, 5, 5),
+                       nbanks = 3, patchsize = (15, 15), rowgap = 2)
             f
         end
 
@@ -265,7 +272,7 @@ for stimulus in stimuli
             ax = Axis(f[2, 1:2][1, 2]; #ylabel = "Cortical depth (%)",
                       xlabel = "Normalized 1/𝑓 intercept",
                       limits = ((-2.75, 2.75), (0, 1)), ytickformat = depthticks,
-                      title = "1/𝑓 intercept", yreversed = true)
+                      title = "1/𝑓 intercept", yreversed = true, yticklabelsvisible = false)
             for (i, _b) in b |> enumerate |> collect |> reverse
                 μ, (σl, σh) = bootstrapmedian(_b .+ eps() .* randn(size(_b)),
                                               dims = SessionID)
@@ -527,7 +534,8 @@ for stimulus in stimuli
                       ytickformat = depthticks,
                       xlabel = "Residual γ power (%)",
                       yreversed = true,
-                      title = "Residual γ power") # [$(unit(eltype(S[1][1])))]
+                      title = "Residual γ power",
+                      yticklabelsvisible = false) # [$(unit(eltype(S[1][1])))]
 
             γr = map(structures) do s
                 ss = Sr[Structure = At(s)][Freq(gamma)]
@@ -622,8 +630,9 @@ for stimulus in stimuli
                       xlabel = "Kendall's 𝜏",
                       ytickformat = depthticks,
                       xtickformat,
-                      title = "1/𝑓 hierarchies", limits = ((-0.73, 0.73), (0, 1)),
-                      yreversed = true)
+                      title = "1/𝑓 gradients", limits = ((-0.73, 0.73), (0, 1)),
+                      yreversed = true,
+                      yticklabelsvisible = false)
 
             vlines!(ax, 0; color = :gray, linewidth = 3, linestyle = :dash)
 
@@ -664,8 +673,9 @@ for stimulus in stimuli
             ax = Axis(f[3, 1:2][1, 3]; # ylabel = "Cortical depth (%)",
                       xlabel = "Kendall's 𝜏",
                       ytickformat = depthticks, xtickformat,
-                      title = "Timescale hierarchies", limits = ((-0.73, 0.73), (0, 1)),
-                      yreversed = true)
+                      title = "Timescale gradients", limits = ((-0.73, 0.73), (0, 1)),
+                      yreversed = true,
+                      yticklabelsvisible = false)
 
             vlines!(ax, 0; color = :gray, linewidth = 3)
 

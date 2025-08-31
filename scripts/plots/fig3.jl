@@ -398,7 +398,8 @@ begin # * Wavenumbers
             end
 
             # * Miss
-            ax = Axis(fg[1, 2], yreversed = true, xtickformat = terseticks)
+            ax = Axis(fg[1, 2], yreversed = true, xtickformat = terseticks,
+                      yticklabelsvisible = false)
             ax.limits = ((-0.24, 0.74), ylims)
             ax.title = structure * ": miss"
             # ax.yticklabelsvisible = false
@@ -410,7 +411,8 @@ begin # * Wavenumbers
             end
 
             if structure == mainstructure # * Plot into main figure
-                ax = Axis(mfs[2], yreversed = true, xtickformat = terseticks)
+                ax = Axis(mfs[2], yreversed = true, xtickformat = terseticks,
+                          yticklabelsvisible = false)
                 ax.xlabel = "Time (s)"
                 ax.limits = ((-0.24, 0.74), ylims)
                 ax.title = structure * ": miss"
@@ -427,7 +429,8 @@ begin # * Wavenumbers
         map(plot_data["wavenumbers"]["flashes"], fgs) do data, fg
             @unpack m_flashes, structure, ints = data
 
-            ax = Axis(fg[1, 3], yreversed = true, xtickformat = terseticks)
+            ax = Axis(fg[1, 3], yreversed = true, xtickformat = terseticks,
+                      yticklabelsvisible = false)
             ax.limits = ((-0.24, 0.74), ylims)
             ax.title = structure * ": flashes"
             p = plotlayermap!(ax, m_flashes, ints; arrows = true,
@@ -440,7 +443,7 @@ begin # * Wavenumbers
             if structure == mainstructure
                 colorrange = maincolorrange
                 ax = Axis(mfs[3], yreversed = true, xlabel = "Time (s)",
-                          xtickformat = terseticks)
+                          xtickformat = terseticks, yticklabelsvisible = false)
                 ax.limits = ((-0.24, 0.74), ylims)
                 ax.title = structure * ": flashes"
                 p = plotlayermap!(ax, m_flashes, ints; arrows = true,
@@ -584,7 +587,7 @@ begin # * Order parameters
             end
             l = axislegend(ax, position = :lt, nbanks = 2, framevisible = true,
                            labelsize = 12,
-                           merge = true)
+                           merge = true, patchsize = (20, 15), padding = fill(4, 4))
             reverselegend!(l)
         end
     end
@@ -624,7 +627,7 @@ begin # * Order parameters
             end
             l = axislegend(ax, position = :lt, nbanks = 2, framevisible = true,
                            labelsize = 12,
-                           merge = true)
+                           merge = true, patchsize = (20, 15), padding = fill(4, 4))
             reverselegend!(l)
         end
         begin # * Order parameter correlation to hierarchy
@@ -774,7 +777,7 @@ begin # * Order parameters
             tightlimits!(ax)
             l = axislegend(ax, position = :lt, nbanks = 2, framevisible = true,
                            labelsize = 12,
-                           merge = true)
+                           merge = true, patchsize = (20, 15), padding = fill(4, 4))
             # reverselegend!(l)
         end
     end

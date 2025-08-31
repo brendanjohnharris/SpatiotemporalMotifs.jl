@@ -54,7 +54,6 @@ function send_powerspectra(sessionid, stimulus, structure;
 
         LFP = set(LFP, 𝑡 => 𝑡((times(LFP))u"s"))
         channels = lookup(LFP, Chan)
-        # N = fit(UnitPower, LFP, dims=1) normalize!(LFP, N)
         S = powerspectrum(LFP, 0.1; padding = 10000)
         S = S[Freq(params[:pass][1] * u"Hz" .. params[:pass][2] * u"Hz")]
         depths = AN.getchanneldepths(session, LFP; method = :probe)
@@ -186,7 +185,7 @@ function send_powerspectra(sessionid, stimulus, structure;
             r = set(r, 𝑡 => origts)
             @assert dims(r, 1) isa DimensionalData.TimeDim
             r = ustripall(r) # Remove units, not used from here on
-            N = fit(nansafe(HalfZScore), r; dims = 1) # * Crucial; normalization makes this correlation-like. Dimension 1 is time (check)
+            N = fit(nansafe(HalfZScore), r; dims = 1) # * Crucial; normalization makes this correlation-like. Dimension 1 is time
             normalize!(r, N)
 
             unitdepths[:, :spc] .= NaN

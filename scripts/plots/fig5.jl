@@ -361,7 +361,8 @@ begin # * packet masks and schematic
         function pf!(g, i; compact = false, kwargs...)
             structure, N = Ns[i]
             ts = SpatiotemporalMotifs.INTERVAL
-            ax = Axis(g[1, 1]; title = "Packet likelihood ($structure)", xlabel = "Time (s)",
+            ax = Axis(g[1, 1]; title = "Packet likelihood ($structure)",
+                      xlabel = "Time (s)",
                       yreversed = true,
                       limits = (extrema(ts |> ustripall), (0.05, 0.95)))
 
@@ -454,7 +455,7 @@ begin # * packet masks and schematic
         end
 
         l = axislegend(ax; merge = true, nbanks = 2, position = :lt, framevisible = true,
-                       labelsize = 10)
+                       labelsize = 10, padding = fill(4, 4))
         reverselegend!(l)
     end
 
@@ -623,7 +624,7 @@ begin # * Layer-wise PAC
                      markersize = 10, alpha = 0.8)
         end
         l = axislegend(ax; merge = true, nbanks = 1, position = :rt, framevisible = true,
-                       labelsize = 10)
+                       labelsize = 10, padding = fill(4, 4))
         plotlayerints!(ax, grandlayerints; axis = :y, newticks = false, flipside = false)
         f
     end

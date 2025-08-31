@@ -8,6 +8,38 @@ using Optim
 using IntervalSets
 using USydClusters
 using Preferences
+using Suppressor
+import AllenNeuropixels as AN
+using Statistics
+using StatsBase
+import Images
+using LinearAlgebra
+using Unitful
+using FileIO
+using Clustering
+using CairoMakie
+using DataFrames
+using DimensionalData
+using DrWatson
+using DSP
+using Foresight
+using Normalization
+using JLD2
+using JSON
+using TimeseriesFeatures
+using TimeseriesTools
+using TimeseriesTools.Unitful
+import TimeseriesTools.TimeSeries
+using UnPack
+import Foresight.clip
+import CairoMakie.save
+import DimensionalData: metadata
+using Term
+using Term.Progress
+import AllenNeuropixels: Chan, Unit, Depth, Log𝑓
+using TerminalLoggers, Logging
+global_logger(TerminalLogger(right_justify = 200))
+using ProgressLogging
 
 function _preamble()
     quote
@@ -85,7 +117,6 @@ CLUSTER() = getpref(Bool, "cluster", "SM_CLUSTER", false)
 const INTERVAL = -0.25u"s" .. 0.75u"s"
 const structures = ["VISp", "VISl", "VISrl", "VISal", "VISpm", "VISam"]
 const PTHR = 1e-2
-@preamble
 
 DimensionalData.@dim SessionID ToolsDim "SessionID"
 DimensionalData.@dim Trial ToolsDim "Trial"
