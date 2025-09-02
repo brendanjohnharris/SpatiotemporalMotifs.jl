@@ -584,7 +584,7 @@ begin # * Preferred phases for spontaneous
     @info "Plotting preferred spike phases for spontaneous"
     ax = PolarAxis(sgs[3]; theta_as_x = false, thetalimits = (0, 1.2pi),
                    rticks = 0:0.5:1, rtickformat = depthticks,
-                   title = "Layerwise PPC angle", alignmode = Outside())
+                   title = "Layer-wise PPC angle", alignmode = Outside())
 
     for structure in reverse(structures)
         idxs = unitdepths.structure_acronym .== structure
@@ -649,7 +649,7 @@ begin # * Preferred phases
     @info "Plotting preferred spike phases"
     ax = PolarAxis(gs[3]; theta_as_x = false, thetalimits = (0, 1.2pi),
                    rticks = 0:0.25:1, rtickformat = depthticks,
-                   title = "Layerwise PPC angle")
+                   title = "Layer-wise PPC angle")
 
     for structure in reverse(structures)
         idxs = pspikes.structure_acronym .== structure
@@ -755,7 +755,7 @@ begin
         for (i, structure) in enumerate(structures) # Generate supplementary figure
             subax = PolarAxis(spgs[i]; theta_as_x = false, thetalimits = (0, 2pi),
                               rticks = 0:0.25:1, rtickformat = depthticks,
-                              title = "Layerwise PPC angle", rlimits = (0.0, 0.8))
+                              title = "Layer-wise PPC angle", rlimits = (0.0, 0.8))
             for col in cols
                 idxs = sspikes.structure_acronym .== structure
                 allsesh_sspikes = @views sspikes[idxs, :]
@@ -883,7 +883,11 @@ begin
             end
         end
 
-        axislegend(axs[1]; position = :rt, merge = true, fontsize = 10)
+        axislegend(axs[1];
+                   position = :rt,
+                   merge = true,
+                   fontsize = 10,
+                   patchsize = (15, 10))
         linkyaxes!([axs[1], axs[2]])
         return axs
     end

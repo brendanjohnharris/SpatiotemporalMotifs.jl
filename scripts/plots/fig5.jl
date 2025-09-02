@@ -207,7 +207,7 @@ plot_data, data_file = produce_or_load(config, calcdir("plots");
     end
 
     begin # * Layerwise PAC
-        @info "Calculating layerwise PAC"
+        @info "Calculating layer-wise PAC"
         out = []
         GC.gc()
         Q = Q[stimulus = At(stimulus)]
@@ -598,14 +598,14 @@ begin # * Global and spatiotemporal PAC
 end
 
 begin # * Layer-wise PAC
-    @info "Plotting layerwise PAC"
+    @info "Plotting layer-wise PAC"
     @unpack pacc, peaks = plot_data["layerwise_pac"]
     begin # * Plot layer-wise PAC
         ax = Axis(mgs[4]; ylabel = "Cortical depth (%)",
                   xlabel = "Median PAC",
                   ytickformat = depthticks, xtickformat = terseticks,
                   limits = ((-0.0004, nothing), (0, 1)),
-                  title = "Layerwise θ-γ PAC", yreversed = true)
+                  title = "Layer-wise θ-γ PAC", yreversed = true)
         for (i, p) in enumerate(pacc)
             s = structures[i]
             # p = p ./ sum(p, dims = 1)
@@ -678,7 +678,7 @@ begin # * Layer-wise PAC
         @info "Plotting preferred θ--γ phase"
         ax = PolarAxis(mgs[5]; theta_as_x = false, thetalimits = (-0.1pi, 1.2pi),
                        rticks = 0:0.25:1, rtickformat = depthticks,
-                       title = "Layerwise PAC angle")
+                       title = "Layer-wise PAC angle")
         for (i, p) in enumerate(peaks)
             s = structures[i]
             # p = p ./ sum(p, dims = 1)

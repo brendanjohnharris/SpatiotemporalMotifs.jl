@@ -254,7 +254,7 @@ end
 begin # * Plot classification accuracy
     ax = Axis(gs[2], ylabel = "Balanced accuracy",
               limits = ((0.5, 4.5), (nothing, 1.0)),
-              xticks = ([1.5, 3.5], ["Regional", "Layerwise"]),
+              xticks = ([1.5, 3.5], ["Regional", "Layer-wise"]),
               title = "1/f classification",
               ytickformat = terseticks)
 
