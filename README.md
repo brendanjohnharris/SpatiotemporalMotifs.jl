@@ -31,7 +31,7 @@ All Neuropixels data files will be downloaded to this directory; by default it i
 
 You can choose between:
 1. Reproducing the full set of calculations and analyses, by running the code on a high-performance computing cluster. You will need to adapt the scripts to use the cluster manager of your favorite supercomputer. This option is described in [step 1](#1.-performing-calculations) below.
-2. Downloading the full precomputed dataset from [[figshare]] and running final analyses yourself; go to [step 2](#2.-final-analyses). This option requires a desktop with a modest amount of RAM (>32 GB), and will still take around a day to complete.
+2. Downloading the full precomputed dataset from the Science Data Bank and running final analyses yourself; go to [step 2](#2.-final-analyses). This option requires a desktop with a modest amount of RAM (>32 GB), and will still take around a day to complete.
 3. Re-plotting figures using a precomputed, reduced dataset; go to [step 3](#3.-replotting-all-results). This option can be done on a local laptop machine, or online via the CodeOcean capsule.
 
 
@@ -103,7 +103,7 @@ This script aligns the collected session-specific calculations for each structur
 
 ### 2. Final analyses
 The following scripts take the calculated data from [step 1](#1.-performing-calculations), perform statistical analyses, save to a reduced plot dataset (`data/plots/`), then generate generate figures (saved to `plots/`).
-The resulting plot data and figure files can be found on Figshare.
+The resulting plot data and figure files can be found on [Figshare](https://doi.org/10.6084/m9.figshare.29928659).
 
 #### Fig. 1: Schematics
 
