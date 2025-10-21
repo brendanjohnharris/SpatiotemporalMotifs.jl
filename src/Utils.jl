@@ -1271,14 +1271,14 @@ end
 function causal(x::AbstractArray, fs::A,
                 pass::AbstractVector{B};
                 designmethod = DSP.Butterworth(8)) where {A <: Real, B <: Real}
-    f = x -> DSP.filt(digitalfilter(DSP.causal(pass...; fs), designmethod), x)
+    f = x -> DSP.filt(digitalfilter(DSP.Bandpass(pass...; fs), designmethod), x)
     mapslices(f, x; dims = 1)
 end
 function causal(x::AbstractArray, fs::A,
                 pass::AbstractVector{B};
                 designmethod = DSP.Butterworth(8)) where {A <: Quantity, B <: Quantity}
-    f = x -> DSP.filt(digitalfilter(DSP.causal(ustripall.(pass)...;
-                                               fs = ustripall(fs)),
+    f = x -> DSP.filt(digitalfilter(DSP.Bandpass(ustripall.(pass)...;
+                                                 fs = ustripall(fs)),
                                     designmethod), ustripall.(x)) * unit(eltype(x))
     mapslices(f, x; dims = 1)
 end
