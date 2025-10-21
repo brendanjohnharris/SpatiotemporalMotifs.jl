@@ -54,7 +54,7 @@ plot_data, data_file = produce_or_load(config, calcdir("plots");
 
                 P = map(out_structure) do out_session
                     V = out_session[:V] |> ustripall
-                    V = bandpass(V, pronyband) # Reduce high-frequency noise
+                    V = bandpass_filter(V, pronyband) # Reduce high-frequency noise
                     V = V[𝑡 = interval]
                     V = V[1:2:end, :, :] # Downsample for speed
                     V = ZScore(V, dims = 1)(V)

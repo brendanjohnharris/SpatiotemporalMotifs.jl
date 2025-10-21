@@ -428,7 +428,7 @@ begin # ? Figure 1: C--G
                    decompose(x[ΔT][:, d] .- minimum(x[ΔT][:, d]) .- 0.5 |> ustripall)...,
                    color = (crimson, 0.8),
                    label = L"\theta", linewidth = 3)
-            # lines!(ax, bandpass(V |> ustripall, 15 .. 30)[ustripall(T), d ] .- 0.1) # harmonic
+            # lines!(ax, bandpass_filter(V |> ustripall, 15 .. 30)[ustripall(T), d ] .- 0.1) # harmonic
             lines!(ax,
                    decompose(r[ΔT][:, d] .* 2 .- minimum(V[ΔT][:, d]) .+
                              minimum(x[ΔT][:, d]) .-

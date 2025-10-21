@@ -136,7 +136,7 @@ function send_powerspectra(sessionid, stimulus, structure;
             LFP = set(LFP, Chan => Depth(depths))
             origts = deepcopy(times(LFP))
             LFP = rectify(LFP; dims = Depth)
-            θ = bandpass(LFP, SpatiotemporalMotifs.THETA() .* u"Hz")
+            θ = bandpass_filter(LFP, SpatiotemporalMotifs.THETA() .* u"Hz")
             ϕ = analyticphase(θ)
             ω = centralderiv(ϕ, dims = 𝑡, grad = phasegrad) .< 0u"Hz" # Mask negative freqs
 
@@ -172,7 +172,7 @@ function send_powerspectra(sessionid, stimulus, structure;
             units = units[units.ecephys_unit_id .∈ [keys(spiketimes)], :]
             unitdepths = unitdepths[unitdepths.ecephys_unit_id .∈ [units.id], :]
 
-            γ = bandpass(LFP, SpatiotemporalMotifs.GAMMA() .* u"Hz")
+            γ = bandpass_filter(LFP, SpatiotemporalMotifs.GAMMA() .* u"Hz")
             r = abs.(hilbert(γ))
             r[ω] .= NaN * unit(eltype(r))
             ϕ[ω] .= NaN * unit(eltype(ϕ))
@@ -345,10 +345,10 @@ function compute_csd(LFP, stimulustimes)
 end
 
 function aligned_calculations(LFP; pass_θ, pass_γ, ΔT, doupsample, stimulustimes)
-    θ = bandpass(LFP, pass_θ)
+    θ = bandpass_filter(LFP, pass_θ)
     doupsample > 0 && (θ = upsample(θ, doupsample, Depth))
 
-    γ = bandpass(LFP, pass_γ)
+    γ = bandpass_filter(LFP, pass_γ)
     doupsample > 0 && (γ = upsample(γ, doupsample, Depth))
 
     a = hilbert(θ)

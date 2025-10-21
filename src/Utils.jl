@@ -97,6 +97,9 @@ function _DIR()
     if (first(GAMMA()) != 30) || (last(GAMMA()) != 100)
         dir *= "&gamma=$(GAMMA())"
     end
+    if CAUSAL_FILTER()
+        dir *= "&causal_filter=true"
+    end
     return dir
 end
 
@@ -114,6 +117,7 @@ end
 THETA() = getpref(NTuple{2, Number}, "theta", "SM_THETA", (3, 10))
 GAMMA() = getpref(NTuple{2, Number}, "gamma", "SM_GAMMA", (30, 100))
 CLUSTER() = getpref(Bool, "cluster", "SM_CLUSTER", false)
+CAUSAL_FILTER() = getpref(Bool, "causal_filter", "SM_CAUSAL_FILTER", false)
 const INTERVAL = -0.25u"s" .. 0.75u"s"
 const structures = ["VISp", "VISl", "VISrl", "VISal", "VISpm", "VISam"]
 const PTHR = 1e-2
@@ -336,27 +340,11 @@ end
 function submit_calculations(exprs; queue = ``, mem = 50, ncpus = 8, walltime = 8)
     exprs = deepcopy(exprs)
     if length(exprs) > 2
-        N4 = (length(exprs) ÷ 3)
         shuffle!(exprs) # ? Shuffle so restarted calcs are more even
-        if isempty(queue)
-            USydClusters.Physics.runscripts(exprs[1:N3]; ncpus, mem,
-                                            walltime,
-                                            project = projectdir(), exeflags = `+1.10.10`,
-                                            queue = `h100`)
-            USydClusters.Physics.runscripts(exprs[(N3 + 1):(N3 * 2)]; ncpus, mem,
-                                            walltime,
-                                            project = projectdir(), exeflags = `+1.10.10`,
-                                            queue = `l40s`)
-            USydClusters.Physics.runscripts(exprs[(2 * N3 + 1):end]; ncpus, mem,
-                                            walltime,
-                                            project = projectdir(), exeflags = `+1.10.10`,
-                                            queue = `taiji`)
-        else
-            USydClusters.Physics.runscripts(exprs; ncpus, mem,
-                                            walltime,
-                                            project = projectdir(), exeflags = `+1.10.10`,
-                                            queue = queue)
-        end
+        USydClusters.Physics.runscripts(exprs; ncpus, mem,
+                                        walltime,
+                                        project = projectdir(), exeflags = `+1.10.10`,
+                                        queue = queue)
     else
         USydClusters.Physics.runscript.(exprs; ncpus, mem,
                                         walltime,
@@ -1278,3 +1266,47 @@ function errors(P::Prony{<:Real}, x, args...)
         sqrt(mean(abs2, y - x))
     end |> vec
 end
+
+# ? Option to use a causal filter
+function causal(x::AbstractArray, fs::A,
+                pass::AbstractVector{B};
+                designmethod = DSP.Butterworth(8)) where {A <: Real, B <: Real}
+    f = x -> DSP.filt(digitalfilter(DSP.causal(pass...; fs), designmethod), x)
+    mapslices(f, x; dims = 1)
+end
+function causal(x::AbstractArray, fs::A,
+                pass::AbstractVector{B};
+                designmethod = DSP.Butterworth(8)) where {A <: Quantity, B <: Quantity}
+    f = x -> DSP.filt(digitalfilter(DSP.causal(ustripall.(pass)...;
+                                               fs = ustripall(fs)),
+                                    designmethod), ustripall.(x)) * unit(eltype(x))
+    mapslices(f, x; dims = 1)
+end
+
+function causal(x::AbstractDimArray, fs::A,
+                pass::AbstractVector{B};
+                kwargs...) where {A <: Quantity, B <: Quantity}
+    set(x, causal(x.data, fs, pass; kwargs...))
+end
+function causal(x::AbstractDimArray, fs::A,
+                pass::AbstractVector{B}; kwargs...) where {A <: Real, B <: Real}
+    set(x, causal(x.data, fs, pass; kwargs...))
+end
+
+function causal(x::RegularTimeSeries, pass::AbstractVector; kwargs...)
+    causal(x, samplingrate(x), pass; kwargs...)
+end
+
+causal(x, pass::NTuple{2}) = causal(x, collect(pass))
+causal(x, fs, pass::NTuple{2}) = causal(x, fs, collect(pass))
+causal(x, pass::AbstractInterval) = causal(x, extrema(pass))
+causal(x, fs, pass::AbstractInterval) = causal(x, fs, extrema(pass))
+
+function bandpass_filter(args...; kwargs...)
+    if CAUSAL_FILTER()
+        return causal(args...; kwargs...)
+    else
+        return bandpass(args...; kwargs...)
+    end
+end
+export bandpass_filter

@@ -59,7 +59,7 @@ end
         end
         LFP = matchdim(LFP; dims = Ti)
         LFP = cat(LFP..., dims = Dim{:channel})
-        LFP = bandpass(LFP, 4 .. 10)
+        LFP = bandpass_filter(LFP, 4 .. 10)
         LFP = normalize(LFP, MinMax; dims = 1) .* 1.5
         LFP = LFP[1:5:end, :]
     end
