@@ -4,7 +4,7 @@
 
 Julia code for reproducing the results of _Nested spatiotemporal theta-gamma waves organize hierarchical visual processing_.
 
-## Guide
+## Quick start
 
 Installation should be straightforward:
 ```julia
@@ -27,7 +27,14 @@ AN.setdatadir("/path/to/my/data/")
 ```
 All Neuropixels data files will be downloaded to this directory; by default it is a Julia scratchspace.
 
-#### Reproduce calculations or just figures?
+##### Overview figure
+
+[`fig1.jl`](scripts/plots/fig1.jl) generates the first figure of the manuscript, loading data across six visual areas from a single trial for: raw, $\theta$-filtered, and $\gamma$-filtered LFP; $\theta$ phases, wavenumbers, instantaneous frequencies, and phase velocities; $\gamma$ amplitudes; and spike times.
+
+You will first need to download the `plots` data folder from [Figshare](https://doi.org/10.6084/m9.figshare.29928659), placing it the `data` directory of the project root folder.
+
+
+## Guide to reproducing results
 
 You can choose between:
 1. Reproducing the full set of calculations and analyses, by running the code on a high-performance computing cluster. You will need to adapt the scripts to use the cluster manager of your favorite supercomputer. This option is described in [step 1](#1.-performing-calculations) below.

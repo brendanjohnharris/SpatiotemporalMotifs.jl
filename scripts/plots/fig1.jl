@@ -190,11 +190,6 @@ begin # ? Figure 1A
                 ixs = .!isnothing.(xs) .& .!isnothing.(ys)
                 xs, ys = xs[ixs], ys[ixs]
                 xx = Point3f.(zip(ux, uy, x[xs, ys]))
-                # yy = [pop!(xx)]
-                # while !isempty(xx)
-                #     idx = findmin([norm(yy[end] .- x) for x in xx]), 1
-                #     push!(yy, popat!(xx, idx))
-                # end
                 lines!(ax, xx; linewidth = 4, alpha = 0.2,
                        color = getindex.([cmat], xs, ys))#, color = :crimson)
             end
@@ -294,14 +289,11 @@ begin # ? Figure 1: C--G
         begin # * Set up figure layout
             f = Figure(size = (720, 360) .* 1.25)
 
-            # g2 = subdivide(f[1, 1:3], 1, 2) # * Middle row
             g3 = GridLayout(f[1:2, 1]) # * Bottom left
             g4 = subdivide(f[1:2, 2], 2, 1) # * Bottom center
             g5 = subdivide(f[1:2, 3], 2, 1) # * Bottom right
 
             rowsize!(g3, 1, Relative(0.4))
-            # rowsize!(f.layout, 1, Relative(0.35))
-            # rowsize!(f.layout, 2, Relative(0.35))
         end
 
         begin # * Heatmaps
@@ -313,25 +305,6 @@ begin # ? Figure 1: C--G
             vp = plotlayermap!(vax, V, layernames; colormap = lfpcolormap,
                                colorrange = extrema(V)) |> first
             Colorbar(g3[1, 2], vp)
-
-            # vax2 = Axis(gls[2, 1][1, 1], yreversed = true, title = "$structure LFP (mV)",
-            #             xticks = [0.0, 0.125, 0.25])
-            # vp2 = plotlayermap!(vax2, V[δT], layernames; colormap = :bone,
-            #                     colorrange = extrema(V)) |> first
-            # Colorbar(gls[2, 1][1, 2], vp2)
-
-            # * Theta and Gamma
-            # xax = Axis(gls[1, 2][1, 1], title = "θ LFP (mV)", yreversed = true,
-            #            xticks = [-0.25, 0.0, 0.25, 0.5])
-            # xp = plotlayermap!(xax, x, layernames; colormap = lfpcolormap,
-            #                    colorrange = symextrema(x)) |> first
-            # Colorbar(gls[1, 2][1, 2], xp)
-
-            # yax = Axis(gls[2, 2][1, 1], title = "γ LFP (mV)", yreversed = true,
-            #            xticks = [0.0, 0.125, 0.25])
-            # yp = plotlayermap!(yax, y[δT], layernames; colormap = lfpcolormap,
-            #                    colorrange = symextrema(y)) |> first
-            # Colorbar(gls[2, 2][1, 2], yp)
 
             # * Phase and amplitude maps
             phax = Axis(g4[1][1, 1], title = "θ phase (radians)", yreversed = true,
@@ -364,15 +337,8 @@ begin # ? Figure 1: C--G
                                highclip = :cornflowerblue, lowclip = :crimson) |>
                  first
             plotlayermap!(kax, ustripall(ω) .< 0; colormap = cgrad([:transparent, :white]))
-            # plotlayermap!(kax, ustripall(ω) .< 0; colormap = cgrad([:transparent, :white]))
             Colorbar(g5[1][1, 2], kp)
 
-            # hideydecorations!(xax)
-            # hideydecorations!(vax2)
-            # hideydecorations!(yax)
-            # hideydecorations!(phax)
-            # hideydecorations!(rax)
-            # hideydecorations!(kax)
 
             vax.yticksvisible = phax.yticksvisible = kax.yticksvisible = false
 
@@ -391,12 +357,7 @@ begin # ? Figure 1: C--G
             pp = plotlayermap!(ax, ustripall(ϕ), layernames;
                                colormap = phasecolormap,
                                colorrange = (-pi, pi), domain = -π .. π) |> first
-            # for i in eachindex(spikes)
-            #     depth = lookup(spikes, Depth)[i]
-            #     depth = fill(depth, length(spikes[i]))
-            #     scatter!(ax, spikes[i], depth, color = :white,
-            #              markersize = 5)
-            # end
+
             contour!(ax, ustripall(mask[𝑡 = δT][Depth = 0.05 .. 0.95]); levels = [0.5],
                      color = (cucumber, 1),
                      linewidth = 2)
@@ -410,8 +371,6 @@ begin # ? Figure 1: C--G
                          strokewidth = 1, strokecolor = :white)
             end
             Colorbar(g5[2][1, 2], pp; ticks = ([-pi, 0, pi], ["-𝜋", "0", "𝜋"]))
-            # ax.limits = (extrema(ustripall(δT.val)), extrema(lookup(r̂, 2)))
-            # hideydecorations!(ax)
             f
         end
 
@@ -428,7 +387,6 @@ begin # ? Figure 1: C--G
                    decompose(x[ΔT][:, d] .- minimum(x[ΔT][:, d]) .- 0.5 |> ustripall)...,
                    color = (crimson, 0.8),
                    label = L"\theta", linewidth = 3)
-            # lines!(ax, bandpass_filter(V |> ustripall, 15 .. 30)[ustripall(T), d ] .- 0.1) # harmonic
             lines!(ax,
                    decompose(r[ΔT][:, d] .* 2 .- minimum(V[ΔT][:, d]) .+
                              minimum(x[ΔT][:, d]) .-
@@ -454,15 +412,6 @@ begin # ? Figure 1: C--G
         end
 
         begin # * Save figure
-            # for i in 1:(length(gls) - 1)
-            #     try
-            #         colgap!(gls[i], 1, Relative(0.02))
-            #     catch e
-            #     end
-            # end
-            # rowgap!(f.layout, 1, Relative(0.1))
-            # rowsize!(f.layout, 1, Relative(0.3))
-            # colgap!(f.layout, 1, Relative(0.1))
             addlabels!(f, labelformat)
 
             wsave(plotdir("fig1", "single_trial_schematic_$structure.pdf"), f)
