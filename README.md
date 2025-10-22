@@ -6,11 +6,15 @@ Julia code for reproducing the results of _Nested spatiotemporal theta-gamma wav
 
 ## Quick start
 
-Installation should be straightforward:
+Installation should be straightforward.
+First, ensure that Julia is installed via [`juliaup`](https://github.com/JuliaLang/juliaup), and add the v1.10.10 (current LTS) channel.
+Start Julia with `julia +1.10.10`, and run:
 ```julia
+using Pkg
+Pkg.activate()
+Pkg.add("DrWatson") # Adds DrWatson to the global environment
 run(`git clone https://github.com/brendanjohnharris/SpatiotemporalMotifs.jl`)
 cd("SpatiotemporalMotifs.jl")
-using Pkg
 Pkg.activate(".")
 Pkg.instantiate()
 ```
@@ -29,9 +33,25 @@ All Neuropixels data files will be downloaded to this directory; by default it i
 
 ##### Overview figure
 
-[`fig1.jl`](scripts/plots/fig1.jl) generates the first figure of the manuscript, loading data across six visual areas from a single trial for: raw, $\theta$-filtered, and $\gamma$-filtered LFP; $\theta$ phases, wavenumbers, instantaneous frequencies, and phase velocities; $\gamma$ amplitudes; and spike times.
-
 You will first need to download the `plots` data folder from [Figshare](https://doi.org/10.6084/m9.figshare.29928659), placing it the `data` directory of the project root folder.
+
+Then, run [`fig1.jl`](scripts/plots/fig1.jl) from either the Julia REPL:
+```julia
+include("scripts/plots/fig1.jl")
+```
+or from the command line:
+```bash
+julia +1.10.10 -t auto scripts/plots/fig1.jl
+```
+or as a bash script:
+```bash
+chmod u+x scripts/*
+./scripts/plots/fig1.jl
+```
+
+This script generates the first figure of the manuscript, loading data across six visual areas from a single trial for: raw, $\theta$-filtered, and $\gamma$-filtered LFP; $\theta$ phases, wavenumbers, instantaneous frequencies, and phase velocities; $\gamma$ amplitudes; and spike times.
+You can inspect these loaded data to understand the types of results produced in this work, and the DimensionalData format used throughout the project.
+If the plot files for Figure 1 are correctly saved to the `plots/fig1` directory, the project has been installed correctly and you can proceed to the following steps for reproducing all results.
 
 
 ## Guide to reproducing results
@@ -40,31 +60,6 @@ You can choose between:
 1. Reproducing the full set of calculations and analyses, by running the code on a high-performance computing cluster. You will need to adapt the scripts to use the cluster manager of your favorite supercomputer. This option is described in [step 1](#1.-performing-calculations) below.
 2. Downloading the full precomputed dataset from the Science Data Bank and running final analyses yourself; go to [step 2](#2.-final-analyses). This option requires a desktop with a modest amount of RAM (>32 GB), and will still take around a day to complete.
 3. Re-plotting figures using a precomputed, reduced dataset; go to [step 3](#3.-replotting-all-results). This option can be done on a local laptop machine, or online via the CodeOcean capsule.
-
-
-#### Key dependencies
-
-This project depends crucially on the dependencies highlighted below. A full list of dependencies can be found in `Project.toml`, with exact versions in the `Manifest.toml`.
-
-##### [AllenNeuropixels.jl](https://github.com/brendanjohnharris/AllenNeuropixels.jl)
-
-For accessing and processing the 'Allen Neuropixels---Visual Behavior' dataset.
-See also [AllenNeuropixelsBase.jl](https://github.com/brendanjohnharris/AllenNeuropixelsBase.jl) and [AllenSDK.jl](https://github.com/brendanjohnharris/AllenSDK.jl) for component functionalities.
-
-##### [TimeseriesTools](https://github.com/brendanjohnharris/TimeseriesTools.jl)
-
-For power spectra and wave-based analyses, as well as general time-series manipulation.
-
-##### [Makie](https://github.com/MakieOrg/Makie.jl) and [Foresight](https://github.com/brendanjohnharris/Foresight.jl)
-
-For figures and visualization. `Makie` is a powerful graphics package, and the 'physics' theme from `Foresight` was used for all figures.
-
-##### [Dr Watson](https://github.com/JuliaDynamics/DrWatson.jl)
-
-For project standardization and reproducibility.
-
-> [!NOTE]
-> This project uses a mix of multithreading, local process-based parallelism (via `Distributed.jl`), and distributed computing (via `USydClusters.jl`). Threading and process-based parallelism are enabled by default, provided Julia is started with multiple threads. Process-based parallelism is disabled by default, unless you set `ENV["SM_CLUSTER"]=true`, in which case all calls to `USydClusters.Physics.addprocs()` should be substituted with a similar method for your cluster manager.
 
 
 ### 1. Performing calculations
@@ -154,3 +149,28 @@ set_preferences!(SpatiotemporalMotifs, "theta" => "(3, 10)", force=true) # Theta
 set_preferences!(SpatiotemporalMotifs, "gamma" => "(30, 100)", force=true) # Gamma band, in Hz
 set_preferences!(SpatiotemporalMotifs, "causal_filter" => "false", force=true) # Causal filter
 ```
+
+
+## Key dependencies
+
+This project depends crucially on the dependencies highlighted below. A full list of dependencies can be found in `Project.toml`, with exact versions in the `Manifest.toml`.
+
+##### [AllenNeuropixels.jl](https://github.com/brendanjohnharris/AllenNeuropixels.jl)
+
+For accessing and processing the 'Allen Neuropixels---Visual Behavior' dataset.
+See also [AllenNeuropixelsBase.jl](https://github.com/brendanjohnharris/AllenNeuropixelsBase.jl) and [AllenSDK.jl](https://github.com/brendanjohnharris/AllenSDK.jl) for component functionalities.
+
+##### [TimeseriesTools](https://github.com/brendanjohnharris/TimeseriesTools.jl)
+
+For power spectra and wave-based analyses, as well as general time-series manipulation.
+
+##### [Makie](https://github.com/MakieOrg/Makie.jl) and [Foresight](https://github.com/brendanjohnharris/Foresight.jl)
+
+For figures and visualization. `Makie` is a powerful graphics package, and the 'physics' theme from `Foresight` was used for all figures.
+
+##### [Dr Watson](https://github.com/JuliaDynamics/DrWatson.jl)
+
+For project standardization and reproducibility.
+
+> [!NOTE]
+> This project uses a mix of multithreading, local process-based parallelism (via `Distributed.jl`), and distributed computing (via `USydClusters.jl`). Threading and process-based parallelism are enabled by default, provided Julia is started with multiple threads. Process-based parallelism is disabled by default, unless you set `ENV["SM_CLUSTER"]=true`, in which case all calls to `USydClusters.Physics.addprocs()` should be substituted with a similar method for your cluster manager.
