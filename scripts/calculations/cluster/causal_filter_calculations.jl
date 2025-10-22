@@ -24,11 +24,11 @@ mkpath(outpath)
 if haskey(ENV, "SM_CLUSTER") # ? Should take a night or so
     exprs = map(oursessions) do sessionid
         expr = quote
-            ENV["SM_THETA"] = $(SM.THETA())
+            ENV["SM_CAUSAL_FILTER"] = $(SM.CAUSAL_FILTER())
             using Pkg
             Pkg.instantiate()
-            import SpatiotemporalMotifs: send_calculations, THETA
-            @info "Running calculations with THETA = $(THETA())"
+            import SpatiotemporalMotifs: send_calculations, CAUSAL_FILTER
+            @info "Running calculations with CAUSAL_FILTER = $(CAUSAL_FILTER())"
             send_calculations($sessionid; outpath = $outpath, rewrite = $rewrite)
         end
     end

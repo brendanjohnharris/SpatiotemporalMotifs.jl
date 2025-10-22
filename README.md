@@ -56,7 +56,8 @@ For figures and visualization. `Makie` is a powerful graphics package, and the '
 
 For project standardization and reproducibility.
 
-
+> [!NOTE]
+> This project uses a mix of multithreading, local process-based parallelism (via `Distributed.jl`), and distributed computing (via `USydClusters.jl`). Threading and process-based parallelism are enabled by default, provided Julia is started with multiple threads. Process-based parallelism is disabled by default, unless you set `ENV["SM_CLUSTER"]=true`, in which case all calls to `USydClusters.Physics.addprocs()` should be substituted with a similar method for your cluster manager.
 
 
 ### 1. Performing calculations
@@ -134,6 +135,8 @@ The script will take about 2 hours to run without pre-computed `fooof.jld` files
 If you have downloaded the plot data from [Figshare](https://doi.org/10.6084/m9.figshare.29928659), and placed the `data` directory in the project root folder, you can replot all figures by running the [`produce_figures.jl`](produce_figures) shell script.
 This file simply runs all of the plot scripts in the order listed in [step 2](#2.-final-analyses) and saves the results to `plots/`, taking around an hour. Ensure that you have properly instantiated this project via the Julia REPL before running this script.
 
+> [!NOTE]
+> Random seeds are set at the beginning of plotting scripts, where relevant, as e.g. `Random.seed!(42)`.
 
 ## Project configuration
 You can configure this project by setting the following environment variables, either in your shell startup script (`SM_THETA`,`SM_GAMMA`,`SM_CAUSAL_FILTER`) or with the `Preferences` package.
