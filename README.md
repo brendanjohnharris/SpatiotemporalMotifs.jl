@@ -31,7 +31,7 @@ AN.setdatadir("/path/to/my/data/")
 ```
 All Neuropixels data files will be downloaded to this directory; by default it is a Julia scratchspace.
 
-##### Overview figure
+#### Overview figure
 
 You will first need to download the `plots` data folder from [Figshare](https://doi.org/10.6084/m9.figshare.29928659), placing it the `data` directory of the project root folder.
 
@@ -72,6 +72,9 @@ Broadly, the `scripts` in `scripts/calculations` will produce data required for 
 In this section we walk through the order in which `scripts/calculations/*` should be run, dealing with `scripts/plots` in [Section 2](#2.-plotting-results).
 Each script can be run as `julia +1.10.10 -t auto <path to script>` or, on Linux, `chmod u+x <path to script>` followed by executing `<path to script>`; ensure you have added the v1.10.10 (current LTS) channel to your [`juliaup`](https://github.com/JuliaLang/juliaup) installation.
 Please hover over the header links to see the file name for each script.
+
+> [!NOTE]
+> This project uses a mix of multithreading, local process-based parallelism (via `Distributed.jl`), and distributed computing (via `USydClusters.jl`). Threading and process-based parallelism are enabled by default, provided Julia is started with multiple threads. Process-based parallelism is disabled by default, unless you set `ENV["SM_CLUSTER"]=true`, in which case all calls to `USydClusters.Physics.addprocs()` should be substituted with a similar method for your cluster manager.
 
 #### [Selecting sessions](scripts/calculations/session_selection.jl)
 
@@ -130,11 +133,11 @@ The script will take about 2 hours to run without pre-computed `fooof.jld` files
 [`fig5.jl`](scripts/plots/fig5.jl) plots gamma burst width and theta--gamma phase-amplitude coupling, as well as supplemental comodulagrams (Fig. S9) and spatiotemporal theta--gamma coupling heatmaps (Fig. S10).
 
 #### Fig. 6: Spike-LFP coupling
-[`fig6.jl`](scripts/plots/fig6.jl) plots spike--phase coupling for theta, spike--amplitude coupling for gamma, and preferred spike--theta phase during the task period, as well as preffered phase and firing rate differences between hit and miss trials. This script also produces a spike-LFP coupling figure for the spontaneous condition (Fig. S11), and firing-rate time courses for all visual areas (Fig. S12).
+[`fig6.jl`](scripts/plots/fig6.jl) plots spike--phase coupling for theta, spike--amplitude coupling for gamma, and preferred spike--theta phase during the task period, as well as preferred phase and firing rate differences between hit and miss trials. This script also produces a spike-LFP coupling figure for the spontaneous condition (Fig. S11), and firing-rate time courses for all visual areas (Fig. S12).
 
 ### 3. Replotting all results
 
-If you have downloaded the plot data from [Figshare](https://doi.org/10.6084/m9.figshare.29928659), and placed the `data` directory in the project root folder, you can replot all figures by running the [`produce_figures.jl`](produce_figures) shell script.
+If you have downloaded the plot data from [Figshare](https://doi.org/10.6084/m9.figshare.29928659), and placed the `data` directory in the project root folder, you can replot all figures by running the [`produce_figures`](produce_figures) shell script.
 This file simply runs all of the plot scripts in the order listed in [step 2](#2.-final-analyses) and saves the results to `plots/`, taking around an hour. Ensure that you have properly instantiated this project via the Julia REPL before running this script.
 
 > [!NOTE]
@@ -142,7 +145,7 @@ This file simply runs all of the plot scripts in the order listed in [step 2](#2
 
 ## Project configuration
 You can configure this project by setting the following environment variables, either in your shell startup script (`SM_THETA`,`SM_GAMMA`,`SM_CAUSAL_FILTER`) or with the `Preferences` package.
-By changed the following default values and running [`fig3.jl`](scripts/plots/fig3.jl) and [`fig4.jl`](scripts/plots/fig4.jl), you can produce theta propagation figures for 3--5 Hz and 6--10 Hz bands (Fig. S13. and Fig. S14), or for a causal filter (Fig. S15).
+By changing the following default values and running [`fig3.jl`](scripts/plots/fig3.jl) and [`fig4.jl`](scripts/plots/fig4.jl), you can produce theta propagation figures for 3--5 Hz and 6--10 Hz bands (Fig. S13. and Fig. S14), or for a causal filter (Fig. S15).
 ```julia
 using Preferences, SpatiotemporalMotifs
 set_preferences!(SpatiotemporalMotifs, "theta" => "(3, 10)", force=true) # Theta band, in Hz
@@ -171,6 +174,3 @@ For figures and visualization. `Makie` is a powerful graphics package, and the '
 ##### [Dr Watson](https://github.com/JuliaDynamics/DrWatson.jl)
 
 For project standardization and reproducibility.
-
-> [!NOTE]
-> This project uses a mix of multithreading, local process-based parallelism (via `Distributed.jl`), and distributed computing (via `USydClusters.jl`). Threading and process-based parallelism are enabled by default, provided Julia is started with multiple threads. Process-based parallelism is disabled by default, unless you set `ENV["SM_CLUSTER"]=true`, in which case all calls to `USydClusters.Physics.addprocs()` should be substituted with a similar method for your cluster manager.
