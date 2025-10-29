@@ -1310,3 +1310,28 @@ function bandpass_filter(args...; kwargs...)
     end
 end
 export bandpass_filter
+
+"""
+    rank_biserial(test::HypothesisTests.SignedRankTest)
+
+Calculate the rank biserial correlation effect size from a Wilcoxon signed-rank test.
+
+The rank biserial correlation ranges from -1 to 1, where:
+- r = 1: all positive ranks (maximum positive effect)
+- r = 0: no effect (ranks equally distributed)
+- r = -1: all negative ranks (maximum negative effect)
+
+# Arguments
+- `test`: A SignedRankTest object from HypothesisTests.jl
+
+# Returns
+- `r`: The rank biserial correlation coefficient
+"""
+function rank_biserial(test::Union{HypothesisTests.ApproximateSignedRankTest,
+                                   HypothesisTests.ExactSignedRankTest})
+    W_stat = test.W
+    nz = length(test.ranks)
+    r = (4 * W_stat) / (nz * (nz + 1)) - 1
+
+    return r
+end

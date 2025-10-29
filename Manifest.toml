@@ -2507,7 +2507,7 @@ version = "0.1.0"
 
 [[deps.USydClusters]]
 deps = ["Dates", "Distributed", "Preferences"]
-git-tree-sha1 = "dfb04a9f074943cdb047c54d868b30c54806a9db"
+git-tree-sha1 = "7a48c3188291936df77f786d950f26476fccb13f"
 repo-rev = "main"
 repo-url = "https://github.com/brendanjohnharris/UsydClusters.jl"
 uuid = "0d53aa51-fded-4285-958f-a79747f7b7b4"

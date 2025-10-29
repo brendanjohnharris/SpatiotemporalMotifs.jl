@@ -18,7 +18,7 @@ set_theme!(foresight(:physics))
 Random.seed!(42)
 
 begin
-    stimulus = r"Natural_Images"
+    stimulus = "flash_250ms" # r"Natural_Images"
     vars = [:ϕ, :ω]
 end
 
@@ -209,8 +209,9 @@ plot_data, data_file = produce_or_load(Dict(), calcdir("plots");
                        eachslice(super_sur, dims = (1, 2))) do x, y
                 idxs = (.!isnan.(x)) .& (.!isnan.(y))
                 # 𝑝 = pvalue(HypothesisTests.MannWhitneyUTest(x[idxs], y[idxs]))
-                𝑝 = pvalue(HypothesisTests.SignedRankTest(Float64.(x[idxs]),
-                                                          Float64.(y[idxs])))
+                _x = Float64.(x[idxs]) |> collect
+                _y = Float64.(y[idxs]) |> collect
+                𝑝 = pvalue(HypothesisTests.SignedRankTest(_x, _y))
             end
         end
 
@@ -226,8 +227,9 @@ plot_data, data_file = produce_or_load(Dict(), calcdir("plots");
                        eachslice(super_sur, dims = (1, 2))) do x, y
                 idxs = (.!isnan.(x)) .& (.!isnan.(y))
                 # 𝑝 = pvalue(HypothesisTests.MannWhitneyUTest(x[idxs], y[idxs]))
-                𝑝 = pvalue(HypothesisTests.SignedRankTest(Float64.(x[idxs]),
-                                                          Float64.(y[idxs])))
+                _x = Float64.(x[idxs]) |> collect
+                _y = Float64.(y[idxs]) |> collect
+                𝑝 = pvalue(HypothesisTests.SignedRankTest(_x, _y))
             end
         end
     end
@@ -314,7 +316,7 @@ begin # * Plots
         H = log10.(H)
         p, _ = plotlayermap!(ax, ∂h̄[𝑡(SpatiotemporalMotifs.INTERVAL)] |> ustripall,
                              colormap = binarysunset,
-                             colorrange = symextrema(∂h̄))
+                             colorrange = (-1.0, 1.0))
         contour!(ax, H[𝑡(SpatiotemporalMotifs.INTERVAL)] |> ustripall,
                  colormap = levelmap, levels = plevels, linewidth = 1.5,
                  linestyle = :dash, colorrange = prange)
@@ -345,7 +347,7 @@ begin # * Plots
         H = log10.(H)
         p, _ = plotlayermap!(ax, ∂f̄[𝑡(SpatiotemporalMotifs.INTERVAL)] |> ustripall,
                              colormap = binarysunset,
-                             colorrange = symextrema(∂f̄))
+                             colorrange = (-0.5, 0.5))
         contour!(ax, H[𝑡(SpatiotemporalMotifs.INTERVAL)] |> ustripall,
                  colormap = levelmap, levels = [0, plevels...], linewidth = 1.5,
                  linestyle = :dash, colorrange = prange)

@@ -269,7 +269,7 @@ for stimulus in stimuli
         # end
 
         begin # * Plot the intercept
-            ax = Axis(f[2, 1:2][1, 2]; #ylabel = "Cortical depth (%)",
+            ax = Axis(f[3, 1:2][1, 2]; #ylabel = "Cortical depth (%)",
                       xlabel = "Normalized 1/𝑓 intercept",
                       limits = ((-2.75, 2.75), (0, 1)), ytickformat = depthticks,
                       title = "1/𝑓 intercept", yreversed = true, yticklabelsvisible = false)
@@ -290,7 +290,7 @@ for stimulus in stimuli
         end
 
         begin # * Plot the exponent
-            ax = Axis(f[2, 1:2][1, 1]; ylabel = "Cortical depth (%)",
+            ax = Axis(f[3, 1:2][1, 1]; ylabel = "Cortical depth (%)",
                       xlabel = "1/𝑓 exponent",
                       limits = ((0.9, 2.1), (0, 1)), ytickformat = depthticks,
                       xtickformat,
@@ -473,7 +473,7 @@ for stimulus in stimuli
         end
 
         begin # * Plot the total residual theta power across channels
-            ax = Axis(f[3, 1:2][1, 1]; ylabel = "Cortical depth (%)",
+            ax = Axis(f[2, 1:2][1, 1]; ylabel = "Cortical depth (%)",
                       #   xticks = WilkinsonTicks(4),
                       xtickformat = depthticks,
                       ytickformat = depthticks,
@@ -528,7 +528,7 @@ for stimulus in stimuli
 
         begin # * Residual gamma power across channels
             # f = Figure()
-            ax = Axis(f[3, 1:2][1, 2]; #ylabel = "Cortical depth (%)",
+            ax = Axis(f[2, 1:2][1, 2]; #ylabel = "Cortical depth (%)",
                       #   xticks = WilkinsonTicks(4),
                       xtickformat = depthticks,
                       ytickformat = depthticks,
@@ -626,7 +626,7 @@ for stimulus in stimuli
 
             markersize = 10
 
-            ax = Axis(f[2, 1:2][1, 3]; #ylabel = "Cortical depth (%)",
+            ax = Axis(f[3, 1:2][1, 3]; #ylabel = "Cortical depth (%)",
                       xlabel = "Kendall's 𝜏",
                       ytickformat = depthticks,
                       xtickformat,
@@ -670,7 +670,7 @@ for stimulus in stimuli
             # μt[𝑝t .> PTHR] .= NaN
             # μg[𝑝g .> PTHR] .= NaN
 
-            ax = Axis(f[3, 1:2][1, 3]; # ylabel = "Cortical depth (%)",
+            ax = Axis(f[2, 1:2][1, 3]; # ylabel = "Cortical depth (%)",
                       xlabel = "Kendall's 𝜏",
                       ytickformat = depthticks, xtickformat,
                       title = "Timescale gradients", limits = ((-0.73, 0.73), (0, 1)),

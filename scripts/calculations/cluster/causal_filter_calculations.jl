@@ -35,7 +35,7 @@ if haskey(ENV, "SM_CLUSTER") # ? Should take a night or so
 
     if check_quality && !isempty(readdir(outpath))
         Q = SM.calcquality(outpath)[Structure = At(SM.structures)]
-        # * Delete bad files
+
         filenames = collect(Iterators.product(lookup(Q)...))[.!Q]
         filenames = map(filenames) do f
             Dict{String, Any}("structure" => f[1], "stimulus" => f[2], "sessionid" => f[3])
@@ -50,7 +50,7 @@ if haskey(ENV, "SM_CLUSTER") # ? Should take a night or so
         exprs = exprs[(oursessions .∈ [notgood])]
     end
 
-    SM.submit_calculations(exprs)
+    SM.submit_calculations(exprs; queue = `taiji`)
 
     display("All workers submitted")
 else

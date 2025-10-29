@@ -795,13 +795,19 @@ begin
         display(spsf)
     end
 
-    function plot_fr!(axs, i, structure)
+    function plot_fr!(axs, i, structure; statsfile = nothing)
         idxs = pspikes.structure_acronym .== [structure]
         subspikes = pspikes[idxs, :]
         vlines!.(axs, [[0.0]]; color = (:black, 0.4), linestyle = :dash)
 
         ics = zip(["Supra.", "Granular", "Infra."],
                   [["L1", "L2/3"], ["L4"], ["L5", "L6"]])
+
+        if !isnothing(statsfile)
+            open(statsfile, "a+") do file
+                write(file, "\n# $structure\n")
+            end
+        end
 
         for (compartment, clayers) in ics
             lidxs = indexin(clayers, "L" .* SpatiotemporalMotifs.layers)
@@ -853,11 +859,29 @@ begin
                 chpsth = hpsth[Unit = At(commonunits)]
                 cmpsth = mpsth[Unit = At(commonunits)]
                 cpsth = chpsth - cmpsth
-                𝑝 = map(eachslice(cpsth, dims = 𝑡)) do x
+
+                W = map(eachslice(cpsth, dims = 𝑡)) do x
                     x = convert(Vector{Float64}, x)
-                    pvalue(HypothesisTests.SignedRankTest(x), tail = :right)
+                    HypothesisTests.SignedRankTest(x)
                 end
+
+                𝑝 = map(x -> pvalue(x, tail = :right), W)
                 𝑝[:] .= MultipleTesting.adjust(collect(𝑝), BenjaminiHochberg())
+
+                if !isnothing(statsfile)
+                    # * Calculate effect size
+                    r = SpatiotemporalMotifs.rank_biserial.(W)
+                    max_r, idx = findmax(r)
+                    max_r_time = lookup(r, 𝑡)[idx]
+
+                    # * Print out maximum effect size for superficial layers
+                    open(statsfile, "a+") do file
+                        write(file, "\n## $compartment\n")
+                        write(file,
+                              "Max. rank biserial correlation: $max_r at $max_r_time\n")
+                    end
+                end
+
                 begin # * Plot
                     c = cpsth .+ eps() .* randn(size(cpsth))
                     _μ, (_σl, _σh) = bootstrapmedian(c, dims = 2)
@@ -925,6 +949,11 @@ begin # * Hit/miss firing rates for each structure
     frsf = Figure(size = (1440, 720) .* 1.25)
     frgs = subdivide(frsf, 3, 2)
 
+    begin # * Firing rate stats
+        statsfile = plotdir("fig6", "spike_lfp_stats.txt")
+        close(open(statsfile, "w")) # Create the file or clear it
+    end
+
     map(enumerate(structures)) do (i, structure)
         subgs = frgs[i]
 
@@ -949,7 +978,7 @@ begin # * Hit/miss firing rates for each structure
                        ylabel = "Normalized firing rate change",
                        xtickformat = terseticks)
 
-            plot_fr!([ax, ax2, ax3], i, structure)
+            plot_fr!([ax, ax2, ax3], i, structure; statsfile)
         end
     end
     addlabels!(frgs, frsf, labelformat, recurse = [])
@@ -999,16 +1028,30 @@ begin # * Plot on the same polar axis the hit and miss angles for VISp only
         ms = _ms
 
         # * Do a test about significant differences from 0
-        𝑝 = map(catppc) do x
+        W = map(catppc) do x
             x = filter(!isnan, x)
-            HypothesisTests.pvalue(HypothesisTests.SignedRankTest(Float64.(x)))
+            HypothesisTests.SignedRankTest(Float64.(x))
         end
 
-        return ms, 𝑝
+        return ms, W
     end
-    𝑝 = ToolsArray(last.(ms), (Structure(structures),)) |> stack
+    W = ToolsArray(last.(ms), (Structure(structures),)) |> stack
+    𝑝 = map(HypothesisTests.pvalue, W)
     𝑝[:] .= MultipleTesting.adjust(𝑝[:], BenjaminiHochberg())
     ms = ToolsArray(first.(ms), (Structure(structures),)) |> stack
+
+    begin # * Print out maximum effect size
+        # * Calculate effect size
+        r = SpatiotemporalMotifs.rank_biserial.(W)
+        max_r, idx = findmax(r)
+
+        # * Print out maximum effect size for superficial layers
+        open(statsfile, "a+") do file
+            write(file, "\n# Phase shifts (hit - miss)\n")
+            write(file,
+                  "Max. rank biserial correlation: $max_r at $(lookup(r, 1)[idx[1]]), $(lookup(r, 2)[idx[2]])\n")
+        end
+    end
 end
 begin # * Heatmap figure
     ax = Axis(gs[4][1, 1], ylabel = "Cortical layer",
