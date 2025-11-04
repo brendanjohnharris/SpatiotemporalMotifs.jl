@@ -17,8 +17,8 @@ using Distributions
 set_theme!(foresight(:physics))
 Random.seed!(42)
 
-begin
-    stimulus = "flash_250ms" # r"Natural_Images"
+begin # Don't change
+    stimulus = r"Natural_Images" # "flash_250ms"
     vars = [:ϕ, :ω]
 end
 
@@ -240,10 +240,22 @@ end
 begin # * Plots
     @info "Plotting inter-areal phase delays"
     @unpack unidepths, FF_score, ∂h̄, ∂f̄, ∂h̄_sur, ∂f̄_sur, 𝑝_h, 𝑝_f = plot_data
-    f = Foresight._panels(; size = (720, 460))
-    gs = subdivide(f, 2, 2)
+    fullplot = (SpatiotemporalMotifs.THETA() == (3, 10)) &&
+               (SpatiotemporalMotifs.GAMMA() == (30, 100)) &&
+               !SpatiotemporalMotifs.CAUSAL_FILTER() &&
+               stimulus === r"Natural_Images"
+
+    if fullplot
+        f = Foresight._panels(; size = (720, 460))
+        gs = subdivide(f, 2, 2)
+    else
+        f = Foresight.TwoPanel()
+        gs = subdivide(f, 1, 2)
+        gs = permutedims([gs gs], (2, 1)) # So indexing is the same
+    end
+
     layerints = load(calcdir("plots", "grand_unified_layers.jld2"), "layerints")
-    begin # * Schematic of hierarchy
+    if fullplot # * Schematic of hierarchy
         ax = Axis(gs[1], yreversed = true, aspect = DataAspect(),
                   title = "Anatomical hierarchy")
         ag = getindex.([hierarchy_scores], structures)
@@ -276,7 +288,7 @@ begin # * Plots
         plotstructurecenters!(ax, ag; curve_distance = -20, node_size = 25,
                               ilabels_fontsize = 7)
     end
-    begin # * Schematic of hierarchy
+    if fullplot # * Schematic of hierarchy
         ax = Axis(gs[3], yreversed = true, aspect = DataAspect(),
                   title = "Functional hierarchy")
 
@@ -304,6 +316,9 @@ begin # * Plots
         ax = Axis(gs[2][1, 1], yreversed = true,
                   ylabel = "Cortical depth (%)", title = " ", ytickformat = depthticks,
                   xticks = -0.25:0.25:0.75, xtickformat = terseticks)
+        if !fullplot
+            ax.xlabel = "Time (s)"
+        end
         plevels = [-3.0, -5.0]
         pdiff = mean(diff(plevels))
         prange = extrema(plevels) .+ [pdiff, -pdiff] ./ 2
@@ -341,6 +356,10 @@ begin # * Plots
         ax = Axis(gs[4][1, 1], yreversed = true, xlabel = "Time (s)",
                   ylabel = "Cortical depth (%)", title = " ", ytickformat = depthticks,
                   xticks = -0.25:0.25:0.75, xtickformat = terseticks)
+        if !fullplot
+            ax.ylabel = ""
+            ax.yticklabelsvisible = false
+        end
         # ∂̄ = dropdims(mean(∂h, dims = Trial), dims = Trial)
         H = deepcopy(𝑝_f)
         H[:] .= adjust(H[:], BenjaminiHochberg())
@@ -355,20 +374,36 @@ begin # * Plots
                  label = rich("Mean order parameter ",
                               rich("F", subscript("θ"), font = "Times Italic")),
                  tickformat = terseticks)
+        if fullplot
+            clabel = ""
+        else
+            clabel = "Corrected 𝑝-value"
+        end
         Colorbar(gs[4][1, 1]; colormap = levelmap, ticks = plevels,
                  colorrange = extrema(plevels) .+
                               [mean(diff(plevels)), -mean(diff(plevels))] ./ 2,
                  tickformat = X -> [L"10^{%$(round(Int, x))}" for x in X],
                  vertical = false,
-                 flipaxis = true, tellheight = false,
-                 valign = :top)
+                 flipaxis = true,
+                 tellheight = false,
+                 valign = :top,
+                 label = clabel)
         plotlayerints!(ax, layerints; flipside = false, newticks = false,
                        bgcolor = Makie.RGBA(0, 0, 0, 0))
         ax.limits = (nothing, (0.05, 0.95))
         f
     end
-    colsize!(f.layout, 1, Relative(0.35))
-    addlabels!(f, labelformat)
+    if fullplot
+        colsize!(f.layout, 1, Relative(0.35))
+        addlabels!(f, labelformat)
+    else
+        colgap!(f.layout, Relative(0.075))
+        if stimulus === r"Natural_Images"
+            addlabels!(f, ["h", "i"])
+        else
+            addlabels!(f, ["a", "b"])
+        end
+    end
     wsave(plotdir("fig4", "interareal_phasedelays.pdf"), f)
     f
 end

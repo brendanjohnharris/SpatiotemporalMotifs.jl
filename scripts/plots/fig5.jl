@@ -455,7 +455,8 @@ begin # * packet masks and schematic
         end
 
         l = axislegend(ax; merge = true, nbanks = 2, position = :lt, framevisible = true,
-                       labelsize = 10, padding = fill(4, 4))
+                       padding = fill(4, 4), labelsize = 14,
+                       patchsize = (20, 15))
         reverselegend!(l)
     end
 
@@ -549,19 +550,19 @@ begin # * Global and spatiotemporal PAC
             wsave(plotdir("fig5", "comodulograms_$(val_to_string(stimulus)).pdf"), f)
         end
 
-        if stimulus == "spontaneous" # * Plot into main figure
-            structure = "VISl"
-            ax = Axis(mgs[3][1, 1]; title = "$structure comodulogram",
-                      xlabel = "Phase frequency (Hz)",
-                      ylabel = "Amplitude frequency (Hz)", xtickformat = terseticks)
-            s = S[lookup(_Q, Structure) .== structure] |> only
-            s = dropdims(mean(s, dims = SessionID); dims = SessionID)
-            s = upsample(s, 5, 1)
-            s = upsample(s, 5, 2)
-            p = heatmap!(ax, s .* 10^4; colormap = seethrough(reverse(sunrise)),
-                         rasterize = 5)
-            Colorbar(mgs[3][1, 2], p; label = "Mean PAC (×10⁴)")
-        end
+        # if stimulus == "spontaneous" # * Plot into main figure
+        #     structure = "VISl"
+        #     ax = Axis(mgs[3][1, 1]; title = "$structure comodulogram",
+        #               xlabel = "Phase frequency (Hz)",
+        #               ylabel = "Amplitude frequency (Hz)", xtickformat = terseticks)
+        #     s = S[lookup(_Q, Structure) .== structure] |> only
+        #     s = dropdims(mean(s, dims = SessionID); dims = SessionID)
+        #     s = upsample(s, 5, 1)
+        #     s = upsample(s, 5, 2)
+        #     p = heatmap!(ax, s .* 10^4; colormap = seethrough(reverse(sunrise)),
+        #                  rasterize = 5)
+        #     Colorbar(mgs[3][1, 2], p; label = "Mean PAC (×10⁴)")
+        # end
     end
 
     begin # * Spatiotemporal PAC
@@ -581,10 +582,19 @@ begin # * Global and spatiotemporal PAC
             Colorbar(g[1, 2], p, label = "PAC (×10³)")
 
             if s == "VISl"
-                ax = Axis(mgs[6][1, 1]; title = "$s spatiotemporal PAC", yreversed = true,
+                ax = Axis(mgs[5][1, 1]; title = "$s spatiotemporal PAC",
+                          yreversed = true,
                           limits = (nothing, (extrema(lookup(P, Depth)))),
                           xlabel = "Time (s)", xtickformat = terseticks)
-
+                x = ustripall(P[𝑡 = SpatiotemporalMotifs.INTERVAL]) .* 10^3
+                colorrange = (0, maximum(x))
+                p = plotlayermap!(ax, x, l; rasterize = 5, colorrange) |> first
+                Colorbar(mgs[5][1, 2], p, label = "PAC (×10³)")
+            elseif s == "VISam"
+                ax = Axis(mgs[6][1, 1]; title = "$s spatiotemporal PAC",
+                          yreversed = true,
+                          limits = (nothing, (extrema(lookup(P, Depth)))),
+                          xlabel = "Time (s)", xtickformat = terseticks)
                 x = ustripall(P[𝑡 = SpatiotemporalMotifs.INTERVAL]) .* 10^3
                 colorrange = (0, maximum(x))
                 p = plotlayermap!(ax, x, l; rasterize = 5, colorrange) |> first
@@ -601,7 +611,7 @@ begin # * Layer-wise PAC
     @info "Plotting layer-wise PAC"
     @unpack pacc, peaks = plot_data["layerwise_pac"]
     begin # * Plot layer-wise PAC
-        ax = Axis(mgs[4]; ylabel = "Cortical depth (%)",
+        ax = Axis(mgs[3]; ylabel = "Cortical depth (%)",
                   xlabel = "Median PAC",
                   ytickformat = depthticks, xtickformat = terseticks,
                   limits = ((-0.0004, nothing), (0, 1)),
@@ -623,8 +633,8 @@ begin # * Layer-wise PAC
             scatter!(ax, collect(μ), lookup(μ, 1), color = structurecolormap[s], label = s,
                      markersize = 10, alpha = 0.8)
         end
-        l = axislegend(ax; merge = true, nbanks = 1, position = :rt, framevisible = true,
-                       labelsize = 10, padding = fill(4, 4))
+        # l = axislegend(ax; merge = true, nbanks = 1, position = :rt, framevisible = true,
+        #                labelsize = 10, padding = fill(4, 4))
         plotlayerints!(ax, grandlayerints; axis = :y, newticks = false, flipside = false)
         f
     end
@@ -634,7 +644,7 @@ begin # * Layer-wise PAC
             μ, (σl, σh) = bootstrapmedian(p |> ustripall; dims = 2)
         end .|> first
         if true
-            gg = mgs[4]
+            gg = mgs[3]
             idx = Depth(Near(0.25))
             alphamin = 0.2
             struc = 1
@@ -676,7 +686,7 @@ begin # * Layer-wise PAC
 
     begin
         @info "Plotting preferred θ--γ phase"
-        ax = PolarAxis(mgs[5]; theta_as_x = false, thetalimits = (-0.1pi, 1.2pi),
+        ax = PolarAxis(mgs[4]; theta_as_x = false, thetalimits = (-0.1pi, 1.2pi),
                        rticks = 0:0.25:1, rtickformat = depthticks,
                        title = "Layer-wise PAC angle")
         for (i, p) in enumerate(peaks)
@@ -709,6 +719,7 @@ begin # * Layer-wise PAC
 end
 
 begin
-    addlabels!(mf, ["a", "b", "e", "c", "d", "f"])
+    addlabels!(mf, ["a", "b", "d", "c", "e", "f"])
+    # addlabels!(mf, labelformat)
     wsave(plotdir("fig5", "nested_dynamics.pdf"), mf)
 end
