@@ -950,6 +950,9 @@ begin # * Hit/miss firing rates for each structure
     frgs = subdivide(frsf, 3, 2)
 
     begin # * Firing rate stats
+        if !isdir(plotdir("fig6"))
+            mkpath(plotdir("fig6"))
+        end
         statsfile = plotdir("fig6", "spike_lfp_stats.txt")
         close(open(statsfile, "w")) # Create the file or clear it
     end
