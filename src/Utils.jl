@@ -156,6 +156,16 @@ function has_calc_keys(calctype::Val{:power_spectra}, D)
     return (haskey(D, "error") && contains(D["error"], "Region error")) ||
            (has_keys(D, required_keys) && all(isfile.(projectdir.(D["plotfiles"]))))
 end
+function has_calc_keys(calctype::Val{:madev}, D)
+    required_keys = [
+        "mad",
+        "coeff",
+        "coeffs",
+        "plotfiles"
+    ]
+    return (haskey(D, "error") && contains(D["error"], "Region error")) ||
+           (has_keys(D, required_keys) && all(isfile.(projectdir.(D["plotfiles"]))))
+end
 
 function tmap(f, d::DimensionalData.Dimension; kwargs...)
     ToolsArray(map(f, parent(d); kwargs...), (d,))

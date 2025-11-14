@@ -235,6 +235,156 @@ function send_powerspectra(sessionid, stimulus, structure;
     return outfile
 end
 
+function madev(x::AbstractVector, lags; p = 1)
+    if !issorted(lags)
+        throw(ArgumentError("Lags must be sorted"))
+    end
+    l = length(x)
+    result = similar(x, length(lags))
+    @inbounds for (i, k) in enumerate(lags)
+        if k >= l
+            result[i] = 0.0
+        else
+            n_pairs = l - k
+            x1 = @view x[1:n_pairs]           # x[1:n-k]
+            x2 = @view x[(k + 1):(k + n_pairs)]   # x[k+1:n]
+
+            result[i] = norm(x1 .- x2, p) / n_pairs
+        end
+    end
+    return result
+end
+function madev(x::UnivariateRegular, _lags; kwargs...)
+    lags = round.(Int, _lags ./ samplingperiod(x))
+    return Timeseries(_lags, madev(parent(x), lags; kwargs...))
+end
+function madev(x::MultivariateRegular, _lags; kwargs...)
+    lags = round.(Int, _lags ./ samplingperiod(x))
+    d = dims(x)[2:end]
+    m = mapslices(x -> madev(x, lags; kwargs...), parent(x); dims = 1)
+    return Timeseries(_lags, d..., m)
+end
+
+function send_madev(sessionid, stimulus, structure;
+                    outpath = calcdir("madev"),
+                    plotpath = calcdir("plots", "madev"))
+    params = (;
+              sessionid,
+              epoch = :longest,
+              band = (1e-3, 1e-2))
+
+    ssession = []
+    GC.safepoint()
+    @info "Loading $(stimulus) LFP in $(structure) for session $(params[:sessionid])"
+    _params = (; params..., stimulus, structure)
+    if stimulus == r"Natural_Images"
+        _params = (; _params..., epoch = (:longest, :active))
+    end
+    outfile = savepath(Dict("sessionid" => params[:sessionid],
+                            "stimulus" => stimulus,
+                            "structure" => structure), "jld2", outpath)
+    @info outfile
+
+    fstimulus = _params[:stimulus] isa Regex ? _params[:stimulus].pattern :
+                _params[:stimulus]
+
+    plotfile = joinpath(plotpath, "$(_params[:sessionid])",
+                        "$(fstimulus)_$(_params[:structure]).pdf")
+
+    if isempty(ssession) # Only initialize session if we have to
+        session = AN.Session(params[:sessionid])
+        push!(ssession, session)
+    else
+        session = ssession[1]
+    end
+    try
+        probestructures = AN.getprobestructures(session)
+        probestructures = unique(vcat(values(probestructures)...))
+        if structure ∉ probestructures
+            str = "Region error: structure $(structure) not found in $(params[:sessionid])"
+            @warn str
+            tagsave(outfile, Dict("error" => str))
+            return
+        end
+
+        LFP = AN.formatlfp(session; tol = 3, _params...)u"V"
+
+        LFP = set(LFP, 𝑡 => 𝑡((times(LFP))u"s"))
+        channels = lookup(LFP, Chan)
+
+        taus = range(-3, 0, 50)
+        taus = exp10.(taus)
+        mad = madev(LFP |> ustripall, sort(unique(taus)))
+        depths = AN.getchanneldepths(session, LFP; method = :probe)
+        mad = set(mad, Chan => Depth(depths))
+        # mad_fit = mad[𝑡 = pass[1] .. pass[2]]
+
+        # * Mean fit
+        m = median(mad, dims = Depth)[:, 1]
+        _m = m[𝑡 = params[:band][1] .. params[:band][2]]
+        t = log10.(times(_m))
+        s = log10.(parent(_m))
+        coeff = hcat(ones(length(t)), t) \ s
+        coeff = last(coeff)
+
+        # * Full fit
+        coeffs = map(eachslice(mad, dims = 2)) do x
+            _x = x[𝑡 = params[:band][1] .. params[:band][2]]
+            t = log10.(times(_x))
+            s = log10.(parent(_x))
+            c = hcat(ones(length(t)), t) \ s
+            last(c)
+        end
+
+        mmad = mad ./ maximum(mad, dims = 1)
+        begin
+            f = Figure()
+            colorrange = extrema(depths)
+            ax = Axis(f[1, 1]; xscale = log10, yscale = log10,
+                      xtickformat = "{:.1f}",
+                      xgridvisible = true,
+                      ygridvisible = true, topspinevisible = true,
+                      title = "$(_params[:structure]), $(_params[:stimulus])",
+                      xminorticksvisible = true, yminorticksvisible = true,
+                      xminorgridvisible = true, yminorgridvisible = true,
+                      xminorgridstyle = :dash)
+            p = traces!(ax, mmad; colormap = cgrad(sunset, alpha = 0.4),
+                        linewidth = 3, colorrange)
+            c = Colorbar(f[1, 2]; label = "Channel depth (μm)", colorrange,
+                         colormap = sunset)
+            # rowsize!(f.layout, 1, Relative(0.8))
+            mkpath(joinpath(plotpath, "$(_params[:sessionid])"))
+            wsave(plotfile, f)
+            @info "Saved plot to `$plotfile`"
+        end
+
+        # * Format data for saving
+        streamlinedepths = AN.getchanneldepths(session, LFP; method = :streamlines)
+        layerinfo = AN.Plots._layerplot(session, channels)
+
+        D = Dict(DimensionalData.metadata(LFP))
+        @pack! D = channels, streamlinedepths, layerinfo
+        mad = rebuild(mad; metadata = D)
+        outD = Dict("mad" => mad .|> Float32,
+                    "coeff" => coeff .|> Float32,
+                    "coeffs" => coeffs .|> Float32,
+                    "plotfiles" => relpath.([plotfile], [projectdir()]))
+        tagsave(outfile, outD)
+
+        GC.safepoint()
+        GC.gc()
+    catch e
+        GC.safepoint()
+        GC.gc()
+        @warn e
+        tagsave(outfile, Dict("error" => sprint(showerror, e)))
+    end
+    # @info "Finished calculations"
+    GC.safepoint()
+    GC.gc()
+    return outfile
+end
+
 function joint_rectify(LFP, spiketimes, stimulustimes)
     orig_ts = times(LFP) # Unaligned times
     LFP = rectify(LFP, dims = 𝑡, tol = 3)
