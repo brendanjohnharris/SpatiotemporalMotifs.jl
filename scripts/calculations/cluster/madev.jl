@@ -47,7 +47,8 @@ if !isempty(params)
                 SM.send_madev($o, $stimulus, $structure)
             end
         end
-        SM.submit_calculations(exprs, mem = 49, ncpus = 8, walltime = 8)
+        SM.submit_calculations(exprs, mem = 32, ncpus = 3, walltime = 8,
+                               queue = [`taiji`, `defaultQ`])
     elseif ENV["HOSTNAME"] ∈ ["cartman.physics.usyd.edu.au", "stan.physics.usyd.edu.au"]
         addprocs(7)
         @everywhere import SpatiotemporalMotifs as SM

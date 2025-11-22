@@ -265,6 +265,32 @@ function madev(x::MultivariateRegular, _lags; kwargs...)
     return Timeseries(_lags, d..., m)
 end
 
+function _count(spike_times, τ; bins = minimum(spike_times):τ:maximum(spike_times))
+    return fit(Histogram, spike_times, bins).weights
+end
+
+function rates(spike_times, τ)
+    bins = minimum(spike_times):τ:maximum(spike_times)
+    if isempty(bins)
+        return bins .* NaN
+    else
+        counts = _count(spike_times, τ; bins)
+        return counts ./ τ
+    end
+end
+
+function fano_factor(spike_times::AbstractVector{<:Number}, τ::Number)
+    counts = _count(spike_times, τ)
+    m = mean(counts)
+    return var(counts, mean = m) / m
+end
+
+function fano_factor(spike_times::AbstractVector{<:Number},
+                     τ_values::AbstractVector = defaultfanobins(spike_times))
+    f = [fano_factor(spike_times, τ) for τ in τ_values]
+    return Timeseries(τ_values, f)
+end
+
 function send_madev(sessionid, stimulus, structure;
                     outpath = calcdir("madev"),
                     plotpath = calcdir("plots", "madev"))
@@ -358,6 +384,27 @@ function send_madev(sessionid, stimulus, structure;
             @info "Saved plot to `$plotfile`"
         end
 
+        begin # * Spontaneous spike-LFP coupling. We set the LFP time indices back to their original, non-rectified values
+            unitdepths = produce_unitdepths(session)
+            unitdepths[!, :stimulus] .= stimulus
+
+            @info "Calculating spike fano factors"
+            spiketimes = AN.getspiketimes(session, structure)
+            units = AN.getunitmetrics(session)
+            units = units[units.ecephys_unit_id .∈ [keys(spiketimes)], :]
+            unitdepths = unitdepths[unitdepths.ecephys_unit_id .∈ [units.id], :]
+
+            ffactor = fill(NaN, size(unitdepths, 1)) |> Vector{Any}
+            unitdepths.fano_factor = ffactor
+
+            τs = range(log10(1), log10(10000), length = 200) .|> exp10 # milliseconds
+            for u in 1:size(unitdepths, 1)
+                unitid = unitdepths[u, :].ecephys_unit_id
+                spikes = spiketimes[unitid]
+                unitdepths[u, :].fano_factor = fano_factor(spikes .* 1000, τs) # To milliseconds
+            end
+        end
+
         # * Format data for saving
         streamlinedepths = AN.getchanneldepths(session, LFP; method = :streamlines)
         layerinfo = AN.Plots._layerplot(session, channels)
@@ -368,6 +415,7 @@ function send_madev(sessionid, stimulus, structure;
         outD = Dict("mad" => mad .|> Float32,
                     "coeff" => coeff .|> Float32,
                     "coeffs" => coeffs .|> Float32,
+                    "unitdepths" => unitdepths,
                     "plotfiles" => relpath.([plotfile], [projectdir()]))
         tagsave(outfile, outD)
 

@@ -133,8 +133,27 @@ plot_data, data_file = produce_or_load(Dict(), calcdir("plots");
         end
 
         coeffs = ToolsArray(collect(coeffs), (Structure(structures),))
+        begin # * Format layers
+            coeffs_mean = map(coeffs, meanlayers) do m, l
+                # s = set(s, Depth => Dim{:layer}(layernum2name.(parent(l)[:])))
+                m = set(m, Depth => Dim{:layer}(parent(l)[:]))
+                m = set(m, :layer => DimensionalData.Unordered)
+            end
+            coeffs_mean = map(coeffs_mean) do s
+                ss = map(unique(lookup(s, :layer))) do l
+                    ls = s[Dim{:layer}(At(l))]
+                    if hasdim(ls, :layer)
+                        ls = mean(ls, dims = :layer)
+                    end
+                    ls
+                end
+                cat(ss..., dims = :layer)
+            end
+            coeffs_mean = ToolsArray(coeffs_mean |> collect,
+                                     (Structure(lookup(Q, Structure)),))
+        end
 
-        plot_data = @strdict M M̄ coeffs layernames layernums layerints meanlayers oursessions Q
+        plot_data = @strdict M M̄ coeffs coeffs_mean layernames layernums layerints meanlayers oursessions Q
         return plot_data
     end
 
@@ -142,8 +161,8 @@ plot_data, data_file = produce_or_load(Dict(), calcdir("plots");
 end
 
 for stimulus in stimuli
-    @info "Plotting spectra for $stimulus"
-    @unpack M, coeffs, layernames, layernums, layerints, meanlayers, M̄, oursessions, Q = plot_data[string(stimulus)]
+    @info "Plotting madev for $stimulus"
+    @unpack M, coeffs, coeffs_mean, layernames, layernums, layerints, meanlayers, M̄, oursessions, Q = plot_data[string(stimulus)]
     begin
         filebase = stimulus == "spontaneous" ? "" : "_$(val_to_string(stimulus))"
         statsfile = plotdir("madev", "madev$filebase.txt")
@@ -386,5 +405,88 @@ for stimulus in stimuli
         # addlabels!(f, ["a", "d", "f", "e", "c", "b", "g", "h"])
         f |> display
     end
+
+    begin # * VISp plot
+        sf = TwoPanel()
+
+        begin # * Plot mean MAD
+            m = M̄[Structure = At("VISp")][layer = At(2)]
+            if hasdim(m, :layer)
+                m = mean(m, dims = :layer)
+                m = dropdims(m, dims = :layer)
+            end
+            ax = Axis(sf[1, 1]; ylabel = "MAD",
+                      xlabel = "Time lag (ms)",
+                      title = "Mean absolute deviation in VISp L2/3", xscale = log10,
+                      yscale = log10,)
+
+            # * Fit exponent
+            _m = m[𝑡 = 1e-3 .. 1e-2]
+            t = log10.(times(_m))
+            s = log10.(parent(_m))
+            coeff = hcat(ones(length(t)), t) \ s
+            intercept, slope = eachrow(coeff)
+            meanintercept = mean(intercept)
+            meanslope = mean(slope)
+            slopeerror = std(slope) / 2 #quantile.([slope], [0.25, 0.75])
+
+            text!(ax, [1e-3], [10^(-4.25)];
+                  text = "a = $(round(meanslope, sigdigits=2))",
+                  align = (:left, :top), fontsize = 20)
+
+            mu = mean(m, dims = SessionID)
+            sigma = std(m, dims = SessionID)
+            mu = dropdims(mu, dims = SessionID)
+            sigma = dropdims(sigma, dims = SessionID)
+            band!(ax, lookup(mu, 𝑡), mu .- sigma ./ 2, mu .+ sigma ./ 2, alpha = 0.5)
+
+            lines!(ax, mu)
+
+            lines!(ax, lookup(_m, 𝑡),
+                   exp10.(meanintercept .+ meanslope .* log10.(times(_m))))
+        end
+
+        begin
+            ax = Axis(sf[1, 2]; ylabel = "Cortical layer",
+                      xlabel = "Mean diffusion exponent",
+                      title = "Diffusion exponent in VISp", yreversed = true,
+                      yticks = (2:5, ["L2/3", "L4", "L5", "L6"]))
+
+            vlines!(ax, 0.5; color = :gray, linewidth = 3, linestyle = :dash)
+
+            _b = coeffs_mean[Structure = At("VISp")]
+        end
+
+        begin # * Do statistical test against value of 0.5
+            𝑝 = map(eachslice(_b, dims = :layer)) do b
+                𝑝 = HypothesisTests.SignedRankTest(collect(b) .- 0.5)
+                𝑝 = HypothesisTests.pvalue(𝑝, tail = :right)
+            end
+            𝑝[:] .= MultipleTesting.adjust(collect(𝑝)[:], BenjaminiHochberg())
+        end
+        for l in lookup(_b, :layer)
+            if l > 1
+                x = _b[layer = At(l)]
+                p = 𝑝[layer = At(l)]
+                if p < SpatiotemporalMotifs.PTHR
+                    boxplot!(ax, fill(l, size(_b, SessionID)),
+                             collect(x)[:];
+                             orientation = :horizontal, show_outliers = false,
+                             color = Foresight.colororder[l - 1],
+                             strokecolor = Foresight.colororder[l - 1], strokewidth = 3)
+                else
+                    boxplot!(ax, fill(l, size(_b, SessionID)),
+                             collect(x)[:];
+                             orientation = :horizontal, show_outliers = false,
+                             color = :transparent,
+                             strokecolor = Foresight.colororder[l - 1], strokewidth = 3)
+                end
+            end
+        end
+
+        display(sf)
+        wsave(plotdir("madev", "reduced_madev$filebase.pdf"), sf)
+    end
+
     wsave(plotdir("madev", "madev$filebase.pdf"), f)
 end

@@ -161,6 +161,7 @@ function has_calc_keys(calctype::Val{:madev}, D)
         "mad",
         "coeff",
         "coeffs",
+        "unitdepths",
         "plotfiles"
     ]
     return (haskey(D, "error") && contains(D["error"], "Region error")) ||
@@ -349,17 +350,30 @@ end
 
 function submit_calculations(exprs; queue = ``, mem = 50, ncpus = 8, walltime = 8)
     exprs = deepcopy(exprs)
+    if queue isa AbstractString || queue isa Cmd
+        queue = [queue]
+    end
+    nqueues = length(queue)
+    shuffle!(exprs) # ? Shuffle so restarted calcs are more even
+    batchexprs = [exprs[i:nqueues:length(exprs)] for i in 1:nqueues]
+
     if length(exprs) > 2
-        shuffle!(exprs) # ? Shuffle so restarted calcs are more even
-        USydClusters.Physics.runscripts(exprs; ncpus, mem,
-                                        walltime,
-                                        project = projectdir(), exeflags = `+1.10.10`,
-                                        queue = queue)
+
+        # * Batch into length(queue) batches
+
+        map(batchexprs, queue) do exprs, queue
+            USydClusters.Physics.runscripts(exprs; ncpus, mem,
+                                            walltime,
+                                            project = projectdir(), exeflags = `+1.10.10`,
+                                            queue)
+        end
     else
-        USydClusters.Physics.runscript.(exprs; ncpus, mem,
-                                        walltime,
-                                        project = projectdir(), exeflags = `+1.10.10`,
-                                        queue = `h100`)
+        map(batchexprs, queue) do expr, queue
+            USydClusters.Physics.runscript.(expr; ncpus, mem,
+                                            walltime,
+                                            project = projectdir(), exeflags = `+1.10.10`,
+                                            queue = queue)
+        end
     end
 end
 
