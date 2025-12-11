@@ -134,26 +134,26 @@ plot_data, data_file = produce_or_load(Dict(), calcdir("plots");
 
         coeffs = ToolsArray(collect(coeffs), (Structure(structures),))
         begin # * Format layers
-            coeffs_mean = map(coeffs, meanlayers) do m, l
+            coeffs_median = map(coeffs, meanlayers) do m, l
                 # s = set(s, Depth => Dim{:layer}(layernum2name.(parent(l)[:])))
                 m = set(m, Depth => Dim{:layer}(parent(l)[:]))
                 m = set(m, :layer => DimensionalData.Unordered)
             end
-            coeffs_mean = map(coeffs_mean) do s
+            coeffs_median = map(coeffs_median) do s
                 ss = map(unique(lookup(s, :layer))) do l
                     ls = s[Dim{:layer}(At(l))]
                     if hasdim(ls, :layer)
-                        ls = mean(ls, dims = :layer)
+                        ls = median(ls, dims = :layer)
                     end
                     ls
                 end
                 cat(ss..., dims = :layer)
             end
-            coeffs_mean = ToolsArray(coeffs_mean |> collect,
-                                     (Structure(lookup(Q, Structure)),))
+            coeffs_median = ToolsArray(coeffs_median |> collect,
+                                       (Structure(lookup(Q, Structure)),))
         end
 
-        plot_data = @strdict M M̄ coeffs coeffs_mean layernames layernums layerints meanlayers oursessions Q
+        plot_data = @strdict M M̄ coeffs coeffs_median layernames layernums layerints meanlayers oursessions Q
         return plot_data
     end
 
@@ -162,86 +162,12 @@ end
 
 for stimulus in stimuli
     @info "Plotting madev for $stimulus"
-    @unpack M, coeffs, coeffs_mean, layernames, layernums, layerints, meanlayers, M̄, oursessions, Q = plot_data[string(stimulus)]
+    @unpack M, coeffs, coeffs_median, layernames, layernums, layerints, meanlayers, M̄, oursessions, Q = plot_data[string(stimulus)]
     begin
         filebase = stimulus == "spontaneous" ? "" : "_$(val_to_string(stimulus))"
         statsfile = plotdir("madev", "madev$filebase.txt")
         close(open(statsfile, "w")) # Create the file or clear it
         f = TwoPanel()
-
-        # begin # * Mean power spectrum. Bands show 1 S.D.
-        #     axargs = (; xscale = log10, yscale = log10,
-        #               limits = ((3, 300), (exp10(-15), exp10(-8.5))),
-        #               yticks = (exp10.([-14, -12, -10]),
-        #                         [
-        #                             rich("10", superscript("-14")),
-        #                             rich("10", superscript("-12")),
-        #                             rich("10", superscript("-10"))
-        #                         ]),
-        #               xlabel = "Frequency (Hz)",
-        #               xgridvisible = true,
-        #               ygridvisible = true,
-        #               xgridstyle = :dash,
-        #               ygridstyle = :dash,
-        #               xtickformat,
-        #               xticks = [3, 10, 30, 100],
-        #               ylabel = "Mean power spectral density (a.u.)",
-        #               title = "Power spectral density")
-        #     ax2 = Axis(f[1, 1]; axargs...) # For band annotations
-        #     hideyaxis!(ax2)
-        #     hidexaxis!(ax2)
-        #     hidespines!(ax2)
-        #     hidedecorations!(ax2)
-        #     ax = Axis(f[1, 1]; axargs...)
-
-        #     # * Band annotations
-        #     vspan!(ax2, extrema(theta)..., color = (crimson, 0.22),
-        #            label = "𝛉")
-        #     vlines!(ax2, [7.0], color = (crimson, 0.42), linestyle = :dash, linewidth = 4)
-        #     vspan!(ax2, extrema(gamma)..., color = (cornflowerblue, 0.22),
-        #            label = "𝛄")
-        #     vlines!(ax2, [54.4], color = (cornflowerblue, 0.42), linestyle = :dash,
-        #             linewidth = 4)
-
-        #     psa = map(enumerate(structures)) do (i, structure)
-        #         s = M̄[Structure = At(structure)][𝑡 = 1e-3 .. 1e-2]
-        #         # s = s ./ 10^((i - 1.5) / 2.5)
-        #         yc = only(mean(s[𝑓 = Near(3u"Hz")]))
-        #         if i == 1 && stimulus != r"Natural_Images"
-        #             plotspectrum!(ax, s; textposition = (3, yc),
-        #                           color = structurecolors[i], annotations = [:peaks],
-        #                           label = structure)
-        #         else
-        #             plotspectrum!(ax, s; textposition = (14, yc),
-        #                           color = structurecolors[i], annotations = [],
-        #                           label = structure)
-        #         end
-        #     end
-        #     ps, α = first.(psa), last.(psa)
-        #     α = round.(α, sigdigits = 3)
-        #     axislegend(ax2, position = :lb, labelsize = 12, backgroundcolor = :white,
-        #                framevisible = true, padding = (5, 5, 5, 5))
-        #     # leg = ["$s (α = $α)" for (s, α) in zip(structures, α)]
-        #     # map(enumerate(leg)) do (i, s)
-        #     #     if i > 3
-        #     #         text!(ax, 290, exp10(-1.1 - ((i - 3) / 3 - 1 - 0.1)); text = s,
-        #     #               color = structurecolors[i],
-        #     #               fontsize = 14,
-        #     #               align = (:right, :bottom))
-        #     #     else
-        #     #         text!(ax, 50, exp10(-1.1 - (i / 3 - 1 - 0.1)); text = s,
-        #     #               color = structurecolors[i],
-        #     #               fontsize = 14,
-        #     #               align = (:right, :bottom))
-        #     #     end
-        #     # end
-
-        #     axislegend(ax, position = :rt, labelsize = 12, merge = true,
-        #                backgroundcolor = :white,
-        #                framevisible = true, padding = (5, 5, 5, 5),
-        #                nbanks = 3, patchsize = (15, 15), rowgap = 2)
-        #     f
-        # end
 
         begin # * Load the channel-wise fits
             χ = plot_data[string(stimulus)]["coeffs"]
@@ -250,16 +176,6 @@ for stimulus in stimuli
             coeffs = getindex.(coeffs, [SessionID(At(oursessions))])
             coeffs = coeffs[Structure = At(structures)]
         end
-
-        # begin # * Plot the exponent for each subject in VISl (as a check)
-        #     chi = b[2] # VISl
-        #     chi = chi[:, sortperm(eachcol(chi))][3:end, 1:5:end]
-        #     chi = chi ./ median(chi, dims = Depth)
-        #     ff = Figure()
-        #     ax = Axis(ff[1, 1])
-        #     scatter!.([ax], eachcol(chi))
-        #     ff
-        # end
 
         begin # * Plot the intercept
             ax = Axis(f[1, 1]; ylabel = "Cortical depth (%)",
@@ -295,66 +211,6 @@ for stimulus in stimuli
                 write(file, "\nMedian τ (no VISp) = $mtau\n")
             end
         end
-
-        # begin # * Plot fooof residuals. Bands are 1 S.D.
-        #     # f = Figure()
-        #     Sr_log = map(ustripall.(S), L, meanlayers) do s, l, m
-        #         s = deepcopy(s)
-        #         l = deepcopy(l)
-        #         idxs = indexin(lookup(s, SessionID), lookup(l, SessionID))
-        #         l = l[:, idxs] # Match sessions just in case
-        #         map(eachslice(s, dims = (Depth, SessionID)), l) do s, l
-        #             _s = log10.(ustripall(s))
-        #             s .= _s .- (_s |> freqs .|> l .|> log10)
-        #         end
-        #         s = set(s, Depth => Dim{:layer}(layernum2name.(parent(m)[:])))
-        #         s = set(s, :layer => DimensionalData.Irregular)
-        #     end
-
-        #     Sr_log = ToolsArray(Sr_log |> collect,
-        #                         (Structure(lookup(Q, Structure)),))
-
-        #     for (i, structure) in enumerate(["VISl"])
-        #         ax2 = Axis(f[1, i + 1]; xscale = log10,
-        #                    limits = ((3, 300), (-0.1, 3.5)), xtickformat,
-        #                    xlabel = "Frequency (Hz)",
-        #                    ylabel = "Residual spectral density (dB)",
-        #                    title = "Residual spectral density in " * structure,
-        #                    xticks = [3, 10, 30, 100]) # xticksvisible = false, yaxisposition = :right,
-        #         #    xticklabelsvisible = false,
-        #         vlines!(ax2, [7.0], color = (crimson, 0.42), linestyle = :dash,
-        #                 linewidth = 4)
-        #         vlines!(ax2, [54.4], color = (cornflowerblue, 0.42), linestyle = :dash,
-        #                 linewidth = 4)
-        #         vspan!(ax, extrema(theta)..., color = (crimson, 0.22),
-        #                label = "𝛉 ($(theta.left) – $(theta.right) Hz)")
-        #         vspan!(ax, extrema(gamma)..., color = (cornflowerblue, 0.22),
-        #                label = "𝛄 ($(gamma.left) – $(gamma.right) Hz)")
-
-        #         for (i, (c, l)) in (reverse ∘ collect ∘ enumerate ∘ zip)(layercolors,
-        #                                                                  layers)
-        #             s = Sr_log[Structure = At(structure)][Freq(3 .. 300)]
-        #             s = s[layer = (lookup(s, :layer) .== [l])]
-        #             s = dropdims(nansafe(mean; dims = :layer)(s), dims = :layer)
-        #             d = (length(layers) - i + 1) / 2
-        #             hlines!(ax2, [d]; color = (c, 0.22), linestyle = :dash)
-        #             μ = dropdims(mean(s, dims = SessionID), dims = SessionID) .+
-        #                 d
-        #             σ = dropdims(std(s, dims = SessionID), dims = SessionID)
-        #             band!(ax2, TimeseriesTools.freqs(μ), collect(μ .- σ), collect(μ .+ σ);
-        #                   color = (c, bandalpha))
-        #             lines!(ax2, TimeseriesTools.freqs(μ), collect(μ); color = (c, alpha))
-        #         end
-        #         C = Colorbar(f[1, i + 1][1, 2],
-        #                      colormap = reverse(cgrad(layercolors, categorical = true)),
-        #                      ticks = (range(0, 1, length = (2 * length(layercolors) + 1))[2:2:end],
-        #                               ["L"] .* reverse(layers)),
-        #                      ticklabelrotation = 0,# π / 2,
-        #                      ticklabelsize = 13)
-        #         # linkxaxes!(ax, ax2)
-        #     end
-        #     f
-        # end
 
         begin # * Plot the hierarchical correlation across layers
             N = 10000
@@ -407,16 +263,15 @@ for stimulus in stimuli
     end
 
     begin # * VISp plot
-        sf = TwoPanel()
-
         begin # * Plot mean MAD
+            sf = OnePanel()
             m = M̄[Structure = At("VISp")][layer = At(2)]
             if hasdim(m, :layer)
-                m = mean(m, dims = :layer)
+                m = median(m, dims = :layer)
                 m = dropdims(m, dims = :layer)
             end
             ax = Axis(sf[1, 1]; ylabel = "MAD",
-                      xlabel = "Time lag (ms)",
+                      xlabel = "Time lag (s)",
                       title = "Mean absolute deviation in VISp L2/3", xscale = log10,
                       yscale = log10,)
 
@@ -426,19 +281,21 @@ for stimulus in stimuli
             s = log10.(parent(_m))
             coeff = hcat(ones(length(t)), t) \ s
             intercept, slope = eachrow(coeff)
-            meanintercept = mean(intercept)
-            meanslope = mean(slope)
-            slopeerror = std(slope) / 2 #quantile.([slope], [0.25, 0.75])
+            meanintercept = median(intercept)
+            meanslope = median(slope)
+            # slopeerror = std(slope) / 2 #quantile.([slope], [0.25, 0.75])
 
             text!(ax, [1e-3], [10^(-4.25)];
                   text = "a = $(round(meanslope, sigdigits=2))",
                   align = (:left, :top), fontsize = 20)
 
-            mu = mean(m, dims = SessionID)
-            sigma = std(m, dims = SessionID)
+            mu = median(m, dims = SessionID)
             mu = dropdims(mu, dims = SessionID)
-            sigma = dropdims(sigma, dims = SessionID)
-            band!(ax, lookup(mu, 𝑡), mu .- sigma ./ 2, mu .+ sigma ./ 2, alpha = 0.5)
+            σl = mapslices(x -> quantile(x, 0.25), m; dims = SessionID)
+            σh = mapslices(x -> quantile(x, 0.75), m; dims = SessionID)
+            σl = dropdims(σl, dims = SessionID)
+            σh = dropdims(σh, dims = SessionID)
+            band!(ax, lookup(mu, 𝑡), σl, σh, alpha = 0.5)
 
             lines!(ax, mu)
 
@@ -446,46 +303,107 @@ for stimulus in stimuli
                    exp10.(meanintercept .+ meanslope .* log10.(times(_m))))
         end
 
-        begin
-            ax = Axis(sf[1, 2]; ylabel = "Cortical layer",
-                      xlabel = "Mean diffusion exponent",
-                      title = "Diffusion exponent in VISp", yreversed = true,
-                      yticks = (2:5, ["L2/3", "L4", "L5", "L6"]))
+        if true # * Inset variation across areas
+            ssf = OnePanel()
+            ax = Axis(ssf[1, 1];
+                      yticks = (1:4, ["L2/3", "L4", "L5", "L6"]),
+                      #   width = Relative(0.5),
+                      #   height = Relative(0.6),
+                      #   halign = 1,
+                      #   valign = 0.0,
+                      limits = ((0.35, 0.65), nothing),
+                      yreversed = true,
+                      #   xaxisposition = :top
+                      ylabel = "Cortical layer",
+                      xlabel = "Diffusion exponent",
+                      ygridvisible = false)
+            layers_to_plot = [2, 3, 4, 5]
+            structure_offsets = [-0.375, -0.225, -0.075, 0.075, 0.225, 0.375] .* 0.9  # Offsets for each structure within a layer
 
             vlines!(ax, 0.5; color = :gray, linewidth = 3, linestyle = :dash)
+            hlines!(ax, layers_to_plot[1:(end - 1)] .- 0.5; color = :gray, linewidth = 1)
 
-            _b = coeffs_mean[Structure = At("VISp")]
-        end
+            # Extract data for all layers
+            _a = stack(coeffs_median)
 
-        begin # * Do statistical test against value of 0.5
-            𝑝 = map(eachslice(_b, dims = :layer)) do b
+            # Perform statistical tests for each structure-layer combination
+            𝑝 = map(eachslice(_a, dims = (Structure, :layer))) do b
                 𝑝 = HypothesisTests.SignedRankTest(collect(b) .- 0.5)
                 𝑝 = HypothesisTests.pvalue(𝑝, tail = :right)
             end
             𝑝[:] .= MultipleTesting.adjust(collect(𝑝)[:], BenjaminiHochberg())
-        end
-        for l in lookup(_b, :layer)
-            if l > 1
-                x = _b[layer = At(l)]
-                p = 𝑝[layer = At(l)]
-                if p < SpatiotemporalMotifs.PTHR
-                    boxplot!(ax, fill(l, size(_b, SessionID)),
-                             collect(x)[:];
-                             orientation = :horizontal, show_outliers = false,
-                             color = Foresight.colororder[l - 1],
-                             strokecolor = Foresight.colororder[l - 1], strokewidth = 3)
-                else
-                    boxplot!(ax, fill(l, size(_b, SessionID)),
-                             collect(x)[:];
-                             orientation = :horizontal, show_outliers = false,
-                             color = :transparent,
-                             strokecolor = Foresight.colororder[l - 1], strokewidth = 3)
+
+            # Plot boxes for each layer and structure
+            for (layer_idx, layer) in enumerate(layers_to_plot)
+                for (struct_idx, structure) in enumerate(lookup(_a, Structure))
+                    x = _a[Structure = At(structure), layer = At(layer)]
+                    p = 𝑝[Structure = At(structure), layer = At(layer)]
+
+                    x_pos = layer_idx + structure_offsets[struct_idx]
+
+                    if p < SpatiotemporalMotifs.PTHR
+                        boxplot!(ax, fill(x_pos, size(_a, SessionID)),
+                                 collect(x)[:]; show_outliers = false,
+                                 orientation = :horizontal,
+                                 color = structurecolors[struct_idx],
+                                 strokecolor = structurecolors[struct_idx],
+                                 strokewidth = 1, width = 0.1, whiskerlinewidth = 0,
+                                 medianlinewidth = 2, label = structure)
+                    else
+                        boxplot!(ax, fill(x_pos, size(_a, SessionID)),
+                                 collect(x)[:]; show_outliers = false,
+                                 color = :transparent, orientation = :horizontal,
+                                 strokecolor = structurecolors[struct_idx],
+                                 strokewidth = 1, width = 0.1, whiskerlinewidth = 0,
+                                 medianlinewidth = 2, label = structure)
+                    end
                 end
             end
+            axislegend(ax, position = :lb, merge = true)
         end
+
+        # # !!! Layers
+        # begin
+        #     ax = Axis(sf[1, 2]; ylabel = "Cortical layer",
+        #               xlabel = "Median diffusion exponent",
+        #               title = "Diffusion exponent in VISp", yreversed = true,
+        #               yticks = (2:5, ["L2/3", "L4", "L5", "L6"]))
+
+        #     vlines!(ax, 0.5; color = :gray, linewidth = 3, linestyle = :dash)
+
+        #     _b = coeffs_median[Structure = At("VISp")]
+        # end
+        # begin # * Do statistical test against value of 0.5
+        #     𝑝 = map(eachslice(_b, dims = :layer)) do b
+        #         𝑝 = HypothesisTests.SignedRankTest(collect(b) .- 0.5)
+        #         𝑝 = HypothesisTests.pvalue(𝑝, tail = :right)
+        #     end
+        #     𝑝[:] .= MultipleTesting.adjust(collect(𝑝)[:], BenjaminiHochberg())
+        # end
+        # for l in lookup(_b, :layer)
+        #     if l > 1
+        #         x = _b[layer = At(l)]
+        #         p = 𝑝[layer = At(l)]
+        #         if p < SpatiotemporalMotifs.PTHR
+        #             boxplot!(ax, fill(l, size(_b, SessionID)),
+        #                      collect(x)[:];
+        #                      orientation = :horizontal, show_outliers = false,
+        #                      color = Foresight.colororder[l - 1],
+        #                      strokecolor = Foresight.colororder[l - 1], strokewidth = 3)
+        #         else
+        #             boxplot!(ax, fill(l, size(_b, SessionID)),
+        #                      collect(x)[:];
+        #                      orientation = :horizontal, show_outliers = false,
+        #                      color = :transparent,
+        #                      strokecolor = Foresight.colororder[l - 1], strokewidth = 3)
+        #         end
+        #     end
+        # end
 
         display(sf)
         wsave(plotdir("madev", "reduced_madev$filebase.pdf"), sf)
+        display(ssf)
+        wsave(plotdir("madev", "supplemental_madev_$filebase.pdf"), ssf)
     end
 
     wsave(plotdir("madev", "madev$filebase.pdf"), f)

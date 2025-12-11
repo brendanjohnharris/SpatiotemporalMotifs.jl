@@ -423,14 +423,25 @@ function trial_1onf(x::UnivariateRegular)
 end
 function plotspectrum!(ax, s::AbstractToolsArray;
                        textposition = (14, exp10(-2.9)), annotations = [:peaks, :fooof],
-                       color = cucumber, label = nothing)
-    μ = mean(s, dims = (SessionID, :layer))
-    μ = dropdims(μ, dims = (SessionID, :layer)) |> ustripall
-    σ = std(s, dims = (SessionID, :layer)) ./ 2
-    σ = dropdims(σ, dims = (SessionID, :layer)) |> ustripall
-    p = lines!(ax, freqs(μ), collect(μ); color = (color, 0.8), label)
-    band!(ax, freqs(μ), collect.([max.(μ - σ, eps()), μ + σ])...; color = (color, 0.32),
-          label)
+                       color = cucumber, label = nothing, fooofargs = (;), domedian = false)
+    if domedian
+        μ = median(s, dims = (SessionID, :layer))
+        μ = dropdims(μ, dims = (SessionID, :layer)) |> ustripall
+        σl = map(x -> quantile(x[:], 0.25), eachslice(s, dims = 𝑓)) |> ustripall
+        σh = map(x -> quantile(x[:], 0.75), eachslice(s, dims = 𝑓)) |> ustripall
+
+        p = lines!(ax, freqs(μ), collect(μ); color = (color, 0.8), label)
+        band!(ax, freqs(μ), σl, σh; color = (color, 0.32),
+              label)
+    else
+        μ = mean(s, dims = (SessionID, :layer))
+        μ = dropdims(μ, dims = (SessionID, :layer)) |> ustripall
+        σ = std(s, dims = (SessionID, :layer)) ./ 2
+        σ = dropdims(σ, dims = (SessionID, :layer)) |> ustripall
+        p = lines!(ax, freqs(μ), collect(μ); color = (color, 0.8), label)
+        band!(ax, freqs(μ), collect.([max.(μ - σ, eps()), μ + σ])...; color = (color, 0.32),
+              label)
+    end
 
     # * Find peaks
     if :peaks in annotations
@@ -446,8 +457,8 @@ function plotspectrum!(ax, s::AbstractToolsArray;
 
     # * Fooof fit
     ff, ps = fooof(μ)
-    lines!(ax, freqs(μ), ff.(freqs(μ)), color = (color, 0.5), linestyle = :dash,
-           linewidth = 5)
+    lines!(ax, freqs(μ), ff.(freqs(μ)); color = (color, 0.5), linestyle = :dash,
+           linewidth = 5, fooofargs...)
     if :fooof in annotations
         text!(ax, textposition...; text = L"𝛂 = $(round(ps[:χ], sigdigits=3))",
               fontsize = 16, align = (:right, :center))

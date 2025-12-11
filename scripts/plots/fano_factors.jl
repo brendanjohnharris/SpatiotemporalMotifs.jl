@@ -97,7 +97,7 @@ begin # * Plot fano factor for VISp, layer 2/3, spontaneous
     fanos = map(unitdepths) do units
         fanos = units.fano_factor
         fanos = ToolsArray(fanos, (Unit(units.ecephys_unit_id),)) |> stack
-        mean_fano = mean(fanos, dims = Unit)
+        mean_fano = median(fanos, dims = Unit)
         mean_fano = dropdims(mean_fano, dims = Unit)
     end
     fanos = ToolsArray(fanos, (SessionID(oursessions),)) |> stack
@@ -131,72 +131,134 @@ begin # * Plot fano factor for VISp, layer 2/3, spontaneous
 end
 
 begin # * Now do slope variation over layers boxplot.
-    unitdepths = plot_data[stimulus]["unitdepths"][findfirst(structures .== structure)]
-    layer_slopes = map(Dim{:layer}(2:5)) do l# L2/3 to L6
-        layer_slopes = map(unitdepths) do units
-            units = subset(units, :layer => ByRow(==(l)))
-            if isempty(units)
-                return nothing
-            else
-                slopes = map(units.fano_factor) do fano
-                    fano_range = fano[fanorange] .|> log10
-                    t_range = times(fano_range) .|> log10
-                    X = hcat(ones(length(t_range)), t_range)
-                    m = X \ fano_range
+    _c = map(Dim{:layer}(2:5)) do l# L2/3 to L6
+        structureslopes = map(structures) do structure
+            unitdepths = plot_data[stimulus]["unitdepths"][findfirst(structures .==
+                                                                     structure)]
+            _c = map(unitdepths) do units
+                units = subset(units, :layer => ByRow(==(l)))
+                if isempty(units)
+                    return nothing
+                else
+                    slopes = map(units.fano_factor) do fano
+                        fano_range = fano[fanorange] .|> log10
+                        t_range = times(fano_range) .|> log10
+                        X = hcat(ones(length(t_range)), t_range)
+                        m = X \ fano_range
 
-                    return last(m) # Fano slope
+                        return last(m) # Fano slope
+                    end
+
+                    return ToolsArray(slopes, (Unit(units.ecephys_unit_id),)) |> stack
                 end
-
-                return ToolsArray(slopes, (Unit(units.ecephys_unit_id),)) |> stack
             end
+            idxs = findall(!isnothing, _c)
+            _c = _c[idxs]
+            oursessions = map(unitdepths) do ls
+                only(unique(ls.ecephys_session_id))
+            end
+            oursessions = oursessions[idxs]
+            _c = mean.(_c, dims = Unit)
+            _c = dropdims.(_c, dims = Unit)
+            _c = ToolsArray(_c, (SessionID(oursessions),)) |> stack
         end
-        idxs = findall(!isnothing, layer_slopes)
-        layer_slopes = layer_slopes[idxs]
-        oursessions = map(unitdepths) do ls
-            only(unique(ls.ecephys_session_id))
-        end
-        oursessions = oursessions[idxs]
-        layer_slopes = mean.(layer_slopes, dims = Unit)
-        layer_slopes = dropdims.(layer_slopes, dims = Unit)
-        layer_slopes = ToolsArray(layer_slopes, (SessionID(oursessions),)) |> stack
+        ToolsArray(structureslopes, (Structure(structures),))
     end
-    layer_slopes = ToolsArray(layer_slopes, (Dim{:layer}(2:5),))
+    _c = ToolsArray(_c, (Dim{:layer}(2:5),)) |> stack
 end
-begin # * plot
-    begin
-        ax = Axis(f[1, 2]; ylabel = "Cortical layer",
-                  xlabel = "Median fano factor exponent",
-                  title = "Fano factor exponent", yreversed = true,
-                  yticks = (2:5, ["L2/3", "L4", "L5", "L6"]))
+if true # * Inset variation across areas
+    ssf = OnePanel()
+    ax = Axis(ssf[1, 1];
+              yticks = (1:4, ["L2/3", "L4", "L5", "L6"]),
+              #   width = Relative(0.5),
+              #   height = Relative(0.6),
+              #   halign = 1,
+              #   valign = 0.0,
+              limits = ((0.15, 0.4), nothing),
+              yreversed = true,
+              #   xaxisposition = :top
+              ylabel = "Cortical layer",
+              xlabel = "Variability exponent",
+              ygridvisible = false)
+    layers_to_plot = [2, 3, 4, 5]
+    structure_offsets = [-0.375, -0.225, -0.075, 0.075, 0.225, 0.375] .* 0.9  # Offsets for each structure within a layer
 
-        _b = layer_slopes
-    end
+    vlines!(ax, 0.00; color = :gray, linewidth = 3, linestyle = :dash)
+    hlines!(ax, layers_to_plot[1:(end - 1)] .- 0.5; color = :gray, linewidth = 1)
 
-    begin # * Do statistical test against value of 0.5
-        𝑝 = map(_b) do b
-            𝑝 = HypothesisTests.SignedRankTest(collect(b))
-            𝑝 = HypothesisTests.pvalue(𝑝, tail = :right)
-        end
-        𝑝[:] .= MultipleTesting.adjust(collect(𝑝)[:], BenjaminiHochberg())
+    # Perform statistical tests for each structure-layer combination
+    𝑝 = map(_c) do b
+        𝑝 = HypothesisTests.SignedRankTest(collect(b))
+        𝑝 = HypothesisTests.pvalue(𝑝, tail = :right)
     end
-    for l in lookup(_b, :layer)
-        if l > 1
-            x = _b[layer = At(l)]
-            p = 𝑝[layer = At(l)]
-            _x = filter(!isnan, collect(x)[:])
+    𝑝[:] .= MultipleTesting.adjust(collect(𝑝)[:], BenjaminiHochberg())
+
+    # Plot boxes for each layer and structure
+    for (layer_idx, layer) in enumerate(layers_to_plot)
+        for (struct_idx, structure) in enumerate(lookup(_c, Structure))
+            x = _c[Structure = At(structure), layer = At(layer)]
+            x = filter(!isnan, x)
+            p = 𝑝[Structure = At(structure), layer = At(layer)]
+
+            x_pos = layer_idx + structure_offsets[struct_idx]
+
             if p < SpatiotemporalMotifs.PTHR
-                boxplot!(ax, fill(l, length(_x)), _x;
-                         orientation = :horizontal, show_outliers = false,
-                         color = Foresight.colororder[l - 1],
-                         strokecolor = Foresight.colororder[l - 1], strokewidth = 3)
+                boxplot!(ax, fill(x_pos, length(x)),
+                         collect(x)[:]; show_outliers = false,
+                         orientation = :horizontal,
+                         color = structurecolors[struct_idx],
+                         strokecolor = structurecolors[struct_idx],
+                         strokewidth = 1, width = 0.1, whiskerlinewidth = 0,
+                         medianlinewidth = 2, label = structure)
             else
-                boxplot!(ax, fill(l, length(_x)), _x;
-                         orientation = :horizontal, show_outliers = false,
-                         color = :transparent,
-                         strokecolor = Foresight.colororder[l - 1], strokewidth = 3)
+                boxplot!(ax, fill(x_pos, length(x)),
+                         collect(x)[:]; show_outliers = false,
+                         color = :transparent, orientation = :horizontal,
+                         strokecolor = structurecolors[struct_idx],
+                         strokewidth = 1, width = 0.1, whiskerlinewidth = 0,
+                         medianlinewidth = 2, label = structure)
             end
         end
     end
-    display(f)
-    wsave(plotdir("fano_factors.pdf"), f)
+    axislegend(ax, position = :lb, merge = true)
+    display(ssf)
 end
+# begin # * plot
+#     begin
+#         ax = Axis(f[1, 2]; ylabel = "Cortical layer",
+#                   xlabel = "Median fano factor exponent",
+#                   title = "Fano factor exponent", yreversed = true,
+#                   yticks = (2:5, ["L2/3", "L4", "L5", "L6"]))
+
+#         _b = _c
+#     end
+
+#     begin # * Do statistical test against value of 0.5
+#         𝑝 = map(_b) do b
+#             𝑝 = HypothesisTests.SignedRankTest(collect(b))
+#             𝑝 = HypothesisTests.pvalue(𝑝, tail = :right)
+#         end
+#         𝑝[:] .= MultipleTesting.adjust(collect(𝑝)[:], BenjaminiHochberg())
+#     end
+#     for l in lookup(_b, :layer)
+#         if l > 1
+#             x = _b[layer = At(l)]
+#             p = 𝑝[layer = At(l)]
+#             _x = filter(!isnan, collect(x)[:])
+#             if p < SpatiotemporalMotifs.PTHR
+#                 boxplot!(ax, fill(l, length(_x)), _x;
+#                          orientation = :horizontal, show_outliers = false,
+#                          color = Foresight.colororder[l - 1],
+#                          strokecolor = Foresight.colororder[l - 1], strokewidth = 3)
+#             else
+#                 boxplot!(ax, fill(l, length(_x)), _x;
+#                          orientation = :horizontal, show_outliers = false,
+#                          color = :transparent,
+#                          strokecolor = Foresight.colororder[l - 1], strokewidth = 3)
+#             end
+#         end
+#     end
+# end
+display(f)
+wsave(plotdir("fano_factor", "fano_factors.pdf"), f)
+wsave(plotdir("fano_factor", "supplemental_fano_factors.pdf"), ssf)

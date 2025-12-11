@@ -36,12 +36,27 @@ end
 
 for stimulus in stimuli
     @info "Plotting spectra for $stimulus"
-    @unpack S, layernames, layernums, layerints, meanlayers, S̄, oursessions, Q = plot_data[string(stimulus)]
+    @unpack S, layernames, layernums, layerints, meanlayers, S̄, oursessions, Q, fooof = plot_data[string(stimulus)]
+
+    _b = map(2:5) do layer
+        _b = map(structures) do structure
+            a = fooof["χ"][Structure = At(structure)]
+            S = plot_data[stimulus]["S"][Structure = At(structure)]
+            layermap = S.metadata[:layerinfo]
+            layermap = S.metadata[:streamlinedepths][layermap[3] .== layer]
+            a = a[Depth = Near(layermap)]
+            a = median(a, dims = Depth)
+            a = .-dropdims(a, dims = Depth)
+        end
+        _b = ToolsArray(_b, (Structure(structures),)) |> stack
+    end
+    _b = ToolsArray(_b, (Dim{:layer}(2:5),)) |> stack
+
     begin
         filebase = stimulus == "spontaneous" ? "" : "_$(val_to_string(stimulus))"
-        f = TwoPanel()
 
         begin # * Mean power spectrum. Bands show 1 S.D.
+            f = OnePanel()
             axargs = (; xscale = log10, yscale = log10,
                       limits = ((3, 300), (exp10(-15), exp10(-8.5))),
                       yticks = (exp10.([-14, -12, -10]),
@@ -76,12 +91,17 @@ for stimulus in stimuli
             s = S̄[Structure = At(structure)][layer = At([layer])][𝑓 = 3u"Hz" .. 300u"Hz"]
             # s = s ./ 10^((i - 1.5) / 2.5)
             yc = only(mean(s[𝑓 = Near(3u"Hz")]))
-            ps, α = plotspectrum!(ax, s; textposition = (3, yc),
-                                  color = structurecolormap[structure],
-                                  annotations = [:peaks],
-                                  label = structure)
+            ps = plotspectrum!(ax, s; textposition = (3, yc),
+                               color = structurecolormap[structure],
+                               annotations = [:peaks],
+                               label = structure, fooofargs = (; color = crimson),
+                               domedian = true)
 
-            text!(ax, [100], [1e-10]; text = "b = $(round(α; sigdigits=3))", fontsize = 20)
+            mb = _b[Structure = At(structure), layer = At(layer)]
+            mb = median(filter(!isnan, mb))
+
+            text!(ax, [100], [1e-10]; text = "b = $(round(mb; sigdigits=3))",
+                  fontsize = 20)
 
             # ps, α = first.(psa), last.(psa)
             # α = round.(α, sigdigits = 3)
@@ -95,56 +115,103 @@ for stimulus in stimuli
             f
         end
 
-        _b = map(2:5) do layer
-            a = plot_data[stimulus]["fooof"]["χ"][Structure = At(structure)]
-            S = plot_data[stimulus]["S"][Structure = At(structure)]
-            layermap = S.metadata[:layerinfo]
-            layermap = S.metadata[:streamlinedepths][layermap[3] .== layer]
-            a = a[Depth = Near(layermap)]
-            a = mean(a, dims = Depth)
-            a = dropdims(a, dims = Depth)
-        end
-        _b = ToolsArray(_b, (Dim{:layer}(2:5),)) |> stack
+        # begin # * Plot
+        #     begin
+        #         ax = Axis(f[1, 2]; ylabel = "Cortical layer",
+        #                   xlabel = "Mean spectral exponent",
+        #                   title = "Spectral exponent in VISp", yreversed = true,
+        #                   yticks = (2:5, ["L2/3", "L4", "L5", "L6"]))
 
-        begin # * Plot
-            begin
-                ax = Axis(f[1, 2]; ylabel = "Cortical layer",
-                          xlabel = "Mean spectral exponent",
-                          title = "Spectral exponent in VISp", yreversed = true,
-                          yticks = (2:5, ["L2/3", "L4", "L5", "L6"]))
+        #         vlines!(ax, 2.0; color = :gray, linewidth = 3, linestyle = :dash)
+        #     end
 
-                vlines!(ax, 2.0; color = :gray, linewidth = 3, linestyle = :dash)
+        #     begin # * Do statistical test against value of 2.0
+        #         𝑝 = map(eachslice(_b, dims = :layer)) do b
+        #             𝑝 = HypothesisTests.SignedRankTest(collect(b) .- 2.0)
+        #             𝑝 = HypothesisTests.pvalue(𝑝, tail = :left)
+        #         end
+        #         𝑝[:] .= MultipleTesting.adjust(collect(𝑝)[:], BenjaminiHochberg())
+        #     end
+        #     for l in lookup(_b, :layer)
+        #         if l > 1
+        #             x = _b[layer = At(l)]
+        #             p = 𝑝[layer = At(l)]
+        #             x = filter(!isnan, x)
+        #             if p < SpatiotemporalMotifs.PTHR
+        #                 boxplot!(ax, fill(l, length(x)),
+        #                          collect(x)[:];
+        #                          orientation = :horizontal, show_outliers = false,
+        #                          color = Foresight.colororder[l - 1],
+        #                          strokecolor = Foresight.colororder[l - 1], strokewidth = 3)
+        #             else
+        #                 boxplot!(ax, fill(l, length(x)),
+        #                          collect(x)[:];
+        #                          orientation = :horizontal, show_outliers = false,
+        #                          color = :transparent,
+        #                          strokecolor = Foresight.colororder[l - 1], strokewidth = 3)
+        #             end
+        #         end
+        #     end
+        # end
+        display(f)
+
+        if true # * Inset variation across areas
+            ssf = OnePanel()
+            ax = Axis(ssf[1, 1];
+                      yticks = (1:4, ["L2/3", "L4", "L5", "L6"]),
+                      #   width = Relative(0.5),
+                      #   height = Relative(0.6),
+                      #   halign = 1,
+                      #   valign = 0.0,
+                      limits = ((-2.05, -1.2), nothing),
+                      yreversed = true,
+                      #   xaxisposition = :top
+                      ylabel = "Cortical layer",
+                      xlabel = "Spectral exponent",
+                      ygridvisible = false)
+            layers_to_plot = [2, 3, 4, 5]
+            structure_offsets = [-0.375, -0.225, -0.075, 0.075, 0.225, 0.375] .* 0.9  # Offsets for each structure within a layer
+
+            vlines!(ax, -2.0; color = :gray, linewidth = 3, linestyle = :dash)
+            hlines!(ax, layers_to_plot[1:(end - 1)] .- 0.5; color = :gray, linewidth = 1)
+
+            # Perform statistical tests for each structure-layer combination
+            𝑝 = map(eachslice(_b, dims = (Structure, :layer))) do b
+                𝑝 = HypothesisTests.SignedRankTest(collect(b) .+ 2.0)
+                𝑝 = HypothesisTests.pvalue(𝑝, tail = :right)
             end
+            𝑝[:] .= MultipleTesting.adjust(collect(𝑝)[:], BenjaminiHochberg())
 
-            begin # * Do statistical test against value of 2.0
-                𝑝 = map(eachslice(_b, dims = :layer)) do b
-                    𝑝 = HypothesisTests.SignedRankTest(collect(b) .- 2.0)
-                    𝑝 = HypothesisTests.pvalue(𝑝, tail = :left)
-                end
-                𝑝[:] .= MultipleTesting.adjust(collect(𝑝)[:], BenjaminiHochberg())
-            end
-            for l in lookup(_b, :layer)
-                if l > 1
-                    x = _b[layer = At(l)]
-                    p = 𝑝[layer = At(l)]
+            # Plot boxes for each layer and structure
+            for (layer_idx, layer) in enumerate(layers_to_plot)
+                for (struct_idx, structure) in enumerate(lookup(_b, Structure))
+                    x = _b[Structure = At(structure), layer = At(layer)]
                     x = filter(!isnan, x)
+                    p = 𝑝[Structure = At(structure), layer = At(layer)]
+
+                    x_pos = layer_idx + structure_offsets[struct_idx]
+
                     if p < SpatiotemporalMotifs.PTHR
-                        boxplot!(ax, fill(l, length(x)),
-                                 collect(x)[:];
-                                 orientation = :horizontal, show_outliers = false,
-                                 color = Foresight.colororder[l - 1],
-                                 strokecolor = Foresight.colororder[l - 1], strokewidth = 3)
+                        boxplot!(ax, fill(x_pos, length(x)),
+                                 collect(x)[:]; show_outliers = false,
+                                 orientation = :horizontal,
+                                 color = structurecolors[struct_idx],
+                                 strokecolor = structurecolors[struct_idx],
+                                 strokewidth = 1, width = 0.1, whiskerlinewidth = 0,
+                                 medianlinewidth = 2, label = structure)
                     else
-                        boxplot!(ax, fill(l, length(x)),
-                                 collect(x)[:];
-                                 orientation = :horizontal, show_outliers = false,
-                                 color = :transparent,
-                                 strokecolor = Foresight.colororder[l - 1], strokewidth = 3)
+                        boxplot!(ax, fill(x_pos, length(x)),
+                                 collect(x)[:]; show_outliers = false,
+                                 color = :transparent, orientation = :horizontal,
+                                 strokecolor = structurecolors[struct_idx],
+                                 strokewidth = 1, width = 0.1, whiskerlinewidth = 0,
+                                 medianlinewidth = 2, label = structure)
                     end
                 end
             end
+            axislegend(ax, position = :lt, merge = true)
         end
-        display(f)
     end
     wsave(plotdir("fig2_reduced", "power_spectra$filebase.pdf"), f)
+    wsave(plotdir("fig2_reduced", "supplemental_power_spectra$filebase.pdf"), ssf)
 end
