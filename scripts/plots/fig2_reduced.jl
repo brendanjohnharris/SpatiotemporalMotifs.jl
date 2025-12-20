@@ -55,7 +55,7 @@ for stimulus in stimuli
     begin
         filebase = stimulus == "spontaneous" ? "" : "_$(val_to_string(stimulus))"
 
-        begin # * Mean power spectrum. Bands show 1 S.D.
+        begin # * Median power spectrum. Bands show 1 S.D.
             f = OnePanel()
             axargs = (; xscale = log10, yscale = log10,
                       limits = ((3, 300), (exp10(-15), exp10(-8.5))),
@@ -70,7 +70,7 @@ for stimulus in stimuli
                       ygridvisible = true,
                       xtickformat,
                       xticks = [3, 10, 30, 100],
-                      ylabel = "Mean power spectral density (a.u.)",
+                      ylabel = "PSD",
                       title = "Power spectral density in $structure, L2/3")
             ax2 = Axis(f[1, 1]; axargs...) # For band annotations
             hideyaxis!(ax2)
@@ -98,7 +98,8 @@ for stimulus in stimuli
                                domedian = true)
 
             mb = _b[Structure = At(structure), layer = At(layer)]
-            mb = median(filter(!isnan, mb))
+            mb, (sl, su) = SpatiotemporalMotifs.bootstrapmedian(mb |> collect) # median(filter(!isnan, mb))
+            @info "$stimulus spectral median: $mb, CI: ($sl, $su)"
 
             text!(ax, [100], [1e-10]; text = "b = $(round(mb; sigdigits=3))",
                   fontsize = 20)

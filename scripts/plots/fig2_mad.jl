@@ -282,7 +282,9 @@ for stimulus in stimuli
             coeff = hcat(ones(length(t)), t) \ s
             intercept, slope = eachrow(coeff)
             meanintercept = median(intercept)
-            meanslope = median(slope)
+            # meanslope = median(slope)
+            meanslope, (sl, su) = SpatiotemporalMotifs.bootstrapmedian(slope) # median(filter(!isnan, slope))
+            @info "mad median: $meanslope, CI: ($sl, $su)"
             # slopeerror = std(slope) / 2 #quantile.([slope], [0.25, 0.75])
 
             text!(ax, [1e-3], [10^(-4.25)];
@@ -300,7 +302,8 @@ for stimulus in stimuli
             lines!(ax, mu)
 
             lines!(ax, lookup(_m, 𝑡),
-                   exp10.(meanintercept .+ meanslope .* log10.(times(_m))))
+                   exp10.(meanintercept .+ meanslope .* log10.(times(_m))),
+                   linestyle = :dash, color = crimson)
         end
 
         if true # * Inset variation across areas

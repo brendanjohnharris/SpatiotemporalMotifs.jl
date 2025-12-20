@@ -88,11 +88,11 @@ begin # * Plot fano factor for VISp, layer 2/3, spontaneous
     end
     # end
     # begin # * Plot mean fano factor for 1 subject
-    f = TwoPanel()
+    f = OnePanel()
     ax = Axis(f[1, 1];
               xlabel = "Time lag (ms)",
-              ylabel = "Fano Factor",
-              title = "Fano Factor VISp L2/3",
+              ylabel = "Fano factor",
+              title = "Fano factor in VISp L2/3",
               xscale = log10, yscale = log10)
     fanos = map(unitdepths) do units
         fanos = units.fano_factor
@@ -110,10 +110,18 @@ begin # * Plot fano factor for VISp, layer 2/3, spontaneous
     su = mapslices(x -> quantile(x, 0.75), fanos; dims = SessionID)
     su = dropdims(su, dims = SessionID)
 
-    fano_range = mu[fanorange] .|> log10
-    t_range = times(fano_range) .|> log10
-    xx = hcat(ones(length(t_range)), t_range)
-    m = xx \ fano_range
+    mfanos = map(eachcol(fanos)) do mu
+        fano_range = mu[fanorange] .|> log10
+        t_range = times(fano_range) .|> log10
+        xx = hcat(ones(length(t_range)), t_range)
+        m = xx \ fano_range
+    end
+    mintercept = first.(mfanos)
+    mslope = last.(mfanos)
+    mintercept, (slintercept, suintercept) = SpatiotemporalMotifs.bootstrapmedian(mintercept |>
+                                                                                  collect) # median(filter(!isnan, mfanos))
+    mslope, (slslope, suslope) = SpatiotemporalMotifs.bootstrapmedian(mslope |> collect) # median(filter(!isnan, mfanos))
+    @info "$stimulus fano median: $mslope, CI: ($slslope, $suslope)"
 
     # for x in fanos
     #     lines!(ax, x, color = cornflowerblue, alpha = 0.3, linewidth = 1)
@@ -122,10 +130,10 @@ begin # * Plot fano factor for VISp, layer 2/3, spontaneous
 
     lines!(ax, mu, color = cornflowerblue, linewidth = 3, label = "Mean Fano Factor")
 
-    lines!(ax, exp10.(t_range), exp10.(m[1] .+ m[2] .* t_range);
+    lines!(ax, exp10.(t_range), exp10.(mintercept .+ mslope .* t_range);
            color = :red, linestyle = :dash, linewidth = 3)
 
-    text!(ax, [10^0.5], [10^0.4]; text = "c = $(round(m[2], digits=2))",
+    text!(ax, [10^0.5], [10^0.4]; text = "c = $(round(mslope, digits=2))",
           align = (:left, :center), fontsize = 20)
     display(f)
 end
