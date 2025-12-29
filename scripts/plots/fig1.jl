@@ -227,6 +227,46 @@ begin # ? Figure 1A
           px_per_unit = 10)
     f
 
+    begin # * Save fig1A csv files
+        using CSV, DataFrames
+
+        outdir = datadir("source_data", "fig1A")
+        mkpath(outdir)
+
+        # 1. Surface data (S) - the main 3D surface with theta + gamma overlay
+        surface_df = DataFrame(S)
+        rename_cols!(surface_df)
+        CSV.write(joinpath(outdir, "surface.csv"), surface_df)
+
+        # 2. Base theta signal (x) before gamma overlay
+        theta_df = DataFrame(x)
+        rename_cols!(theta_df)
+        CSV.write(joinpath(outdir, "theta.csv"), theta_df)
+
+        # 3. Gamma peaks envelope (peaks)
+        peaks_df = DataFrame(peaks)
+        rename_cols!(peaks_df)
+        CSV.write(joinpath(outdir, "gamma_peaks.csv"), peaks_df)
+
+        # 4. Gamma oscillation (G) - G is a plain array, need to reconstruct with dims
+        G_da = set(x, G)  # Use x's dimensions for G
+        gamma_df = DataFrame(G_da)
+        rename_cols!(gamma_df)
+        CSV.write(joinpath(outdir, "gamma_oscillation.csv"), gamma_df)
+
+        # 5. Spike data
+        spike_df = DataFrame("time (s)" => Float64[], "cortical depth (%)" => Float64[])
+        for (i, sp) in enumerate(spikes)
+            d = lookup(spikes, Depth)[i]
+            for t in sp
+                push!(spike_df, (t, d))
+            end
+        end
+        CSV.write(joinpath(outdir, "spikes.csv"), spike_df)
+
+        @info "Saved Figure 1A data to $outdir"
+    end
+
     begin # * Save a few representative stimulus images
         map(enumerate(plot_data["VISp"]["stimulus_examples"])) do (i, img)
             wsave(plotdir("fig1", "stimulus_examples", "natural_images_$i.png"), img)
@@ -314,7 +354,7 @@ begin # ? Figure 1: C--G
                                 colorrange = [-pi, pi], domain = -π .. π) |> first
             Colorbar(g4[1][1, 2], php; ticks = ([-pi, 0, pi], ["-𝜋", "0", "𝜋"]))
 
-            rax = Axis(g4[2][1, 1], title = "γ amplitude (a.u.)", yreversed = true,
+            rax = Axis(g4[2][1, 1], title = "γ amplitude (arb. units)", yreversed = true,
                        xticks = [0.0, 0.125, 0.25], xlabel = "Time (s)",
                        limits = ((0, 0.25), (0.01, 0.95)), yticksvisible = false)
             rp = plotlayermap!(rax, ustripall(_r[δT]) .* 100, layernames;
@@ -338,7 +378,6 @@ begin # ? Figure 1: C--G
                  first
             plotlayermap!(kax, ustripall(ω) .< 0; colormap = cgrad([:transparent, :white]))
             Colorbar(g5[1][1, 2], kp)
-
 
             vax.yticksvisible = phax.yticksvisible = kax.yticksvisible = false
 
@@ -416,6 +455,54 @@ begin # ? Figure 1: C--G
 
             wsave(plotdir("fig1", "single_trial_schematic_$structure.pdf"), f)
             f
+        end
+
+        if structure == "VISl" # * Save csv source data
+            outdir = datadir("source_data", "fig1CtoG")
+            mkpath(outdir)
+
+            # Panel C: LFP heatmap
+            lfp_df = DataFrame(ustripall(V))
+            rename_cols!(lfp_df)
+            rename!(lfp_df, names(lfp_df)[end] => "lfp (mV)")
+            CSV.write(joinpath(outdir, "lfp.csv"), lfp_df)
+
+            # Panel D: Theta phase heatmap
+            phase_df = DataFrame(ustripall(ϕ))
+            rename_cols!(phase_df)
+            rename!(phase_df, names(phase_df)[end] => "Phase (radians)")
+            CSV.write(joinpath(outdir, "theta_phase.csv"), phase_df)
+
+            # Panel E: Gamma amplitude heatmap
+            gamma_amp_df = DataFrame(ustripall(_r[δT]) .* 100)
+            rename_cols!(gamma_amp_df)
+            rename!(gamma_amp_df, names(gamma_amp_df)[end] => "Amplitude (arb. units)")
+            CSV.write(joinpath(outdir, "gamma_amplitude.csv"), gamma_amp_df)
+
+            # Panel F: Wavenumber heatmap
+            wavenumber_df = DataFrame(ustripall(k))
+            rename_cols!(wavenumber_df)
+            rename!(wavenumber_df, names(wavenumber_df)[end] => "Wavenumber (mm^-1)")
+            CSV.write(joinpath(outdir, "wavenumber.csv"), wavenumber_df)
+
+            # Panel G: PAC mask and peaks
+            pac_mask_df = DataFrame(mask[𝑡 = δT])
+            rename_cols!(pac_mask_df)
+            rename!(pac_mask_df, names(pac_mask_df)[end] => "Mask")
+            CSV.write(joinpath(outdir, "pac_mask.csv"), pac_mask_df)
+
+            # PAC peaks (gamma burst times and depths)
+            pac_peaks_df = DataFrame("time (s)" => Float64[],
+                                     "cortical depth (%)" => Float64[])
+            for d in lookup(pks, Depth)
+                p = times(pks[Depth = At(d)])
+                for t in ustripall(p)
+                    push!(pac_peaks_df, (t, d))
+                end
+            end
+            CSV.write(joinpath(outdir, "pac_peaks.csv"), pac_peaks_df)
+
+            @info "Saved Figure 1 C-G data to $outdir"
         end
 
         if false # * Spike MUA spectrum

@@ -150,9 +150,11 @@ plot_data, data_file = produce_or_load(Dict(), calcdir("plots");
     return Dict(string.(stimuli) .=> plot_data)
 end
 
-for stimulus in stimuli
+for stimulus in reverse(stimuli)
     @info "Plotting spectra for $stimulus"
     @unpack S, layernames, layernums, layerints, meanlayers, S̄, oursessions, Q = plot_data[string(stimulus)]
+    is_flash = stimulus == "flash_250ms" # ?
+    is_flash && mkpath(datadir("source_data", "fig2")) # ?
     begin
         filebase = stimulus == "spontaneous" ? "" : "_$(val_to_string(stimulus))"
         statsfile = plotdir("fig2", "power_spectra$filebase.txt")
@@ -175,7 +177,7 @@ for stimulus in stimuli
                       ygridstyle = :dash,
                       xtickformat,
                       xticks = [3, 10, 30, 100],
-                      ylabel = "Mean power spectral density (a.u.)",
+                      ylabel = "Mean power spectral density (arb. units)",
                       title = "Power spectral density")
             ax2 = Axis(f[1, 1]; axargs...) # For band annotations
             hideyaxis!(ax2)
@@ -232,6 +234,25 @@ for stimulus in stimuli
                        nbanks = 3, patchsize = (15, 15), rowgap = 2)
             f
         end
+        if is_flash # ?
+            outdir = datadir("source_data", "fig2") # ?
+            df = DataFrame() # ?
+            for (i, structure) in enumerate(structures) # ?
+                sname = replace(structure, "/" => "") # ?
+                s = S̄[Structure = At(structure)][𝑓 = 3u"Hz" .. 300u"Hz"] # ?
+                s = s ./ 10^((i - 1.5) / 2.5) # ?
+                μ = mean(s, dims = (SessionID, :layer)) # ?
+                μ = dropdims(μ, dims = (SessionID, :layer)) |> ustripall # ?
+                σ = std(s, dims = (SessionID, :layer)) ./ 2 # ?
+                σ = dropdims(σ, dims = (SessionID, :layer)) |> ustripall # ?
+                if i == 1 # ?
+                    df[!, "Frequency (Hz)"] = lookup(μ, 𝑓) # ?
+                end # ?
+                df[!, "Mean power $sname (a.u.)"] = collect(μ) # ?
+                df[!, "SD $sname (a.u.)"] = collect(σ) # ?
+            end # ?
+            CSV.write(joinpath(outdir, "panel_a_power_spectrum.csv"), df) # ?
+        end # ?
 
         begin # * Load the channel-wise fits
             χ = plot_data[string(stimulus)]["fooof"]["χ"]
@@ -288,6 +309,23 @@ for stimulus in stimuli
             # reverselegend!(l)
             plotlayerints!(ax, layerints; axis = :y, newticks = false, flipside = true)
         end
+        if is_flash # ?
+            outdir = datadir("source_data", "fig2") # ?
+            df = DataFrame() # ?
+            for (i, _b) in enumerate(b) # ?
+                sname = replace(structures[i], "/" => "") # ?
+                μ, (σl, σh) = bootstrapmedian(_b .+ eps() .* randn(size(_b)), # ?
+                                              dims = SessionID) # ?
+                μ, σl, σh = upsample.((μ, σl, σh), 5) # ?
+                if i == 1 # ?
+                    df[!, "Cortical depth (%)"] = lookup(μ, 1) # ?
+                end # ?
+                df[!, "Median intercept $sname (normalized)"] = collect(μ) # ?
+                df[!, "CI lower $sname"] = collect(σl) # ?
+                df[!, "CI upper $sname"] = collect(σh) # ?
+            end # ?
+            CSV.write(joinpath(outdir, "panel_c_intercept.csv"), df) # ?
+        end # ?
 
         begin # * Plot the exponent
             ax = Axis(f[3, 1:2][1, 1]; ylabel = "Cortical depth (%)",
@@ -309,6 +347,22 @@ for stimulus in stimuli
             # reverselegend!(l)
             plotlayerints!(ax, layerints; axis = :y, newticks = false, flipside = true)
         end
+        if is_flash # ?
+            outdir = datadir("source_data", "fig2") # ?
+            df = DataFrame() # ?
+            for (i, chi) in enumerate(χ) # ?
+                sname = replace(structures[i], "/" => "") # ?
+                μ, (σl, σh) = bootstrapmedian(chi, dims = SessionID) # ?
+                μ, σl, σh = upsample.((μ, σl, σh), 5) # ?
+                if i == 1 # ?
+                    df[!, "Cortical depth (%)"] = lookup(μ, 1) # ?
+                end # ?
+                df[!, "Median exponent $sname"] = collect(μ) # ?
+                df[!, "CI lower $sname"] = collect(σl) # ?
+                df[!, "CI upper $sname"] = collect(σh) # ?
+            end # ?
+            CSV.write(joinpath(outdir, "panel_b_exponent.csv"), df) # ?
+        end # ?
         begin # * Is the exponent correlated to depth?
             tps = [SpatiotemporalMotifs.mediankendallpvalue(lookup(x, Depth), x) for x in χ]
             τs = cat(first.(tps), last.(tps); dims = Var([:kendall, :pvalue]))
@@ -340,7 +394,7 @@ for stimulus in stimuli
                 p = heatmap!(ax, lookup(x, 1), lookup(x, 2) .* 100, x |> collect,
                              colormap = :viridis, colorrange = (0, 1), rasterize = 5)
                 if i % 2 == 0
-                    Colorbar(gs[i][1, 2], p, label = "Relative power (a.u.)",
+                    Colorbar(gs[i][1, 2], p, label = "Relative power (arb. units)",
                              tellheight = true)
                     hideyaxis!(ax)
                 end
@@ -416,6 +470,25 @@ for stimulus in stimuli
             end
             f
         end
+        if is_flash # ?
+            outdir = datadir("source_data", "fig2") # ?
+            structure = "VISl" # ?
+            df = DataFrame() # ?
+            for (i, l) in enumerate(layers) # ?
+                lname = replace(l, "/" => "") # ?
+                s = Sr_log[Structure = At(structure)][Freq(3 .. 300)] # ?
+                s = s[layer = (lookup(s, :layer) .== [l])] # ?
+                s = dropdims(nansafe(mean; dims = :layer)(s), dims = :layer) # ?
+                μ = dropdims(mean(s, dims = SessionID), dims = SessionID) # ?
+                σ = dropdims(std(s, dims = SessionID), dims = SessionID) # ?
+                if i == 1 # ?
+                    df[!, "Frequency (Hz)"] = TimeseriesTools.freqs(μ) # ?
+                end # ?
+                df[!, "Mean residual L$lname (dB)"] = collect(μ) # ?
+                df[!, "SD L$lname (dB)"] = collect(σ) # ?
+            end # ?
+            CSV.write(joinpath(outdir, "panel_d_residual_spectrum_VISl.csv"), df) # ?
+        end # ?
 
         begin # * Residual power supplement
             sf = SixPanel()
@@ -514,6 +587,23 @@ for stimulus in stimuli
             ax.limits = ((-0.14, 0.55), (0, 1))
             display(f)
         end
+        if is_flash # ?
+            outdir = datadir("source_data", "fig2") # ?
+            df = DataFrame() # ?
+            for (i, s) in enumerate(structures) # ?
+                sname = replace(s, "/" => "") # ?
+                x = θr[Structure = At(s)] # ?
+                μ, (σl, σh) = bootstrapmedian(x, dims = SessionID) # ?
+                μ, σl, σh = upsample.((μ, σl, σh), 5) # ?
+                if i == 1 # ?
+                    df[!, "Cortical depth (%)"] = lookup(μ, 1) # ?
+                end # ?
+                df[!, "Median residual θ $sname (%)"] = collect(μ) # ?
+                df[!, "CI lower $sname"] = collect(σl) # ?
+                df[!, "CI upper $sname"] = collect(σh) # ?
+            end # ?
+            CSV.write(joinpath(outdir, "panel_e_residual_theta.csv"), df) # ?
+        end # ?
         begin # * Does residual theta increase along layers
             tps = [SpatiotemporalMotifs.mediankendallpvalue(lookup(x, Depth), x)
                    for x in θr]
@@ -564,37 +654,23 @@ for stimulus in stimuli
             ax.limits = ((nothing, nothing), (0, 1))
             display(f)
         end
-
-        # begin # * Plot the spectral width of the gamma band
-        #     # f = Figure()
-        #     ax = Axis(f[2, 2]; xlabel = "Cortical depth (%)", yticks = WilkinsonTicks(4),
-        #               xtickformat = depthticks,
-        #               ylabel = "𝜸 spectral width ($(gamma.left) – $(gamma.right) Hz) [Hz]",
-        #               yticklabelrotation = π / 2)
-
-        #     for (i, s) in (reverse ∘ collect ∘ enumerate)(structures)
-        #         ss = Sr[Structure = At(s)][Freq(gamma)]
-        #         ss[ss .< 0] .-= minimum(ss) # ! Ok?
-        #         df = ustrip(step(lookup(Sr[1], Freq)))
-        #         N = ss ./ (sum(ss, dims = 1) ./ df) # A density
-        #         fs = collect(lookup(ss, Freq))
-        #         μ = sum(fs .* N, dims = Freq) ./ df # Center of mass of gamma band
-        #         σ = sqrt.(sum((fs .- μ) .^ 2 .* N, dims = 1) ./ df)
-        #         σ = dropdims(σ, dims = Freq)
-        #         μ, (σl, σh) = bootstrapmedian(σ, dims = SessionID)
-        #         μ, σl, σh = upsample.((μ, σl, σh), 5)
-        #         band!(ax, lookup(μ, 1), collect(σl), collect(σh);
-        #               color = (structurecolors[i], bandalpha), label = structures[i])
-        #         lines!(ax, lookup(μ, 1), μ;
-        #                color = (structurecolors[i], alpha), label = structures[i])
-        #     end
-
-        #     l = axislegend(ax, position = :lb, nbanks = 2, labelsize = 12, merge = true)
-        #     reverselegend!(l)
-        #     plotlayerints!(ax, layerints; axis = :x, newticks = false, flipside = true)
-        #     ax.limits = ((0, 1), (nothing, nothing))
-        #     display(f)
-        # end
+        if is_flash # ?
+            outdir = datadir("source_data", "fig2") # ?
+            df = DataFrame() # ?
+            for (i, s) in enumerate(structures) # ?
+                sname = replace(s, "/" => "") # ?
+                ss = γr[Structure = At(s)] # ?
+                μ, (σl, σh) = bootstrapmedian(ss, dims = SessionID) # ?
+                μ, σl, σh = upsample.((μ, σl, σh), 5) # ?
+                if i == 1 # ?
+                    df[!, "Cortical depth (%)"] = lookup(μ, 1) # ?
+                end # ?
+                df[!, "Median residual γ $sname (%)"] = collect(μ) # ?
+                df[!, "CI lower $sname"] = collect(σl) # ?
+                df[!, "CI upper $sname"] = collect(σh) # ?
+            end # ?
+            CSV.write(joinpath(outdir, "panel_f_residual_gamma.csv"), df) # ?
+        end # ?
 
         begin # * Plot the hierarchical correlation across layers
             N = 10000
@@ -665,6 +741,24 @@ for stimulus in stimuli
 
             plotlayerints!(ax, layerints; axis = :y, newticks = false, flipside = true)
         end
+        if is_flash # ?
+            outdir = datadir("source_data", "fig2") # ?
+            df = DataFrame(; Depth = unidepths, Exponent_tau = collect(μ),
+                           Exponent_CI_lower = collect(first.(σ)),
+                           Exponent_CI_upper = collect(last.(σ)), Exponent_p = collect(𝑝),
+                           Intercept_tau = collect(μb),
+                           Intercept_CI_lower = collect(first.(σb)),
+                           Intercept_CI_upper = collect(last.(σb)),
+                           Intercept_p = collect(𝑝b)) # ?
+            rename!(df, "Depth" => "Cortical depth (%)", "Exponent_tau" => "Exponent τ",
+                    "Exponent_CI_lower" => "Exponent CI lower",
+                    "Exponent_CI_upper" => "Exponent CI upper",
+                    "Exponent_p" => "Exponent p", "Intercept_tau" => "Intercept τ",
+                    "Intercept_CI_lower" => "Intercept CI lower",
+                    "Intercept_CI_upper" => "Intercept CI upper",
+                    "Intercept_p" => "Intercept p") # ?
+            CSV.write(joinpath(outdir, "panel_g_1f_gradients.csv"), df) # ?
+        end # ?
         begin
             # μ[𝑝 .> PTHR] .= NaN
             # μt[𝑝t .> PTHR] .= NaN
@@ -706,7 +800,21 @@ for stimulus in stimuli
 
             plotlayerints!(ax, layerints; axis = :y, newticks = false, flipside = true)
         end
-        addlabels!(f, ["a", "d", "f", "e", "c", "b", "g", "h"])
+        if is_flash # ?
+            outdir = datadir("source_data", "fig2") # ?
+            df = DataFrame(; Depth = unidepths, Theta_tau = collect(μt),
+                           Theta_CI_lower = collect(first.(σt)),
+                           Theta_CI_upper = collect(last.(σt)), Theta_p = collect(𝑝t),
+                           Gamma_tau = collect(μg), Gamma_CI_lower = collect(first.(σg)),
+                           Gamma_CI_upper = collect(last.(σg)), Gamma_p = collect(𝑝g)) # ?
+            rename!(df, "Depth" => "Cortical depth (%)", "Theta_tau" => "θ τ",
+                    "Theta_CI_lower" => "θ CI lower", "Theta_CI_upper" => "θ CI upper",
+                    "Theta_p" => "θ p", "Gamma_tau" => "γ τ",
+                    "Gamma_CI_lower" => "γ CI lower", "Gamma_CI_upper" => "γ CI upper",
+                    "Gamma_p" => "γ p") # ?
+            CSV.write(joinpath(outdir, "panel_h_timescale_gradients.csv"), df) # ?
+        end # ?
+        addlabels!(f, ["a", "g", "c", "d", "e", "h", "f", "b"])
         f |> display
     end
     wsave(plotdir("fig2", "power_spectra$filebase.pdf"), f)

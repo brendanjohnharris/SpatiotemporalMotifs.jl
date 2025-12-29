@@ -33,6 +33,7 @@ import TimeseriesTools.TimeSeries
 using UnPack
 import Foresight.clip
 import CairoMakie.save
+using AllenNeuropixels.CSV
 import DimensionalData: metadata
 using Term
 using Term.Progress
@@ -75,6 +76,7 @@ function _preamble()
         import Foresight.clip
         import CairoMakie.save
         import DimensionalData: metadata
+        using AllenNeuropixels.CSV
         using Term
         using Term.Progress
         import AllenNeuropixels: Chan, Unit, Depth, Log𝑓
@@ -1335,3 +1337,16 @@ function rank_biserial(test::Union{HypothesisTests.ApproximateSignedRankTest,
 
     return r
 end
+
+function rename_cols!(df)
+    if "𝑓" in names(df)
+        rename!(df, "𝑓" => "Frequency (Hz)")
+    end
+    if "Depth" in names(df)
+        rename!(df, "Depth" => "Cortical depth (%)")
+    end
+    if "𝑡" in names(df)
+        rename!(df, :𝑡 => "Time (s)")
+    end
+end
+export rename_cols!
