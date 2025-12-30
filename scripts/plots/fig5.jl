@@ -279,6 +279,7 @@ begin # * Set up master plot
     α = 0.9
     grandlayerints = load(calcdir("plots", "grand_unified_layers.jld2"), "layerints")
     oursessions = plot_data["oursessions"]
+    mkpath(datadir("source_data", "fig5")) # ?
 end
 
 begin # * packet masks and schematic
@@ -355,6 +356,16 @@ begin # * packet masks and schematic
         tightlimits!(ax)
         ax.azimuth = -1.3π / 3
     end
+
+    begin # ? Save source data for panel a (γ-packet schematic)
+        outdir = datadir("source_data", "fig5") # ?
+        s = schemr[𝑡(0.12u"s" .. 0.25u"s")] |> ustripall # ?
+        s = set(s, 𝑡 => (lookup(s, 𝑡) .- minimum(lookup(s, 𝑡))) .* 1000) # ?
+        df = DataFrame(s) # ?
+        rename!(df, "𝑡" => "Time (ms)", "Depth" => "Cortical depth (%)", # ?
+                last(names(df)) => "γ amplitude") # ?
+        CSV.write(joinpath(outdir, "panel_a_gamma_packet_schematic.csv"), df) # ?
+    end # ?
 
     begin # * Heatmap of packet likelihood
         @info "Plotting packet likelihoods"
@@ -459,6 +470,22 @@ begin # * packet masks and schematic
                        patchsize = (20, 15))
         reverselegend!(l)
     end
+
+    begin # ? Save source data for panel b (packet width)
+        outdir = datadir("source_data", "fig5") # ?
+        df = DataFrame() # ?
+        for (i, s) in enumerate(structures) # ?
+            sname = replace(s, "/" => "") # ?
+            μ, (σl, σh) = bootstrapmedian(xbins[i] |> ustripall; dims = 2) # ?
+            if i == 1 # ?
+                df[!, "Time (s)"] = collect(lookup(μ, 1)) # ?
+            end # ?
+            df[!, "Median width $sname (μm)"] = collect(μ) # ?
+            df[!, "CI lower $sname (μm)"] = collect(σl) # ?
+            df[!, "CI upper $sname (μm)"] = collect(σh) # ?
+        end # ?
+        CSV.write(joinpath(outdir, "panel_b_packet_width.csv"), df) # ?
+    end # ?
 
     begin # * Final adjustments
         addlabels!(f, labelformat)
@@ -605,6 +632,24 @@ begin # * Global and spatiotemporal PAC
         wsave(plotdir("fig5", "supplemental_spatiotemporal_pac.pdf"), f)
         f
     end
+
+    begin # ? Save source data for panels e and f (spatiotemporal PAC)
+        outdir = datadir("source_data", "fig5") # ?
+        @unpack PAC = plot_data["spatiotemporal_pac"] # ?
+        for P in PAC # ?
+            s = metadata(P)[:structure] # ?
+            sname = replace(s, "/" => "") # ?
+            if s in ["VISl", "VISam"] # ? Only save main figure panels
+                x = ustripall(P[𝑡 = SpatiotemporalMotifs.INTERVAL]) # ?
+                df = DataFrame(x) # ?
+                rename!(df, "𝑡" => "Time (s)", "Depth" => "Cortical depth (%)", # ?
+                        last(names(df)) => "PAC") # ?
+                panel = s == "VISl" ? "e" : "f" # ?
+                CSV.write(joinpath(outdir, "panel_$(panel)_spatiotemporal_pac_$sname.csv"),
+                          df) # ?
+            end # ?
+        end # ?
+    end # ?
 end
 
 begin # * Layer-wise PAC
@@ -716,6 +761,40 @@ begin # * Layer-wise PAC
                    linewidth = 7)
         end
     end
+
+    begin # ? Save source data for panel c (layer-wise PAC)
+        outdir = datadir("source_data", "fig5") # ?
+        df = DataFrame() # ?
+        for (i, p) in enumerate(pacc) # ?
+            s = structures[i] # ?
+            sname = replace(s, "/" => "") # ?
+            μ, (σl, σh) = bootstrapmedian(p |> ustripall; dims = 2) # ?
+            if i == 1 # ?
+                df[!, "Cortical depth (%)"] = collect(lookup(μ, 1)) # ?
+            end # ?
+            df[!, "Median PAC $sname"] = collect(μ) # ?
+            df[!, "CI lower $sname"] = collect(σl) # ?
+            df[!, "CI upper $sname"] = collect(σh) # ?
+        end # ?
+        CSV.write(joinpath(outdir, "panel_c_layerwise_pac.csv"), df) # ?
+    end # ?
+
+    begin # ? Save source data for panel d (layer-wise PAC angle)
+        outdir = datadir("source_data", "fig5") # ?
+        df = DataFrame() # ?
+        for (i, p) in enumerate(peaks) # ?
+            s = structures[i] # ?
+            sname = replace(s, "/" => "") # ?
+            μ, (σl, σh) = bootstrapaverage(circularmean, p |> ustripall; dims = 2) # ?
+            if i == 1 # ?
+                df[!, "Cortical depth (%)"] = collect(lookup(μ, 1)) # ?
+            end # ?
+            df[!, "Mean angle $sname (rad)"] = collect(μ) # ?
+            df[!, "CI lower $sname (rad)"] = collect(σl) # ?
+            df[!, "CI upper $sname (rad)"] = collect(σh) # ?
+        end # ?
+        CSV.write(joinpath(outdir, "panel_d_layerwise_pac_angle.csv"), df) # ?
+    end # ?
 end
 
 begin

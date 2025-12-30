@@ -70,15 +70,6 @@ plot_data, data_file = produce_or_load(config, calcdir("plots");
                         # * Find strongest frequency
                         rmse, topidx = findmin(rmses)
 
-                        # begin
-                        #     lines(x)
-                        #     y = SpatiotemporalMotifs.reconstruct(P, x)
-                        #     lines!(y, linestyle = :dash)
-                        #     y = SpatiotemporalMotifs.reconstruct(P, x; idxs = topidx)
-                        #     lines!(y)
-                        #     current_figure() |> display
-                        # end
-
                         return amps[topidx], fs[topidx], rmse, damps[topidx]
                     end
                 end
@@ -150,23 +141,6 @@ plot_data, data_file = produce_or_load(config, calcdir("plots");
     return outdict
 end
 
-# begin # * Select the peak amplitude and frequency for each channel
-#     pronies = plot_data["flash_250ms"]["prony_fit"]
-#     af = ramap(pronies) do x
-#         frequencies = x.frequencies
-#         amplitudes = x.amplitudes
-
-#         idxs = frequencies .> 0
-#         frequencies = frequencies[idxs]
-#         amplitudes = amplitudes[idxs]
-
-#         idx = findmax(amplitudes) |> last
-
-#         return amplitudes[idx], frequencies[idx]
-#     end
-#     amplitudes = ramap(first, af)
-#     frequencies = ramap(last, af)
-# end
 function pformat(x)
     bins = intervals(0.0:0.1:0.9)
     x = median(x, dims = :changetime)
@@ -204,6 +178,7 @@ begin
     f = TwoPanel()
     gs = subdivide(f, 1, 4)
     layerints = load(calcdir("plots", "grand_unified_layers.jld2"), "layerints")
+    mkpath(datadir("source_data", "figS2")) # ?
 
     # * Frequencies
     ax = Axis(gs[1]; ytickformat = depthticks, yreversed = true,
@@ -225,6 +200,57 @@ begin
     Legend(gs[4], contents(gs[3]) |> only, "Area"; merge = true) |>
     reverselegend!
     f
+
+    begin # ? Save source data for panel a (frequency)
+        outdir = datadir("source_data", "figS2") # ?
+        df = DataFrame() # ?
+        for (i, s) in enumerate(structures) # ?
+            sname = replace(s, "/" => "") # ?
+            x = bfs[i] # ?
+            μ, (σl, σh) = bootstrapmedian(x; dims = 2) # ?
+            if i == 1 # ?
+                df[!, "Cortical depth (%)"] = collect(lookup(μ, 1)) # ?
+            end # ?
+            df[!, "Median frequency $sname (Hz)"] = collect(μ) # ?
+            df[!, "CI lower $sname (Hz)"] = collect(σl) # ?
+            df[!, "CI upper $sname (Hz)"] = collect(σh) # ?
+        end # ?
+        CSV.write(joinpath(outdir, "panel_a_frequency.csv"), df) # ?
+    end # ?
+
+    begin # ? Save source data for panel b (amplitude)
+        outdir = datadir("source_data", "figS2") # ?
+        df = DataFrame() # ?
+        for (i, s) in enumerate(structures) # ?
+            sname = replace(s, "/" => "") # ?
+            x = bamps[i] # ?
+            μ, (σl, σh) = bootstrapmedian(x; dims = 2) # ?
+            if i == 1 # ?
+                df[!, "Cortical depth (%)"] = collect(lookup(μ, 1)) # ?
+            end # ?
+            df[!, "Median amplitude $sname"] = collect(μ) # ?
+            df[!, "CI lower $sname"] = collect(σl) # ?
+            df[!, "CI upper $sname"] = collect(σh) # ?
+        end # ?
+        CSV.write(joinpath(outdir, "panel_b_amplitude.csv"), df) # ?
+    end # ?
+
+    begin # ? Save source data for panel c (error)
+        outdir = datadir("source_data", "figS2") # ?
+        df = DataFrame() # ?
+        for (i, s) in enumerate(structures) # ?
+            sname = replace(s, "/" => "") # ?
+            x = berrors[i] # ?
+            μ, (σl, σh) = bootstrapmedian(x; dims = 2) # ?
+            if i == 1 # ?
+                df[!, "Cortical depth (%)"] = collect(lookup(μ, 1)) # ?
+            end # ?
+            df[!, "Median RMSE $sname"] = collect(μ) # ?
+            df[!, "CI lower $sname"] = collect(σl) # ?
+            df[!, "CI upper $sname"] = collect(σh) # ?
+        end # ?
+        CSV.write(joinpath(outdir, "panel_c_error.csv"), df) # ?
+    end # ?
 end
 
 begin
@@ -232,42 +258,3 @@ begin
     display(f)
     wsave(plotdir("figS2", "figS2.pdf"), f)
 end
-
-# begin
-#     f = TwoPanel()
-#     gs = subdivide(f, 1, 3)
-#     layerints = load(calcdir("plots", "grand_unified_layers.jld2"), "layerints")
-
-#     titles = ["Natural images post-onset", "Flashes post-onset"]
-
-#     for (i, stimulus) in enumerate(["r\"Natural_Images\"", "flash_250ms"])
-#         ax = Axis(gs[i], xlabel = "Average frequency (Hz)", ylabel = "Cortical depth (%)",
-#                   title = "$(titles[i])",
-#                   ytickformat = depthticks, yreversed = true,
-#                   limits = ((4.7, 7), (0, 1)))
-#         ω = plot_data[stimulus]["ω"]
-
-#         plotlayerints!(ax, layerints; axis = :y, flipside = false, newticks = false,
-#                        bgcolor = Makie.RGBA(0, 0, 0, 0))
-
-#         map(lookup(ω, Structure), eachslice(ω, dims = Structure)) do structure, x
-#             x = ustripall(x ./ (2π))
-
-#             μ, (σl, σh) = bootstrapmedian(x, dims = 2)
-
-#             μ, σl, σh = upsample.((μ, σl, σh), 5)
-
-#             band!(ax, Point2f.(collect(σl), lookup(μ, 1)),
-#                   Point2f.(collect(σh), lookup(μ, 1));
-#                   color = (structurecolormap[structure], 0.32), label = structure)
-
-#             lines!(ax, collect(μ), lookup(μ, 1);
-#                    color = (structurecolormap[structure], 0.8),
-#                    label = structure)
-#         end
-#     end
-#     Legend(gs[3], contents(gs[2]) |> only; merge = true, title = "Structure")
-#     addlabels!(f, labelformat)
-#     display(f)
-#     wsave(plotdir("figS2", "figS2.pdf"), f)
-# end

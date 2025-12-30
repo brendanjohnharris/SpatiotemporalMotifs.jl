@@ -248,8 +248,8 @@ for stimulus in reverse(stimuli)
                 if i == 1 # ?
                     df[!, "Frequency (Hz)"] = lookup(μ, 𝑓) # ?
                 end # ?
-                df[!, "Mean power $sname (a.u.)"] = collect(μ) # ?
-                df[!, "SD $sname (a.u.)"] = collect(σ) # ?
+                df[!, "Mean power $sname (arb. units)"] = collect(μ) # ?
+                df[!, "SD $sname (arb. units)"] = collect(σ) # ?
             end # ?
             CSV.write(joinpath(outdir, "panel_a_power_spectrum.csv"), df) # ?
         end # ?

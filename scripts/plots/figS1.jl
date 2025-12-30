@@ -212,6 +212,7 @@ end
 begin # * Set up figure
     f = TwoPanel()
     gs = subdivide(f, 1, 4)
+    mkpath(datadir("source_data", "figS1")) # ?
 end
 
 begin # * Plotting
@@ -249,6 +250,23 @@ begin # * Plotting
     #              color = :white, strokewidth = 4)
     # end
     display(f)
+
+    begin # ? Save source data for panel a (1/f contrast)
+        outdir = datadir("source_data", "figS1") # ?
+        df = DataFrame() # ?
+        for (i, s) in enumerate(structures) # ?
+            sname = replace(s, "/" => "") # ?
+            Δχ_s = Δχ[Structure = At(s)] # ?
+            μ, (σl, σh) = bootstrapmedian(Δχ_s; dims = 2) # ?
+            if i == 1 # ?
+                df[!, "Cortical depth (%)"] = collect(lookup(μ, 1)) # ?
+            end # ?
+            df[!, "Median 1/f contrast $sname"] = collect(μ) # ?
+            df[!, "CI lower $sname"] = collect(σl) # ?
+            df[!, "CI upper $sname"] = collect(σh) # ?
+        end # ?
+        CSV.write(joinpath(outdir, "panel_a_1f_contrast.csv"), df) # ?
+    end # ?
 end
 
 begin # * Plot classification accuracy
@@ -275,6 +293,35 @@ begin # * Plot classification accuracy
     boxplot!(ax, ones(length(xs)) .+ 3, xs, color = (:gray, 0.7), whiskerlinewidth = 3)
 
     display(f)
+
+    begin # ? Save source data for panel b (classification accuracy)
+        outdir = datadir("source_data", "figS1") # ?
+        # ? Regional (mean 1/f) classifier
+        regional_acc = first.(filter(!isnothing, bac_mean)) # ?
+        regional_sur = last.(filter(!isnothing, bac_mean)) |> Iterators.flatten |> collect # ?
+        # ? Layer-wise classifier
+        layerwise_acc = first.(filter(!isnothing, bac)) # ?
+        layerwise_sur = last.(filter(!isnothing, bac)) |> Iterators.flatten |> collect # ?
+        # ? Build long-format DataFrame
+        dfs = DataFrame[] # ?
+        push!(dfs,
+              DataFrame("Classifier" => fill("Regional", length(regional_acc)), # ?
+                        "Type" => fill("Actual", length(regional_acc)), # ?
+                        "Balanced accuracy" => regional_acc)) # ?
+        push!(dfs,
+              DataFrame("Classifier" => fill("Regional", length(regional_sur)), # ?
+                        "Type" => fill("Surrogate", length(regional_sur)), # ?
+                        "Balanced accuracy" => regional_sur)) # ?
+        push!(dfs,
+              DataFrame("Classifier" => fill("Layer-wise", length(layerwise_acc)), # ?
+                        "Type" => fill("Actual", length(layerwise_acc)), # ?
+                        "Balanced accuracy" => layerwise_acc)) # ?
+        push!(dfs,
+              DataFrame("Classifier" => fill("Layer-wise", length(layerwise_sur)), # ?
+                        "Type" => fill("Surrogate", length(layerwise_sur)), # ?
+                        "Balanced accuracy" => layerwise_sur)) # ?
+        CSV.write(joinpath(outdir, "panel_b_classification_accuracy.csv"), vcat(dfs...)) # ?
+    end # ?
 end
 
 begin # * Plot weights of lda classifier for full classification
@@ -287,6 +334,23 @@ begin # * Plot weights of lda classifier for full classification
     SpatiotemporalMotifs.plot_layerwise!(ax, W; scatter = true)
 
     display(f)
+
+    begin # ? Save source data for panel c (classifier weights)
+        outdir = datadir("source_data", "figS1") # ?
+        df = DataFrame() # ?
+        for (i, s) in enumerate(structures) # ?
+            sname = replace(s, "/" => "") # ?
+            W_s = W[Structure = At(s)] # ?
+            μ, (σl, σh) = bootstrapmedian(W_s; dims = 2) # ?
+            if i == 1 # ?
+                df[!, "Cortical depth (%)"] = collect(lookup(μ, 1)) # ?
+            end # ?
+            df[!, "Median weight $sname"] = collect(μ) # ?
+            df[!, "CI lower $sname"] = collect(σl) # ?
+            df[!, "CI upper $sname"] = collect(σh) # ?
+        end # ?
+        CSV.write(joinpath(outdir, "panel_c_classifier_weights.csv"), df) # ?
+    end # ?
 end
 
 begin # * Save figure

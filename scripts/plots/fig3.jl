@@ -363,6 +363,8 @@ begin # * Set up main figure
     gs = subdivide(fig, 2, 2)
 end
 
+mkpath(datadir("source_data", "fig3")) # ?
+
 begin # * Wavenumbers
     @info "Plotting wavenumbers"
     begin # * Supplemental material: average wavenumbers in each region
@@ -460,6 +462,32 @@ begin # * Wavenumbers
         # wsave(plotdir("fig3", "supplemental_wavenumber_flash.pdf"), f)
         wsave(plotdir("fig3", "supplemental_wavenumber.pdf"), f)
     end
+    begin # ? Save wavenumber source data for main figure (VISl only)
+        outdir = datadir("source_data", "fig3") # ?
+        for data in plot_data["wavenumbers"]["Natural_Images"] # ?
+            @unpack m_hit, m_miss, structure = data # ?
+            structure != mainstructure && continue # ?
+            sname = replace(structure, "/" => "") # ?
+            df_hit = DataFrame(ustripall(m_hit)) # ?
+            vcol = names(df_hit)[end]
+            rename!(df_hit, "𝑡" => "Time (s)", "Depth" => "Cortical depth (%)", # ?
+                    vcol => "Wavenumber (1/mm)") # ?
+            CSV.write(joinpath(outdir, "panel_a_wavenumber_hit_$sname.csv"), df_hit) # ?
+            df_miss = DataFrame(ustripall(m_miss)) # ?
+            rename!(df_miss, "𝑡" => "Time (s)", "Depth" => "Cortical depth (%)", # ?
+                    names(df_miss)[end] => "Wavenumber (1/mm)") # ?
+            CSV.write(joinpath(outdir, "panel_b_wavenumber_miss_$sname.csv"), df_miss) # ?
+        end # ?
+        for data in plot_data["wavenumbers"]["flashes"] # ?
+            @unpack m_flashes, structure = data # ?
+            structure != mainstructure && continue # ?
+            sname = replace(structure, "/" => "") # ?
+            df_flash = DataFrame(ustripall(m_flashes)) # ?
+            rename!(df_flash, "𝑡" => "Time (s)", "Depth" => "Cortical depth (%)", # ?
+                    names(df_flash)[end] => "Wavenumber (1/mm)") # ?
+            CSV.write(joinpath(outdir, "panel_c_wavenumber_flash_$sname.csv"), df_flash) # ?
+        end # ?
+    end # ?
 end
 
 begin # * Supplemental material: csd in each region
@@ -590,6 +618,23 @@ begin # * Order parameters
                            merge = true, patchsize = (20, 15), padding = fill(4, 4))
             reverselegend!(l)
         end
+        begin # ? Save order parameter source data for flashes
+            outdir = datadir("source_data", "fig3") # ?
+            df = DataFrame() # ?
+            for (i, O) in enumerate(Ō) # ?
+                structure = metadata(O)[:structure] # ?
+                sname = replace(structure, "/" => "") # ?
+                O = O[𝑡(SpatiotemporalMotifs.INTERVAL)] # ?
+                μ = dropdims(mean(O, dims = SessionID), dims = SessionID) # ?
+                σ = dropdims(std(O, dims = SessionID), dims = SessionID) ./ 2 # ?
+                if i == 1 # ?
+                    df[!, "Time (s)"] = times(μ) |> ustripall |> collect # ?
+                end # ?
+                df[!, "Mean R_θ $sname"] = μ |> ustripall |> collect # ?
+                df[!, "SD $sname"] = σ |> ustripall |> collect # ?
+            end # ?
+            CSV.write(joinpath(outdir, "panel_e_order_parameter_flashes.csv"), df) # ?
+        end # ?
     end
     begin # * Task stimulus (natural images)
         @unpack Og, layergroups, D = plot_data["order_parameters"]["Natural_Images"]
@@ -630,6 +675,23 @@ begin # * Order parameters
                            merge = true, patchsize = (20, 15), padding = fill(4, 4))
             reverselegend!(l)
         end
+        begin # ? Save order parameter source data for task
+            outdir = datadir("source_data", "fig3") # ?
+            df = DataFrame() # ?
+            for (i, O) in enumerate(Ō) # ?
+                structure = metadata(O)[:structure] # ?
+                sname = replace(structure, "/" => "") # ?
+                O = O[𝑡(SpatiotemporalMotifs.INTERVAL)] # ?
+                μ = dropdims(mean(O, dims = SessionID), dims = SessionID) # ?
+                σ = dropdims(std(O, dims = SessionID), dims = SessionID) ./ 2 # ?
+                if i == 1 # ?
+                    df[!, "Time (s)"] = times(μ) |> ustripall |> collect # ?
+                end # ?
+                df[!, "Mean R_θ $sname"] = μ |> ustripall |> collect # ?
+                df[!, "SD $sname"] = σ |> ustripall |> collect # ?
+            end # ?
+            CSV.write(joinpath(outdir, "panel_d_order_parameter_task.csv"), df) # ?
+        end # ?
         begin # * Order parameter correlation to hierarchy
             N = 1e6
             statsfile = plotdir("fig3", "theta_order_parameter.txt")
@@ -758,6 +820,22 @@ begin # * Order parameters
             axislegend(ax; merge = true, labelsize = 14, orientation = :horizontal,
                        patchsize = (10, 20), position = :lt)
         end
+        begin # ? Save classification performance source data
+            outdir = datadir("source_data", "fig3") # ?
+            df = DataFrame(; # ?
+                           OrderParameter_pre = bac_pre, # ?
+                           OrderParameter_post = bac_post, # ?
+                           OrderParameter_null = bac_sur, # ?
+                           MeanLFP_pre = bac_lfp_pre[1], # ?
+                           MeanLFP_post = bac_lfp_post[1], # ?
+                           LFP_superficial_pre = bac_lfp_pre[2], # ?
+                           LFP_middle_pre = bac_lfp_pre[3], # ?
+                           LFP_deep_pre = bac_lfp_pre[4], # ?
+                           LFP_superficial_post = bac_lfp_post[2], # ?
+                           LFP_middle_post = bac_lfp_post[3], # ?
+                           LFP_deep_post = bac_lfp_post[4]) # ?
+            CSV.write(joinpath(outdir, "panel_f_classification_performance.csv"), df) # ?
+        end # ?
         begin # * Plot region-wise weightings
             ax = Axis(fig[2, 2]; xlabel = "Time (s)", ylabel = "Normalized LDA weight",
                       title = "Regional classification weights", xtickformat = terseticks)
@@ -780,6 +858,25 @@ begin # * Order parameters
                            merge = true, patchsize = (20, 15), padding = fill(4, 4))
             # reverselegend!(l)
         end
+        begin # ? Save regional classification weights source data
+            outdir = datadir("source_data", "fig3") # ?
+            df = DataFrame() # ?
+            for (i, structure) in enumerate(collect(lookup(W, Structure))) # ?
+                sname = replace(structure, "/" => "") # ?
+                ws = W[Structure = At(structure)] # ?
+                ws = upsample(ws, 5, 1) # ?
+                ts = ustripall(lookup(ws, 𝑡)) # ?
+                μ = mean(ws, dims = SessionID) |> vec # ?
+                σ = std(ws, dims = SessionID) ./ sqrt(size(ws, SessionID)) |> vec |>
+                    ustripall # ?
+                if i == 1 # ?
+                    df[!, "Time (s)"] = ts # ?
+                end # ?
+                df[!, "Mean weight $sname"] = μ # ?
+                df[!, "SEM $sname"] = σ # ?
+            end # ?
+            CSV.write(joinpath(outdir, "panel_g_classification_weights.csv"), df) # ?
+        end # ?
     end
 
     begin # * Save

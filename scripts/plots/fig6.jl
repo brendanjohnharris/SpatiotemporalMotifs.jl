@@ -344,6 +344,7 @@ begin # * Set up figure
 
         layerints = load(calcdir("plots", "grand_unified_layers.jld2"), "layerints")
         bins = range(0, 1, length = 11)
+        mkpath(datadir("source_data", "fig6")) # ?
     end
 end
 
@@ -474,6 +475,7 @@ begin
                   ytickformat = depthticks,
                   xtickformat = terseticks,
                   yreversed = true)
+        panel_a_data = Dict{String, Any}() # ?
         for structure in reverse(structures)
             idxs = pspikes.structure_acronym .== structure
             allsesh_pspikes = @views pspikes[idxs, :]
@@ -520,10 +522,27 @@ begin
                    label = structure)
             scatter!(ax, collect(_ms), _ls; color = structurecolormap[structure],
                      label = structure)
+            panel_a_data[structure] = (; depths = collect(_ls), mean = collect(_ms), # ?
+                                       ci_lower = collect(_σl), ci_upper = collect(_σh)) # ?
         end
         l = axislegend(ax, merge = true, nbanks = 2, position = :rb, padding = fill(4, 4))
         plotlayerints!(ax, layerints; axis = :y, flipside = true, newticks = false)
         reverselegend!(l)
+        begin # ? Save source data for panel a (spike-phase coupling)
+            outdir = datadir("source_data", "fig6") # ?
+            dfs = DataFrame[] # ?
+            for s in structures # ?
+                d = panel_a_data[s] # ?
+                df = DataFrame() # ?
+                df[!, "Structure"] = fill(s, length(d.depths)) # ?
+                df[!, "Cortical depth (%)"] = d.depths # ?
+                df[!, "Mean PPC"] = d.mean # ?
+                df[!, "CI lower"] = d.ci_lower # ?
+                df[!, "CI upper"] = d.ci_upper # ?
+                push!(dfs, df) # ?
+            end # ?
+            CSV.write(joinpath(outdir, "panel_a_spike_phase_coupling.csv"), vcat(dfs...)) # ?
+        end # ?
     end
     begin # * Plot, for each structure, SAC
         @info "Plotting structure-wise spike--amplitude coupling"
@@ -533,6 +552,7 @@ begin
                   ytickformat = depthticks,
                   xtickformat = terseticks,
                   yreversed = true)
+        panel_b_data = Dict{String, Any}() # ?
         for structure in reverse(structures)
             idxs = pspikes.structure_acronym .== structure
             allsesh_pspikes = @views pspikes[idxs, :]
@@ -572,10 +592,28 @@ begin
                    label = structure)
             scatter!(ax, collect(_ms), _ls; color = structurecolormap[structure],
                      label = structure)
+            panel_b_data[structure] = (; depths = collect(_ls), mean = collect(_ms), # ?
+                                       ci_lower = collect(_σl), ci_upper = collect(_σh)) # ?
         end
         l = axislegend(ax, merge = true, nbanks = 2, position = :rb, padding = fill(4, 4))
         reverselegend!(l)
         plotlayerints!(ax, layerints; axis = :y, flipside = true, newticks = false)
+        begin # ? Save source data for panel b (spike-amplitude coupling)
+            outdir = datadir("source_data", "fig6") # ?
+            dfs = DataFrame[] # ?
+            for s in structures # ?
+                d = panel_b_data[s] # ?
+                df = DataFrame() # ?
+                df[!, "Structure"] = fill(s, length(d.depths)) # ?
+                df[!, "Cortical depth (%)"] = d.depths # ?
+                df[!, "Mean SAC"] = d.mean # ?
+                df[!, "CI lower"] = d.ci_lower # ?
+                df[!, "CI upper"] = d.ci_upper # ?
+                push!(dfs, df) # ?
+            end # ?
+            CSV.write(joinpath(outdir, "panel_b_spike_amplitude_coupling.csv"),
+                      vcat(dfs...)) # ?
+        end # ?
     end
     f
 end
@@ -651,6 +689,7 @@ begin # * Preferred phases
                    rticks = 0:0.25:1, rtickformat = depthticks,
                    title = "Layer-wise PPC angle")
 
+    panel_c_data = Dict{String, Any}() # ?
     for structure in reverse(structures)
         idxs = pspikes.structure_acronym .== structure
         allsesh_pspikes = @views pspikes[idxs, :]
@@ -689,6 +728,8 @@ begin # * Preferred phases
         # _ms, (_σl, _σh) = bootstrapaverage(circularmean, X; dims = 2)
         idxs = .!isnan.(_ms) .& .!isnan.(_σl) .& .!isnan.(_σh)
         _ms = _ms[idxs]
+        _σl_filt = _σl[idxs] # ?
+        _σh_filt = _σh[idxs] # ?
 
         # _cs, _ = bootstrapmedian(C; dims = 2)
         _cs = _cs[idxs]
@@ -707,7 +748,25 @@ begin # * Preferred phases
         lines!(ax, lookup(ms, 1), collect(ms), color = cs |> collect, label = structure,
                colormap = c,
                linewidth = 7)
+        panel_c_data[structure] = (; depths = collect(_ls), mean_angle = collect(_ms), # ?
+                                   ci_lower = collect(_σl_filt),
+                                   ci_upper = collect(_σh_filt)) # ?
     end
+    begin # ? Save source data for panel c (PPC angle)
+        outdir = datadir("source_data", "fig6") # ?
+        dfs = DataFrame[] # ?
+        for s in structures # ?
+            d = panel_c_data[s] # ?
+            df = DataFrame() # ?
+            df[!, "Structure"] = fill(s, length(d.depths)) # ?
+            df[!, "Cortical depth (%)"] = d.depths # ?
+            df[!, "Mean angle (rad)"] = d.mean_angle # ?
+            df[!, "CI lower (rad)"] = d.ci_lower # ?
+            df[!, "CI upper (rad)"] = d.ci_upper # ?
+            push!(dfs, df) # ?
+        end # ?
+        CSV.write(joinpath(outdir, "panel_c_ppc_angle.csv"), vcat(dfs...)) # ?
+    end # ?
 end
 begin
     begin # * Filter only for sensitive and significant neurons
@@ -943,6 +1002,69 @@ begin
 
         display(f)
     end
+
+    begin # ? Save source data for panels e and f (firing rates for VISp)
+        outdir = datadir("source_data", "fig6") # ?
+        mainstructure = "VISp" # ?
+        idxs = pspikes.structure_acronym .== [mainstructure] # ?
+        subspikes = pspikes[idxs, :] # ?
+        ics = zip(["Supra", "Granular", "Infra"], # ?
+                  [["L1", "L2/3"], ["L4"], ["L5", "L6"]]) # ?
+        dfs_hit = DataFrame[] # ?
+        dfs_miss = DataFrame[] # ?
+        dfs_contrast = DataFrame[] # ?
+        for (compartment, clayers) in ics # ?
+            ss = subspikes.layer .∈ [clayers] # ?
+            layer_spikes = subspikes[ss, :] # ?
+            # ? Hit PSTH
+            unitids = intersect(layer_spikes.ecephys_unit_id, lookup(hit_psths, Unit)) # ?
+            hpsth = hit_psths[Unit = At(unitids)] # ?
+            hpsth = hpsth[𝑡 = intt] # ?
+            hidxs = allequal.(eachslice(hpsth, dims = 2)) # ?
+            hpsth = hpsth[:, .!hidxs] # ?
+            _μh, (_σlh, _σhh) = bootstrapmedian(hpsth, dims = 2) # ?
+            # ? Miss PSTH
+            unitids = intersect(layer_spikes.ecephys_unit_id, lookup(miss_psths, Unit)) # ?
+            mpsth = miss_psths[Unit = At(unitids)] # ?
+            mpsth = mpsth[𝑡 = intt] # ?
+            midxs = allequal.(eachslice(mpsth, dims = 2)) # ?
+            mpsth = mpsth[:, .!midxs] # ?
+            _μm, (_σlm, _σhm) = bootstrapmedian(mpsth, dims = 2) # ?
+            # ? Hit-miss contrast
+            commonunits = intersect(lookup(hpsth, Unit), lookup(mpsth, Unit)) # ?
+            chpsth = hpsth[Unit = At(commonunits)] # ?
+            cmpsth = mpsth[Unit = At(commonunits)] # ?
+            cpsth = chpsth - cmpsth # ?
+            c = cpsth .+ eps() .* randn(size(cpsth)) # ?
+            _μc, (_σlc, _σhc) = bootstrapmedian(c, dims = 2) # ?
+            # ? Collect into DataFrames with Compartment column
+            df_hit = DataFrame() # ?
+            df_hit[!, "Compartment"] = fill(compartment, length(lookup(_μh, 𝑡))) # ?
+            df_hit[!, "Time (s)"] = collect(lookup(_μh, 𝑡)) # ?
+            df_hit[!, "Median firing rate"] = collect(_μh) # ?
+            df_hit[!, "CI lower"] = collect(_σlh) # ?
+            df_hit[!, "CI upper"] = collect(_σhh) # ?
+            push!(dfs_hit, df_hit) # ?
+            df_miss = DataFrame() # ?
+            df_miss[!, "Compartment"] = fill(compartment, length(lookup(_μm, 𝑡))) # ?
+            df_miss[!, "Time (s)"] = collect(lookup(_μm, 𝑡)) # ?
+            df_miss[!, "Median firing rate"] = collect(_μm) # ?
+            df_miss[!, "CI lower"] = collect(_σlm) # ?
+            df_miss[!, "CI upper"] = collect(_σhm) # ?
+            push!(dfs_miss, df_miss) # ?
+            df_contrast = DataFrame() # ?
+            df_contrast[!, "Compartment"] = fill(compartment, length(lookup(_μc, 𝑡))) # ?
+            df_contrast[!, "Time (s)"] = collect(lookup(_μc, 𝑡)) # ?
+            df_contrast[!, "Median contrast"] = collect(_μc) # ?
+            df_contrast[!, "CI lower"] = collect(_σlc) # ?
+            df_contrast[!, "CI upper"] = collect(_σhc) # ?
+            push!(dfs_contrast, df_contrast) # ?
+        end # ?
+        CSV.write(joinpath(outdir, "panels_ef_hit_firing_rate.csv"), vcat(dfs_hit...)) # ?
+        CSV.write(joinpath(outdir, "panels_ef_miss_firing_rate.csv"), vcat(dfs_miss...)) # ?
+        CSV.write(joinpath(outdir, "panels_ef_contrast_firing_rate.csv"),
+                  vcat(dfs_contrast...)) # ?
+    end # ?
 end
 
 begin # * Hit/miss firing rates for each structure
@@ -1102,6 +1224,17 @@ begin # * Heatmap figure
     # plotlayerints!(ax, layerints; axis = :y, flipside = true, newticks = false)
     Colorbar(gs[4][1, 2], p; label = "Phase difference (hit - miss)",
              tickformat = degs, ticks = (-pi / 2):(pi / 4):(pi / 2), alignmode = Outside())
+    begin # ? Save source data for panel d (PPC angle contrast heatmap)
+        outdir = datadir("source_data", "fig6") # ?
+        df_ms = DataFrame(ms) # ?
+        rename!(df_ms, "Depth" => "Cortical layer", "Structure" => "Structure", # ?
+                last(names(df_ms)) => "Phase difference (rad)") # ?
+        CSV.write(joinpath(outdir, "panel_d_ppc_angle_contrast.csv"), df_ms) # ?
+        df_p = DataFrame(𝑝) # ?
+        rename!(df_p, "Depth" => "Cortical layer", "Structure" => "Structure", # ?
+                last(names(df_p)) => "Corrected p-value") # ?
+        CSV.write(joinpath(outdir, "panel_d_ppc_angle_contrast_pvalues.csv"), df_p) # ?
+    end # ?
 end
 
 begin
