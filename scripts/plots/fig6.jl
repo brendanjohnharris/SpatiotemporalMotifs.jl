@@ -1120,9 +1120,9 @@ begin
             df_contrast[!, "CI upper"] = collect(_σhc) # ?
             push!(dfs_contrast, df_contrast) # ?
         end # ?
-        CSV.write(joinpath(outdir, "panels_ef_hit_firing_rate.csv"), vcat(dfs_hit...)) # ?
-        CSV.write(joinpath(outdir, "panels_ef_miss_firing_rate.csv"), vcat(dfs_miss...)) # ?
-        CSV.write(joinpath(outdir, "panels_ef_contrast_firing_rate.csv"),
+        CSV.write(joinpath(outdir, "panels_e_hit_firing_rate.csv"), vcat(dfs_hit...)) # ?
+        CSV.write(joinpath(outdir, "panels_f_miss_firing_rate.csv"), vcat(dfs_miss...)) # ?
+        CSV.write(joinpath(outdir, "panels_g_contrast_firing_rate.csv"),
                   vcat(dfs_contrast...)) # ?
     end # ?
 end
