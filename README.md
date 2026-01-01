@@ -2,7 +2,7 @@
 [![Zenodo](https://img.shields.io/badge/Zenodo-1682D4?logo=zenodo&logoColor=fff&style=for-the-badge)](https://doi.org/10.5281/zenodo.14550386)
 [![Figshare](https://img.shields.io/badge/figshare-556472?logo=figshare&logoColor=fff&style=for-the-badge)](https://doi.org/10.6084/m9.figshare.29928659)
 
-Julia code for reproducing the results of _Nested spatiotemporal theta-gamma waves organize hierarchical visual processing_.
+Julia code for reproducing the results of _Nested spatiotemporal theta-gamma waves organize hierarchical processing across the mouse visual cortex_.
 
 ## Quick start
 
