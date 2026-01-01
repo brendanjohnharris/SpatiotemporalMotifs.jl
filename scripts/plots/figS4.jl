@@ -15,33 +15,6 @@ using Random
 @preamble
 set_theme!(foresight(:physics))
 
-begin # * Load the CSD flashes
-end
-# begin # * Load the CSD passive natural images
-#     session_table = load(calcdir("plots", "posthoc_session_table.jld2"), "session_table")
-#     oursessions = session_table.ecephys_session_id
-#     path = calcdir("calculations")
-#     Q = calcquality(path)[Structure = At(structures)]
-#     Q = Q[SessionID(At(oursessions))]
-#     @assert mean(Q[stimulus = At("Natural_Images_passive_nochange")]) == 1
-#     out = load_calculations(Q; stimulus = "Natural_Images_passive_nochange",
-#                                      vars = [:csd])
-# end
-
-# begin # * Save average CSD for each session
-#     csd = map(out) do out_structure
-#         csd = map(out_structure) do out_session
-#             csd_session = mapslices(mean, out_session[:csd], dims = :changetime)
-#             csd_session = dropdims(csd_session, dims = :changetime)
-#             return csd_session
-#         end
-#         return ToolsArray(csd, (SessionID(oursessions),))
-#     end
-#     csd = ToolsArray(csd, (Structure(structures),))
-#     D = @strdict csd
-#     tagsave(calcdir("average_csd.jld2"), D)
-# end
-
 begin # * Save average CSD for each session
     conf = Dict("stimulus" => "Natural_Images_passive_nochange")
 
@@ -260,6 +233,7 @@ end
 begin # * Paired change plots
     f = SixPanel()
     gs = subdivide(f, 3, 2)
+    mkpath(datadir("source_data", "figS4")) # ?
     axs = map(enumerate(gs)) do (structure, g)
         y = anatomical_l4s[structure] |> parent
         x = l4s[structure] |> parent
@@ -298,6 +272,24 @@ begin # * Paired change plots
               fontsize = 22)
         return ax
     end
+
+    begin # ? Save source data for panels a-f (L4 depth comparison)
+        outdir = datadir("source_data", "figS4") # ?
+        dfs = DataFrame[] # ?
+        for (i, s) in enumerate(structures) # ?
+            sname = replace(s, "/" => "") # ?
+            csd_l4 = l4s[i] |> parent # ?
+            anat_l4 = anatomical_l4s[i] |> parent # ?
+            r = corspearman(csd_l4, anat_l4) # ?
+            push!(dfs,
+                  DataFrame("Structure" => fill(sname, length(csd_l4)), # ?
+                            "CSD L4 depth (um)" => csd_l4, # ?
+                            "Anatomical L4 depth (um)" => anat_l4, # ?
+                            "Spearman rho" => fill(r, length(csd_l4)))) # ?
+        end # ?
+        CSV.write(joinpath(outdir, "l4_depth_comparison.csv"), vcat(dfs...)) # ?
+    end # ?
+
     addlabels!(f, labelformat)
     display(f)
     wsave(plotdir("figS4", "figS4.pdf"), f)

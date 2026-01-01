@@ -17,6 +17,7 @@ using Random
 using Distributed
 @preamble
 set_theme!(foresight(:physics))
+Random.seed!(32)
 
 stimuli = [r"Natural_Images", "spontaneous", "flash_250ms"]
 xtickformat = terseticks
@@ -155,6 +156,11 @@ for stimulus in reverse(stimuli)
     @unpack S, layernames, layernums, layerints, meanlayers, S̄, oursessions, Q = plot_data[string(stimulus)]
     is_flash = stimulus == "flash_250ms" # ?
     is_flash && mkpath(datadir("source_data", "fig2")) # ?
+    is_spontaneous = stimulus == "spontaneous" # ?
+    is_spontaneous && mkpath(datadir("source_data", "figS5")) # ?
+    is_natural = stimulus == r"Natural_Images" # ?
+    is_natural && mkpath(datadir("source_data", "figS6")) # ?
+    save_source = is_flash || is_spontaneous || is_natural # ?
     begin
         filebase = stimulus == "spontaneous" ? "" : "_$(val_to_string(stimulus))"
         statsfile = plotdir("fig2", "power_spectra$filebase.txt")
@@ -213,20 +219,6 @@ for stimulus in reverse(stimuli)
             α = round.(α, sigdigits = 3)
             axislegend(ax2, position = :lb, labelsize = 12, backgroundcolor = :white,
                        framevisible = true, padding = (5, 5, 5, 5))
-            # leg = ["$s (α = $α)" for (s, α) in zip(structures, α)]
-            # map(enumerate(leg)) do (i, s)
-            #     if i > 3
-            #         text!(ax, 290, exp10(-1.1 - ((i - 3) / 3 - 1 - 0.1)); text = s,
-            #               color = structurecolors[i],
-            #               fontsize = 14,
-            #               align = (:right, :bottom))
-            #     else
-            #         text!(ax, 50, exp10(-1.1 - (i / 3 - 1 - 0.1)); text = s,
-            #               color = structurecolors[i],
-            #               fontsize = 14,
-            #               align = (:right, :bottom))
-            #     end
-            # end
 
             axislegend(ax, position = :rt, labelsize = 12, merge = true,
                        backgroundcolor = :white,
@@ -234,8 +226,10 @@ for stimulus in reverse(stimuli)
                        nbanks = 3, patchsize = (15, 15), rowgap = 2)
             f
         end
-        if is_flash # ?
-            outdir = datadir("source_data", "fig2") # ?
+        if save_source # ?
+            outdir = is_flash ? datadir("source_data", "fig2") : # ?
+                     is_spontaneous ? datadir("source_data", "figS5") : # ?
+                     datadir("source_data", "figS6") # ?
             df = DataFrame() # ?
             for (i, structure) in enumerate(structures) # ?
                 sname = replace(structure, "/" => "") # ?
@@ -309,8 +303,10 @@ for stimulus in reverse(stimuli)
             # reverselegend!(l)
             plotlayerints!(ax, layerints; axis = :y, newticks = false, flipside = true)
         end
-        if is_flash # ?
-            outdir = datadir("source_data", "fig2") # ?
+        if save_source # ?
+            outdir = is_flash ? datadir("source_data", "fig2") : # ?
+                     is_spontaneous ? datadir("source_data", "figS5") : # ?
+                     datadir("source_data", "figS6") # ?
             df = DataFrame() # ?
             for (i, _b) in enumerate(b) # ?
                 sname = replace(structures[i], "/" => "") # ?
@@ -324,7 +320,7 @@ for stimulus in reverse(stimuli)
                 df[!, "CI lower $sname"] = collect(σl) # ?
                 df[!, "CI upper $sname"] = collect(σh) # ?
             end # ?
-            CSV.write(joinpath(outdir, "panel_c_intercept.csv"), df) # ?
+            CSV.write(joinpath(outdir, "panel_g_intercept.csv"), df) # ?
         end # ?
 
         begin # * Plot the exponent
@@ -347,8 +343,10 @@ for stimulus in reverse(stimuli)
             # reverselegend!(l)
             plotlayerints!(ax, layerints; axis = :y, newticks = false, flipside = true)
         end
-        if is_flash # ?
-            outdir = datadir("source_data", "fig2") # ?
+        if save_source # ?
+            outdir = is_flash ? datadir("source_data", "fig2") : # ?
+                     is_spontaneous ? datadir("source_data", "figS5") : # ?
+                     datadir("source_data", "figS6") # ?
             df = DataFrame() # ?
             for (i, chi) in enumerate(χ) # ?
                 sname = replace(structures[i], "/" => "") # ?
@@ -361,16 +359,15 @@ for stimulus in reverse(stimuli)
                 df[!, "CI lower $sname"] = collect(σl) # ?
                 df[!, "CI upper $sname"] = collect(σh) # ?
             end # ?
-            CSV.write(joinpath(outdir, "panel_b_exponent.csv"), df) # ?
+            CSV.write(joinpath(outdir, "panel_f_exponent.csv"), df) # ?
         end # ?
         begin # * Is the exponent correlated to depth?
-            tps = [SpatiotemporalMotifs.mediankendallpvalue(lookup(x, Depth), x) for x in χ]
-            τs = cat(first.(tps), last.(tps); dims = Var([:kendall, :pvalue]))
-            mtau = median(τs[2:end, 1]) # Median excluding VISp
+            tps = [(; structure = s,
+                    SpatiotemporalMotifs.mediankendallpvalue(lookup(x, Depth), x)...)
+                   for (s, x) in zip(lookup(χ, Structure), χ)]
             open(statsfile, "a+") do file
                 write(file, "\n## 1/𝑓 exponent\n")
-                show(file, DataFrame(DimTable(τs; layersfrom = Var)))
-                write(file, "\nMedian τ (no VISp) = $mtau\n")
+                show(file, DataFrame(tps))
             end
         end
 
@@ -470,8 +467,10 @@ for stimulus in reverse(stimuli)
             end
             f
         end
-        if is_flash # ?
-            outdir = datadir("source_data", "fig2") # ?
+        if save_source # ?
+            outdir = is_flash ? datadir("source_data", "fig2") : # ?
+                     is_spontaneous ? datadir("source_data", "figS5") : # ?
+                     datadir("source_data", "figS6") # ?
             structure = "VISl" # ?
             df = DataFrame() # ?
             for (i, l) in enumerate(layers) # ?
@@ -487,7 +486,7 @@ for stimulus in reverse(stimuli)
                 df[!, "Mean residual L$lname (dB)"] = collect(μ) # ?
                 df[!, "SD L$lname (dB)"] = collect(σ) # ?
             end # ?
-            CSV.write(joinpath(outdir, "panel_d_residual_spectrum_VISl.csv"), df) # ?
+            CSV.write(joinpath(outdir, "panel_b_residual_spectrum_VISl.csv"), df) # ?
         end # ?
 
         begin # * Residual power supplement
@@ -587,8 +586,10 @@ for stimulus in reverse(stimuli)
             ax.limits = ((-0.14, 0.55), (0, 1))
             display(f)
         end
-        if is_flash # ?
-            outdir = datadir("source_data", "fig2") # ?
+        if save_source # ?
+            outdir = is_flash ? datadir("source_data", "fig2") : # ?
+                     is_spontaneous ? datadir("source_data", "figS5") : # ?
+                     datadir("source_data", "figS6") # ?
             df = DataFrame() # ?
             for (i, s) in enumerate(structures) # ?
                 sname = replace(s, "/" => "") # ?
@@ -602,17 +603,17 @@ for stimulus in reverse(stimuli)
                 df[!, "CI lower $sname"] = collect(σl) # ?
                 df[!, "CI upper $sname"] = collect(σh) # ?
             end # ?
-            CSV.write(joinpath(outdir, "panel_e_residual_theta.csv"), df) # ?
+            CSV.write(joinpath(outdir, "panel_c_residual_theta.csv"), df) # ?
         end # ?
         begin # * Does residual theta increase along layers
-            tps = [SpatiotemporalMotifs.mediankendallpvalue(lookup(x, Depth), x)
-                   for x in θr]
-            τs = cat(first.(tps), last.(tps); dims = Var([:kendall, :pvalue]))
-            mtau = median(τs[:, 1])
+            tps = [(; structure = s,
+                    SpatiotemporalMotifs.mediankendallpvalue(lookup(x, Depth), x)...)
+                   for (s, x) in zip(lookup(θr, Structure), θr)]
             open(statsfile, "a+") do file
                 write(file, "\n## Residual θ\n")
-                show(file, DataFrame(DimTable(τs; layersfrom = Var)))
-                write(file, "\nMedian τ = $mtau\n")
+                show(file, DataFrame(tps))
+                # write(file, "\nMedian τ = $mtau, $ci \n")
+                # write(file, "Num. depths = $(length(lookup(x, Depth))) \n")
             end
         end
 
@@ -654,8 +655,10 @@ for stimulus in reverse(stimuli)
             ax.limits = ((nothing, nothing), (0, 1))
             display(f)
         end
-        if is_flash # ?
-            outdir = datadir("source_data", "fig2") # ?
+        if save_source # ?
+            outdir = is_flash ? datadir("source_data", "fig2") : # ?
+                     is_spontaneous ? datadir("source_data", "figS5") : # ?
+                     datadir("source_data", "figS6") # ?
             df = DataFrame() # ?
             for (i, s) in enumerate(structures) # ?
                 sname = replace(s, "/" => "") # ?
@@ -669,7 +672,7 @@ for stimulus in reverse(stimuli)
                 df[!, "CI lower $sname"] = collect(σl) # ?
                 df[!, "CI upper $sname"] = collect(σh) # ?
             end # ?
-            CSV.write(joinpath(outdir, "panel_f_residual_gamma.csv"), df) # ?
+            CSV.write(joinpath(outdir, "panel_d_residual_gamma.csv"), df) # ?
         end # ?
 
         begin # * Plot the hierarchical correlation across layers
@@ -741,8 +744,10 @@ for stimulus in reverse(stimuli)
 
             plotlayerints!(ax, layerints; axis = :y, newticks = false, flipside = true)
         end
-        if is_flash # ?
-            outdir = datadir("source_data", "fig2") # ?
+        if save_source # ?
+            outdir = is_flash ? datadir("source_data", "fig2") : # ?
+                     is_spontaneous ? datadir("source_data", "figS5") : # ?
+                     datadir("source_data", "figS6") # ?
             df = DataFrame(; Depth = unidepths, Exponent_tau = collect(μ),
                            Exponent_CI_lower = collect(first.(σ)),
                            Exponent_CI_upper = collect(last.(σ)), Exponent_p = collect(𝑝),
@@ -757,7 +762,7 @@ for stimulus in reverse(stimuli)
                     "Intercept_CI_lower" => "Intercept CI lower",
                     "Intercept_CI_upper" => "Intercept CI upper",
                     "Intercept_p" => "Intercept p") # ?
-            CSV.write(joinpath(outdir, "panel_g_1f_gradients.csv"), df) # ?
+            CSV.write(joinpath(outdir, "panel_h_1f_gradients.csv"), df) # ?
         end # ?
         begin
             # μ[𝑝 .> PTHR] .= NaN
@@ -800,8 +805,10 @@ for stimulus in reverse(stimuli)
 
             plotlayerints!(ax, layerints; axis = :y, newticks = false, flipside = true)
         end
-        if is_flash # ?
-            outdir = datadir("source_data", "fig2") # ?
+        if save_source # ?
+            outdir = is_flash ? datadir("source_data", "fig2") : # ?
+                     is_spontaneous ? datadir("source_data", "figS5") : # ?
+                     datadir("source_data", "figS6") # ?
             df = DataFrame(; Depth = unidepths, Theta_tau = collect(μt),
                            Theta_CI_lower = collect(first.(σt)),
                            Theta_CI_upper = collect(last.(σt)), Theta_p = collect(𝑝t),
@@ -812,7 +819,7 @@ for stimulus in reverse(stimuli)
                     "Theta_p" => "θ p", "Gamma_tau" => "γ τ",
                     "Gamma_CI_lower" => "γ CI lower", "Gamma_CI_upper" => "γ CI upper",
                     "Gamma_p" => "γ p") # ?
-            CSV.write(joinpath(outdir, "panel_h_timescale_gradients.csv"), df) # ?
+            CSV.write(joinpath(outdir, "panel_e_timescale_gradients.csv"), df) # ?
         end # ?
         addlabels!(f, ["a", "g", "c", "d", "e", "h", "f", "b"])
         f |> display

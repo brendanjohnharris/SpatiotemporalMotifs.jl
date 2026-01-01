@@ -17,8 +17,8 @@ using Distributions
 set_theme!(foresight(:physics))
 Random.seed!(42)
 
-begin # Don't change
-    stimulus = r"Natural_Images" # "flash_250ms"
+begin # ! Don't change
+    stimulus = r"Natural_Images" # "flash_250ms" # To do flash, you need to regenerate the plot data
     vars = [:ϕ, :ω]
 end
 
@@ -414,25 +414,46 @@ begin # * Plots
             H_h = deepcopy(𝑝_h) # ?
             H_h[:] .= adjust(H_h[:], BenjaminiHochberg()) # ?
             df_h = DataFrame(data_h) # ?
+            df_h_p = DataFrame(H_h[𝑡(SpatiotemporalMotifs.INTERVAL)]) # ?
             rename!(df_h, "𝑡" => "Time (s)", "Depth" => "Cortical depth (%)", # ?
                     last(names(df_h)) => "A_θ (anatomical order parameter)") # ?
+            df_h[!, "Corrected p-value"] = df_h_p[!, last(names(df_h_p))] # ?
             CSV.write(joinpath(outdir, "panel_b_anatomical_order_parameter.csv"), df_h) # ?
-            df_h_p = DataFrame(H_h[𝑡(SpatiotemporalMotifs.INTERVAL)]) # ?
-            rename!(df_h_p, "𝑡" => "Time (s)", "Depth" => "Cortical depth (%)", # ?
-                    last(names(df_h_p)) => "Corrected p-value") # ?
-            CSV.write(joinpath(outdir, "panel_b_anatomical_pvalues.csv"), df_h_p) # ?
             # ? Functional hierarchy order parameter
             data_f = ∂f̄[𝑡(SpatiotemporalMotifs.INTERVAL)] |> ustripall # ?
             H_f = deepcopy(𝑝_f) # ?
             H_f[:] .= adjust(H_f[:], BenjaminiHochberg()) # ?
             df_f = DataFrame(data_f) # ?
+            df_f_p = DataFrame(H_f[𝑡(SpatiotemporalMotifs.INTERVAL)]) # ?
             rename!(df_f, "𝑡" => "Time (s)", "Depth" => "Cortical depth (%)", # ?
                     last(names(df_f)) => "F_θ (functional order parameter)") # ?
+            df_f[!, "Corrected p-value"] = df_f_p[!, last(names(df_f_p))] # ?
             CSV.write(joinpath(outdir, "panel_d_functional_order_parameter.csv"), df_f) # ?
+        end # ?
+    elseif stimulus == "flash_250ms" # ?
+        begin # ? Save source data for figS16 (flash stimulus hierarchical order parameters)
+            mkpath(datadir("source_data", "figS16")) # ?
+            outdir = datadir("source_data", "figS16") # ?
+            # ? Anatomical hierarchy order parameter
+            data_h = ∂h̄[𝑡(SpatiotemporalMotifs.INTERVAL)] |> ustripall # ?
+            H_h = deepcopy(𝑝_h) # ?
+            H_h[:] .= adjust(H_h[:], BenjaminiHochberg()) # ?
+            df_h = DataFrame(data_h) # ?
+            df_h_p = DataFrame(H_h[𝑡(SpatiotemporalMotifs.INTERVAL)]) # ?
+            rename!(df_h, "𝑡" => "Time (s)", "Depth" => "Cortical depth (%)", # ?
+                    last(names(df_h)) => "A_θ (anatomical order parameter)") # ?
+            df_h[!, "Corrected p-value"] = df_h_p[!, last(names(df_h_p))] # ?
+            CSV.write(joinpath(outdir, "panel_a_anatomical_order_parameter.csv"), df_h) # ?
+            # ? Functional hierarchy order parameter
+            data_f = ∂f̄[𝑡(SpatiotemporalMotifs.INTERVAL)] |> ustripall # ?
+            H_f = deepcopy(𝑝_f) # ?
+            H_f[:] .= adjust(H_f[:], BenjaminiHochberg()) # ?
+            df_f = DataFrame(data_f) # ?
             df_f_p = DataFrame(H_f[𝑡(SpatiotemporalMotifs.INTERVAL)]) # ?
-            rename!(df_f_p, "𝑡" => "Time (s)", "Depth" => "Cortical depth (%)", # ?
-                    last(names(df_f_p)) => "Corrected p-value") # ?
-            CSV.write(joinpath(outdir, "panel_d_functional_pvalues.csv"), df_f_p) # ?
+            rename!(df_f, "𝑡" => "Time (s)", "Depth" => "Cortical depth (%)", # ?
+                    last(names(df_f)) => "F_θ (functional order parameter)") # ?
+            df_f[!, "Corrected p-value"] = df_f_p[!, last(names(df_f_p))] # ?
+            CSV.write(joinpath(outdir, "panel_b_functional_order_parameter.csv"), df_f) # ?
         end # ?
     end # ?
     f

@@ -178,6 +178,7 @@ end
 begin
     f = SixPanel()
     gs = subdivide(f, 3, 2)
+    mkpath(datadir("source_data", "figS3")) # ?
 end
 
 begin # * Order parameter for passive natural images
@@ -209,6 +210,24 @@ begin # * Order parameter for passive natural images
                    labelsize = 12,
                    merge = true)
     reverselegend!(l)
+
+    begin # ? Save source data for panel a (passive order parameter)
+        outdir = datadir("source_data", "figS3") # ?
+        df = DataFrame() # ?
+        for (i, structure) in enumerate(structures) # ?
+            sname = replace(structure, "/" => "") # ?
+            O = mp[Structure = At(structure)] # ?
+            O = O[𝑡(SpatiotemporalMotifs.INTERVAL)] # ?
+            μ = dropdims(mean(O, dims = SessionID), dims = SessionID) # ?
+            σ = dropdims(std(O, dims = SessionID), dims = SessionID) # ?
+            if i == 1 # ?
+                df[!, "Time (s)"] = times(μ) |> ustripall |> collect # ?
+            end # ?
+            df[!, "Mean R_theta $sname"] = μ |> ustripall |> collect # ?
+            df[!, "Std $sname"] = σ |> ustripall |> collect # ?
+        end # ?
+        CSV.write(joinpath(outdir, "panel_a_passive_order_parameter.csv"), df) # ?
+    end # ?
 end
 
 begin # * Plot contrast of active and passive
@@ -251,6 +270,23 @@ begin # * Plot contrast of active and passive
     #                merge = true)
     # reverselegend!(l)
     # display(f)
+
+    begin # ? Save source data for panel b (order parameter contrast)
+        outdir = datadir("source_data", "figS3") # ?
+        df = DataFrame() # ?
+        for (i, structure) in enumerate(structures) # ?
+            sname = replace(structure, "/" => "") # ?
+            mstructure = m[Structure = At(structure), 𝑡(SpatiotemporalMotifs.INTERVAL)] |>
+                         ustripall # ?
+            μ = nansafe(mean, dims = 2)(mstructure) # ?
+            μ = dropdims(μ, dims = SessionID) # ?
+            if i == 1 # ?
+                df[!, "Time (s)"] = collect(lookup(μ, 𝑡)) # ?
+            end # ?
+            df[!, "Mean contrast $sname"] = collect(parent(μ)) # ?
+        end # ?
+        CSV.write(joinpath(outdir, "panel_b_order_parameter_contrast.csv"), df) # ?
+    end # ?
 end
 
 begin # * Plot boxplots of probability of coherent events
@@ -322,6 +358,32 @@ begin # * Plot boxplots of probability of coherent events
     #     boxplot!(ax, i .+ x[:] ./ (length(stimuli) + 1), y[:], width = 0.1,
     #              color = getindex.([structurecolors], x)[:], show_outliers = false)
     # end
+
+    begin # ? Save source data for panels c-f (coherent events)
+        outdir = datadir("source_data", "figS3") # ?
+        dfs = DataFrame[] # ?
+        for (side, side_label) in zip([:u, :l], ["downward", "upward"]) # ?
+            for (surr, type_label) in zip([false, true], ["actual", "null"]) # ?
+                levents = surr ? coherent_events_sur[side = At(side)] :
+                          coherent_events[side = At(side)] # ?
+                for stimulus in lookup(levents, :stimulus) # ?
+                    y = levents[stimulus = At(stimulus)] # ?
+                    for (si, structure) in enumerate(lookup(y, Structure)) # ?
+                        sname = replace(structure, "/" => "") # ?
+                        vals = y[Structure = At(structure)][:] # ?
+                        push!(dfs,
+                              DataFrame("Direction" => fill(side_label, length(vals)), # ?
+                                        "Type" => fill(type_label, length(vals)), # ?
+                                        "Stimulus" => fill(string(stimulus), length(vals)), # ?
+                                        "Structure" => fill(sname, length(vals)), # ?
+                                        "Probability" => vals)) # ?
+                    end # ?
+                end # ?
+            end # ?
+        end # ?
+        CSV.write(joinpath(outdir, "panels_cdef_coherent_events.csv"), vcat(dfs...)) # ?
+    end # ?
+
     addlabels!(f, labelformat)
     display(f)
     wsave(plotdir("figS3", "figS3.pdf"), f)

@@ -488,6 +488,41 @@ begin # * Wavenumbers
             CSV.write(joinpath(outdir, "panel_c_wavenumber_flash_$sname.csv"), df_flash) # ?
         end # ?
     end # ?
+    begin # ? Save wavenumber source data for figS7 (all regions)
+        mkpath(datadir("source_data", "figS7")) # ?
+        outdir = datadir("source_data", "figS7") # ?
+        dfs = DataFrame[] # ?
+        for data in plot_data["wavenumbers"]["Natural_Images"] # ?
+            @unpack m_hit, m_miss, structure = data # ?
+            sname = replace(structure, "/" => "") # ?
+            # ? Hit trials
+            df_hit = DataFrame(ustripall(m_hit)) # ?
+            vcol = names(df_hit)[end] # ?
+            rename!(df_hit, "𝑡" => "Time (s)", "Depth" => "Cortical depth (%)", # ?
+                    vcol => "Wavenumber (1/mm)") # ?
+            df_hit[!, "Structure"] .= sname # ?
+            df_hit[!, "Condition"] .= "hit" # ?
+            push!(dfs, df_hit) # ?
+            # ? Miss trials
+            df_miss = DataFrame(ustripall(m_miss)) # ?
+            rename!(df_miss, "𝑡" => "Time (s)", "Depth" => "Cortical depth (%)", # ?
+                    names(df_miss)[end] => "Wavenumber (1/mm)") # ?
+            df_miss[!, "Structure"] .= sname # ?
+            df_miss[!, "Condition"] .= "miss" # ?
+            push!(dfs, df_miss) # ?
+        end # ?
+        for data in plot_data["wavenumbers"]["flashes"] # ?
+            @unpack m_flashes, structure = data # ?
+            sname = replace(structure, "/" => "") # ?
+            df_flash = DataFrame(ustripall(m_flashes)) # ?
+            rename!(df_flash, "𝑡" => "Time (s)", "Depth" => "Cortical depth (%)", # ?
+                    names(df_flash)[end] => "Wavenumber (1/mm)") # ?
+            df_flash[!, "Structure"] .= sname # ?
+            df_flash[!, "Condition"] .= "flash" # ?
+            push!(dfs, df_flash) # ?
+        end # ?
+        CSV.write(joinpath(outdir, "wavenumber_all_regions.csv"), vcat(dfs...)) # ?
+    end # ?
 end
 
 begin # * Supplemental material: csd in each region
@@ -571,6 +606,41 @@ begin # * Supplemental material: csd in each region
     colgap!(f.layout, 1, Relative(0.05))
     display(f)
     wsave(plotdir("fig3", "supplemental_csd.pdf"), f)
+    begin # ? Save CSD source data for figS8 (all regions)
+        mkpath(datadir("source_data", "figS8")) # ?
+        outdir = datadir("source_data", "figS8") # ?
+        dfs = DataFrame[] # ?
+        for data in plot_data["wavenumbers"]["Natural_Images"] # ?
+            @unpack csd_hit, csd_miss, structure = data # ?
+            sname = replace(structure, "/" => "") # ?
+            # ? Hit trials
+            df_hit = DataFrame(ustripall(csd_hit)) # ?
+            vcol = names(df_hit)[end] # ?
+            rename!(df_hit, "𝑡" => "Time (s)", "Depth" => "Cortical depth (%)", # ?
+                    vcol => "CSD (V/cm^2)") # ?
+            df_hit[!, "Structure"] .= sname # ?
+            df_hit[!, "Condition"] .= "hit" # ?
+            push!(dfs, df_hit) # ?
+            # ? Miss trials
+            df_miss = DataFrame(ustripall(csd_miss)) # ?
+            rename!(df_miss, "𝑡" => "Time (s)", "Depth" => "Cortical depth (%)", # ?
+                    names(df_miss)[end] => "CSD (V/cm^2)") # ?
+            df_miss[!, "Structure"] .= sname # ?
+            df_miss[!, "Condition"] .= "miss" # ?
+            push!(dfs, df_miss) # ?
+        end # ?
+        for data in plot_data["wavenumbers"]["flashes"] # ?
+            @unpack csd_flashes, structure = data # ?
+            sname = replace(structure, "/" => "") # ?
+            df_flash = DataFrame(ustripall(csd_flashes)) # ?
+            rename!(df_flash, "𝑡" => "Time (s)", "Depth" => "Cortical depth (%)", # ?
+                    names(df_flash)[end] => "CSD (V/cm^2)") # ?
+            df_flash[!, "Structure"] .= sname # ?
+            df_flash[!, "Condition"] .= "flash" # ?
+            push!(dfs, df_flash) # ?
+        end # ?
+        CSV.write(joinpath(outdir, "csd_all_regions.csv"), vcat(dfs...)) # ?
+    end # ?
 end
 
 begin # * Order parameters
@@ -726,6 +796,7 @@ begin # * Order parameters
                     write(file, "\nmedian τ = $μ")
                     write(file, "\nIQR = $(σ[2] - σ[1])")
                     write(file, "\n𝑝 = $𝑝")
+                    write(file, "\nn = $(length(x))")
                     write(file, "\n")
                 end
             end
@@ -747,17 +818,25 @@ begin # * Order parameters
 
             begin # * Write statistics
                 open(statsfile, "a+") do file
+                    mu, sigma = bootstrapmedian(bac_pre)
                     write(file, "\n# Classification performance\n")
                     write(file, "\n## Order parameter pre-offset\n")
-                    write(file, "\nMedian BAc = $(median(bac_pre))")
+                    write(file, "\nMedian BAc = $(mu)")
                     write(file, "\nIQR = $(iqr(bac_pre))")
+
+                    mu, sigma = bootstrapmedian(bac_pre .- bac_sur)
+                    write(file, "\n\n## Pre-offset minus surrogate")
+                    write(file, "\nMedian difference = $(mu)")
+                    write(file, "\nci = $sigma")
+
                     # 𝑝 = HypothesisTests.pvalue(HypothesisTests.MannWhitneyUTest(bac_pre,
                     #                                                             bac_sur);
                     #                            tail = :right)
                     test = HypothesisTests.SignedRankTest(Float64.(bac_pre),
                                                           Float64.(bac_sur))
-                    𝑝 = HypothesisTests.pvalue(test; tail = :both)
+                    𝑝 = HypothesisTests.pvalue(test; tail = :right)
                     write(file, "\nSigned rank test, right-sided 𝑝 to sur= $𝑝")
+                    write(file, "\nn = $(length(bac_pre))")
                     write(file, "\n")
 
                     write(file, "\n## Order parameter post-offset\n")
@@ -778,10 +857,16 @@ begin # * Order parameters
                     # 𝑝 = HypothesisTests.pvalue(HypothesisTests.MannWhitneyUTest(bac_pre,
                     #                                                             bac_lfp_pre[1]);
                     #                            tail = :right)
+
+                    mu, sigma = bootstrapmedian(bac_pre .- bac_lfp_pre[1])
+                    write(file, "\n\n## Pre-offset minus pre-lfp")
+                    write(file, "\nMedian difference = $(mu)")
+                    write(file, "\nci = $sigma")
                     test = HypothesisTests.SignedRankTest(Float64.(bac_pre),
                                                           Float64.(bac_lfp_pre[1]))
-                    𝑝 = HypothesisTests.pvalue(test; tail = :both)
-                    write(file, "\nSigned-rank test, two-sided 𝑝 to pre. = $𝑝")
+                    𝑝 = HypothesisTests.pvalue(test; tail = :right)
+                    write(file, "\nSigned-rank test, right-sided 𝑝 to pre. = $𝑝")
+                    write(file, "\nn = $(length(bac_pre))")
                     write(file, "\n")
 
                     write(file, "\n## Order parameter pre-offset null\n")

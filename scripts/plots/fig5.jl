@@ -15,6 +15,7 @@ import SpatiotemporalMotifs: HistBins, structures
 using Peaks
 @preamble
 set_theme!(foresight(:physics))
+Random.seed!(32)
 
 begin # * Parameters
     stimuli = [r"Natural_Images", "spontaneous", "flash_250ms"]
@@ -576,6 +577,25 @@ begin # * Global and spatiotemporal PAC
             display(f)
             wsave(plotdir("fig5", "comodulograms_$(val_to_string(stimulus)).pdf"), f)
         end
+        begin # ? Save comodulogram source data for figS9
+            mkpath(datadir("source_data", "figS9")) # ?
+            outdir = datadir("source_data", "figS9") # ?
+            dfs = DataFrame[] # ?
+            for (structure, s) in zip(structures, S) # ?
+                sname = replace(structure, "/" => "") # ?
+                s_mean = dropdims(mean(s, dims = SessionID); dims = SessionID) # ?
+                df = DataFrame(s_mean) # ?
+                # ? Get column names for renaming
+                colnames = names(df) # ?
+                rename!(df, colnames[1] => "Phase frequency (Hz)", # ?
+                        colnames[2] => "Amplitude frequency (Hz)", # ?
+                        colnames[3] => "Modulation index") # ?
+                df[!, "Structure"] .= sname # ?
+                push!(dfs, df) # ?
+            end # ?
+            stimname = val_to_string(stimulus) # ?
+            CSV.write(joinpath(outdir, "comodulogram_$stimname.csv"), vcat(dfs...)) # ?
+        end # ?
 
         # if stimulus == "spontaneous" # * Plot into main figure
         #     structure = "VISl"
@@ -649,6 +669,24 @@ begin # * Global and spatiotemporal PAC
                           df) # ?
             end # ?
         end # ?
+    end # ?
+
+    begin # ? Save source data for figS10 (spatiotemporal PAC all regions)
+        mkpath(datadir("source_data", "figS10")) # ?
+        outdir = datadir("source_data", "figS10") # ?
+        @unpack PAC = plot_data["spatiotemporal_pac"] # ?
+        dfs = DataFrame[] # ?
+        for P in PAC # ?
+            s = metadata(P)[:structure] # ?
+            sname = replace(s, "/" => "") # ?
+            x = ustripall(P[𝑡 = SpatiotemporalMotifs.INTERVAL]) # ?
+            df = DataFrame(x) # ?
+            rename!(df, "𝑡" => "Time (s)", "Depth" => "Cortical depth (%)", # ?
+                    last(names(df)) => "PAC") # ?
+            df[!, "Structure"] .= sname # ?
+            push!(dfs, df) # ?
+        end # ?
+        CSV.write(joinpath(outdir, "spatiotemporal_pac_all_regions.csv"), vcat(dfs...)) # ?
     end # ?
 end
 

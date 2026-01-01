@@ -228,31 +228,29 @@ begin # ? Figure 1A
     f
 
     begin # * Save fig1A csv files
-        using CSV, DataFrames
-
-        outdir = datadir("source_data", "fig1A")
+        outdir = datadir("source_data", "fig1")
         mkpath(outdir)
 
         # 1. Surface data (S) - the main 3D surface with theta + gamma overlay
         surface_df = DataFrame(S)
         rename_cols!(surface_df)
-        CSV.write(joinpath(outdir, "surface.csv"), surface_df)
+        CSV.write(joinpath(outdir, "panel_a_surface.csv"), surface_df)
 
         # 2. Base theta signal (x) before gamma overlay
         theta_df = DataFrame(x)
         rename_cols!(theta_df)
-        CSV.write(joinpath(outdir, "theta.csv"), theta_df)
+        CSV.write(joinpath(outdir, "panel_a_theta.csv"), theta_df)
 
         # 3. Gamma peaks envelope (peaks)
         peaks_df = DataFrame(peaks)
         rename_cols!(peaks_df)
-        CSV.write(joinpath(outdir, "gamma_peaks.csv"), peaks_df)
+        CSV.write(joinpath(outdir, "panel_a_gamma_peaks.csv"), peaks_df)
 
         # 4. Gamma oscillation (G) - G is a plain array, need to reconstruct with dims
         G_da = set(x, G)  # Use x's dimensions for G
         gamma_df = DataFrame(G_da)
         rename_cols!(gamma_df)
-        CSV.write(joinpath(outdir, "gamma_oscillation.csv"), gamma_df)
+        CSV.write(joinpath(outdir, "panel_a_gamma_oscillation.csv"), gamma_df)
 
         # 5. Spike data
         spike_df = DataFrame("time (s)" => Float64[], "cortical depth (%)" => Float64[])
@@ -262,7 +260,7 @@ begin # ? Figure 1A
                 push!(spike_df, (t, d))
             end
         end
-        CSV.write(joinpath(outdir, "spikes.csv"), spike_df)
+        CSV.write(joinpath(outdir, "panel_a_spikes.csv"), spike_df)
 
         @info "Saved Figure 1A data to $outdir"
     end
@@ -458,38 +456,38 @@ begin # ? Figure 1: C--G
         end
 
         if structure == "VISl" # * Save csv source data
-            outdir = datadir("source_data", "fig1CtoG")
+            outdir = datadir("source_data", "fig1")
             mkpath(outdir)
 
             # Panel C: LFP heatmap
             lfp_df = DataFrame(ustripall(V))
             rename_cols!(lfp_df)
             rename!(lfp_df, names(lfp_df)[end] => "lfp (mV)")
-            CSV.write(joinpath(outdir, "lfp.csv"), lfp_df)
+            CSV.write(joinpath(outdir, "panel_c_lfp.csv"), lfp_df)
 
             # Panel D: Theta phase heatmap
             phase_df = DataFrame(ustripall(ϕ))
             rename_cols!(phase_df)
             rename!(phase_df, names(phase_df)[end] => "Phase (radians)")
-            CSV.write(joinpath(outdir, "theta_phase.csv"), phase_df)
+            CSV.write(joinpath(outdir, "panel_d_theta_phase.csv"), phase_df)
 
-            # Panel E: Gamma amplitude heatmap
+            # Panel f: Gamma amplitude heatmap
             gamma_amp_df = DataFrame(ustripall(_r[δT]) .* 100)
             rename_cols!(gamma_amp_df)
             rename!(gamma_amp_df, names(gamma_amp_df)[end] => "Amplitude (arb. units)")
-            CSV.write(joinpath(outdir, "gamma_amplitude.csv"), gamma_amp_df)
+            CSV.write(joinpath(outdir, "panel_f_gamma_amplitude.csv"), gamma_amp_df)
 
-            # Panel F: Wavenumber heatmap
+            # Panel e: Wavenumber heatmap
             wavenumber_df = DataFrame(ustripall(k))
             rename_cols!(wavenumber_df)
             rename!(wavenumber_df, names(wavenumber_df)[end] => "Wavenumber (mm^-1)")
-            CSV.write(joinpath(outdir, "wavenumber.csv"), wavenumber_df)
+            CSV.write(joinpath(outdir, "panel_e_wavenumber.csv"), wavenumber_df)
 
             # Panel G: PAC mask and peaks
             pac_mask_df = DataFrame(mask[𝑡 = δT])
             rename_cols!(pac_mask_df)
             rename!(pac_mask_df, names(pac_mask_df)[end] => "Mask")
-            CSV.write(joinpath(outdir, "pac_mask.csv"), pac_mask_df)
+            CSV.write(joinpath(outdir, "panel_g_pac_mask.csv"), pac_mask_df)
 
             # PAC peaks (gamma burst times and depths)
             pac_peaks_df = DataFrame("time (s)" => Float64[],
@@ -500,7 +498,7 @@ begin # ? Figure 1: C--G
                     push!(pac_peaks_df, (t, d))
                 end
             end
-            CSV.write(joinpath(outdir, "pac_peaks.csv"), pac_peaks_df)
+            CSV.write(joinpath(outdir, "panel_g_pac_peaks.csv"), pac_peaks_df)
 
             @info "Saved Figure 1 C-G data to $outdir"
         end

@@ -976,6 +976,9 @@ function _hierarchicalkendall(xx, yy; N = 10000, confint = 0.95)
 end
 
 function mediankendallpvalue(x::AbstractVector, Y::AbstractMatrix; N = 10000) # Take the correlation of each column
+    # idxs = collect(.!mapslices(any, isnan.(Y), dims = 2))[:]
+    # x = x[idxs]
+    # Y = Y[idxs, :]
     τ = map(eachslice(collect(Y), dims = 2)) do y
         notnan = .!isnan.(y)
         corkendall(x[notnan], y[notnan])
@@ -984,12 +987,15 @@ function mediankendallpvalue(x::AbstractVector, Y::AbstractMatrix; N = 10000) # 
         idxs = randperm(length(x))
         taus = map(eachslice(collect(Y), dims = 2)) do y
             notnan = .!isnan.(y)
-            corspearman(x[idxs][notnan], y[notnan])
+            corkendall(x[idxs][notnan], y[notnan])
         end
     end
     τsur = vcat(τsur...)
-    𝑝 = MannWhitneyUTest(τ[:], τsur[:]) |> pvalue
-    return median(τ), 𝑝
+    tst = MannWhitneyUTest(τ[:], τsur[:])
+    𝑝 = tst |> pvalue
+
+    mtau, ci = bootstrapmedian(collect(τ .+ randn(length(τ)) .* eps()))
+    return (; τ = mtau, ci, 𝑝, U = tst.U, n = length(x), N)
 end
 
 function hierarchicalkendall(x::AbstractVector{<:Real}, y::AbstractDimArray,
