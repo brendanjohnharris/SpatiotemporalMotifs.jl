@@ -1,7 +1,6 @@
 #! /bin/bash
-# -*- mode: julia -*-
 #=
-exec julia +1.10.10 -t auto --color=yes "${BASH_SOURCE[0]}" "$@"
+exec julia -t auto --color=yes "${BASH_SOURCE[0]}" "$@"
 =#
 using DrWatson
 @quickactivate "SpatiotemporalMotifs"
