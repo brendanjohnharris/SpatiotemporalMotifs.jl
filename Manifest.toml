@@ -2,7 +2,7 @@
 
 julia_version = "1.10.10"
 manifest_format = "2.0"
-project_hash = "c89e08e10a9a488c87f66417424992dd626dca7f"
+project_hash = "c2e7284f98e8e4caa6453e9a41f7156d919d2c63"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "be7ae030256b8ef14a441726c4c37766b90b93a3"
@@ -399,9 +399,9 @@ version = "0.3.2"
 
 [[deps.CondaPkg]]
 deps = ["JSON3", "Markdown", "MicroMamba", "Pidfile", "Pkg", "Preferences", "Scratch", "TOML", "pixi_jll"]
-git-tree-sha1 = "93e81a68a84dba7e652e61425d982cd71a1a0835"
+git-tree-sha1 = "bd491d55b97a036caae1d78729bdb70bf7dababc"
 uuid = "992eb4ea-22a4-4c89-a5bb-47a3300528ab"
-version = "0.2.29"
+version = "0.2.33"
 
 [[deps.ConstructionBase]]
 git-tree-sha1 = "b4b092499347b18a015186eae3042f72267106cb"
