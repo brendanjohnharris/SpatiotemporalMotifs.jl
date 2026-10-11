@@ -94,3 +94,6 @@ TimeseriesTools = "=0.5.0"
 UnPack = "1"
 Unitful = "1.13"
 julia = "1.10"
+
+[preferences.CondaPkg]
+channel_mapping = {anaconda = "conda-forge"} # pinned pixi 0.41.3 cannot parse anaconda python_abi constrains
